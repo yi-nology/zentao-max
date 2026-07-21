@@ -26,6 +26,11 @@ tasks:
   build:native:
     summary: Builds the application natively on macOS
     internal: true
+    # 显式锁 cwd 到项目根, 防止 dep (common:build:frontend 的 dir: frontend)
+    # 污染 cwd 后 go build 在 frontend/ 跑, 找不到 backend/core/app 子包
+    # → Go fallback 外部查 → git ls-remote https://github.com/yi-nology/zentao-max
+    # → 私有 repo 缺凭证 → "could not read Username" (CI 反复挂这个)
+    dir: '{{.ROOT_DIR}}'
     deps:
       - task: common:go:mod:tidy
       - task: common:build:frontend

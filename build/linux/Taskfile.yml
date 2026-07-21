@@ -41,6 +41,8 @@ tasks:
   build:native:
     summary: Builds the application natively on Linux
     internal: true
+    # 显式锁 cwd 到项目根, 防止 common:build:frontend (dir: frontend) 污染 cwd
+    dir: '{{.ROOT_DIR}}'
     deps:
       - task: common:go:mod:tidy
       - task: common:build:frontend

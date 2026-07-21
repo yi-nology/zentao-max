@@ -42,11 +42,13 @@ build-app.sh
 zentao-max-app
 zentao-max-local
 zentao-max-server
-app
 server
 backend/mcp
 data/
 zentao-max-local-new
+
+# 排除 wire 工具生成的文件 (backend/core/app/{app,wails_app,http_app,wire}.go 是源码, 必须 commit)
+backend/core/app/wire_gen.go
 
 # Wails v3 构建产物
 /bin/

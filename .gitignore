@@ -42,10 +42,12 @@ build-app.sh
 zentao-max-app
 zentao-max-local
 zentao-max-server
-server
 backend/mcp
 data/
 zentao-max-local-new
+
+# embedded app 模式的 build 产物 (scripts/copy-static.sh 跑 npm run build 后生成)
+backend/cmd/app/static/
 
 # Wails v3 构建产物
 /bin/

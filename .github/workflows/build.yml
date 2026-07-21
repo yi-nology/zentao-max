@@ -14,10 +14,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ACTIONS_CACHE_VERBOSITY: detailed
   APP_NAME: zentao-max
-  # 私有 repo: Go 别走 proxy.golang.org, 直接走 git, 跳过 sum 校验
-  GOPRIVATE: github.com/yi-nology/*
-  GONOSUMDB: github.com/yi-nology/*
-  GONOSUMCHECK: github.com/yi-nology/*
+  # 不要 GOPRIVATE: go.mod 里的所有依赖 (含 github.com/yi-nology/common) 都是 public
+  # 强制走 git 反而让 GITHUB_TOKEN 没权限的 repo (common) 拉不到
+  # public repo 让 Go 走 proxy.golang.org 就好, 私有模块 (zentao-max 自身) 靠 git extraheader bearer 兜底
 
 jobs:
   build:

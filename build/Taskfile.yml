@@ -176,6 +176,11 @@ tasks:
   generate:bindings:
     summary: Generates bindings for the frontend
     run: once
+    # 显式锁 cwd 到项目根, 防止被 build:frontend (dir: frontend) 污染
+    # wails3 generate bindings 要做 Go AST 分析, 在 frontend/ 跑找不到 go.mod
+    # → Go fallback 外部查 → 'git ls-remote https://github.com/yi-nology/zentao-max'
+    # → 凭证缺失 → 'could not read Username' (CI 反复挂这个)
+    dir: '{{.ROOT_DIR}}'
     deps:
       - task: go:mod:tidy
     sources:

@@ -54,9 +54,10 @@ jobs:
 
       - name: Configure git for private Go modules
         # GOPRIVATE 让 Go 跳过 proxy 直走 git, 但 git ls-remote 仍要凭证
-        # 把 https://github.com/ 改写成带 token 的 URL, 私有 repo module 解析才能过
+        # 用 bearer extraheader (跟 actions/checkout 内部一致), 走 modern auth,
+        # 不要把 token 塞 URL 里 -- GitHub 已禁 basic auth
         run: |
-          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GITHUB_TOKEN}"
 
       - name: Set up Go
         uses: actions/setup-go@v5

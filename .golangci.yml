@@ -1,0 +1,98 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - dogsled
+    - exhaustive
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goprintffuncname
+    - gosec
+    - misspell
+    - nakedret
+    - noctx
+    - unconvert
+    - unparam
+    - whitespace
+
+  settings:
+    gocyclo:
+      min-complexity: 15
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    misspell:
+      locale: US
+    goimports:
+      local-prefixes: github.com/yi-nology/zentao-max
+    gofmt:
+      simplify: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+    gosec:
+      excludes:
+        - G104
+        - G304
+    nakedret:
+      max-func-lines: 30
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/yi-nology/zentao-max
+    gofmt:
+      simplify: true
+
+  exclusions:
+    presets:
+      - common-false-positives
+      - legacy
+    paths:
+      - vendor
+      - node_modules
+      - frontend
+      - third_party
+      - builtin
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - gosec
+          - goconst
+          - gocyclo
+      - path: wire_gen\.go
+        linters:
+          - all
+      - path: biz/model/.*\.pb\.go
+        linters:
+          - all
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

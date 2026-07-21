@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package scheduler;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/scheduler";
+
+import "common.proto";
+import "api/api.proto";
+
+service SchedulerService {
+    rpc ListTasks(ListTasksReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/tasks";
+    }
+
+    rpc CreateTask(CreateTaskReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/tasks";
+    }
+
+    rpc UpdateTask(UpdateTaskReq) returns (common.ApiResponse) {
+        option (api.put) = "/api/v1/scheduler/tasks/:id";
+    }
+
+    rpc DeleteTask(DeleteTaskReq) returns (common.ApiResponse) {
+        option (api.delete) = "/api/v1/scheduler/tasks/:id";
+    }
+
+    rpc ToggleTask(ToggleTaskReq) returns (common.ApiResponse) {
+        option (api.patch) = "/api/v1/scheduler/tasks/:id/toggle";
+    }
+
+    rpc RunTaskNow(RunTaskNowReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/tasks/:id/run";
+    }
+
+    rpc GetTaskLogs(GetTaskLogsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/tasks/:id/logs";
+    }
+
+    rpc GetAllLogs(GetAllLogsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/logs";
+    }
+
+    rpc TestWebhook(TestWebhookReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/test-webhook";
+    }
+
+    rpc PreviewReport(PreviewReportReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/preview";
+    }
+}
+
+message ListTasksReq {}
+
+message CreateTaskReq {
+    bytes task = 1 [(api.raw_body) = "task"];
+}
+
+message UpdateTaskReq {
+    string id = 1 [(api.path) = "id"];
+    bytes task = 2 [(api.raw_body) = "task"];
+}
+
+message DeleteTaskReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message ToggleTaskReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message RunTaskNowReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message GetTaskLogsReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message GetAllLogsReq {}
+
+message TestWebhookReq {
+    string url = 1 [(api.query) = "url"];
+}
+
+message PreviewReportReq {
+    bytes params = 1 [(api.raw_body) = "params"];
+}

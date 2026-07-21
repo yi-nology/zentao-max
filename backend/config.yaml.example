@@ -1,0 +1,98 @@
+# ==================== 服务器配置 ====================
+server:
+  # 应用类型: "wails" 或 "http"
+  type: http
+  
+  # HTTP服务器端口
+  port: "12345"
+  
+  # 静态资源路径（仅用于HTTP模式）
+  # static_path: "./backend/cmd/app/static"
+  
+  # 读超时时间（秒）
+  read_timeout: 120
+  
+  # 写超时时间（秒）
+  write_timeout: 120
+  
+  # 优雅关闭超时时间（秒）
+  shutdown_timeout: 30
+
+# ==================== 禅道配置 ====================
+zentao:
+  # 禅道服务器地址
+  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_SERVER 设置
+  server: "http://your-zentao-server.com"
+  
+  # 禅道账号
+  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_ACCOUNT 设置
+  account: "your-account"
+  
+  # 禅道密码
+  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_PASSWORD 设置
+  password: "your-password"
+  
+  # Token刷新间隔（小时）
+  token_refresh_interval: 12
+  
+  # 请求超时时间（秒）
+  request_timeout: 120
+
+# ==================== 认证配置 ====================
+auth:
+  # 认证配置文件路径
+  config_path: "./auth_config.enc"
+  
+  # 认证数据库路径
+  db_path: "./auth.db"
+
+# ==================== 安全配置 ====================
+security:
+  # 加密密钥（必须设置，用于加密存储的认证信息）
+  # 生产环境务必修改为强密码！
+  # 也可以通过环境变量 ZENTAO_MAX_SECURITY_ENCRYPTION_KEY 设置
+  encryption_key: "your-strong-encryption-key-here"
+  
+  # CORS允许的域名（多个域名用逗号分隔）
+  # 生产环境必须设置，开发环境可以不设置（允许所有来源）
+  # 示例: ["http://localhost:3000", "https://example.com"]
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+
+# ==================== 日志配置 ====================
+log:
+  # 日志级别: debug, info, warn, error
+  level: info
+  
+  # 日志格式: json（生产环境）, console（开发环境）
+  format: console
+  
+  # 日志输出路径（空表示标准输出）
+  # output_path: "./logs/app.log"
+  output_path: ""
+  
+  # 是否启用调用者信息
+  enable_caller: true
+  
+  # 是否启用堆栈跟踪
+  enable_stacktrace: false
+
+# ==================== 限流配置 ====================
+rate_limit:
+  # 每分钟允许的请求数
+  requests_per_minute: 60
+  
+  # 超限后的封禁时长（分钟）
+  block_duration_minutes: 5
+
+# ==================== 配置说明 ====================
+# 1. 配置优先级：环境变量 > 配置文件 > 默认值
+# 2. 环境变量命名规范：使用 ZENTAO_MAX_ 前缀，配置项用下划线连接
+#    例如：server.port -> ZENTAO_MAX_SERVER_PORT
+# 3. 生产环境建议：
+#    - 使用环境变量管理敏感信息（密码、密钥等）
+#    - 日志格式设置为 json
+#    - 日志级别设置为 info 或 warn
+#    - 启用 CORS 白名单
+#    - 适当调整限流配置

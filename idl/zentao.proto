@@ -1,0 +1,395 @@
+syntax = "proto3";
+
+package zentao;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/zentao";
+
+import "common.proto";
+import "api/api.proto";
+
+service ZentaoService {
+    rpc GetVersion(GetVersionReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/version";
+    }
+
+    rpc HealthCheck(HealthCheckReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/healthz";
+    }
+
+    rpc GetProducts(GetProductsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/products";
+    }
+
+    rpc GetProjects(GetProjectsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/projects";
+    }
+
+    rpc GetExecutions(GetExecutionsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/executions";
+    }
+
+    rpc GetBugs(GetBugsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/bugs";
+    }
+
+    rpc GetBuildsByProject(GetBuildsByProjectReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/builds/project";
+    }
+
+    rpc GetBuildsByExecution(GetBuildsByExecutionReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/builds/execution";
+    }
+
+    rpc GetStories(GetStoriesReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/stories";
+    }
+
+    rpc GetTasks(GetTasksReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/tasks";
+    }
+
+    rpc GetUsers(GetUsersReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/users";
+    }
+
+    rpc GetUsersAll(GetUsersAllReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/users/all";
+    }
+
+    rpc GetCurrentUser(GetCurrentUserReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/users/current";
+    }
+
+    rpc GetTimelogAnalysis(GetTimelogAnalysisReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/timelog/analysis";
+    }
+
+    rpc GetTimelogDashboard(GetTimelogDashboardReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/timelog/dashboard";
+    }
+
+    rpc GetTimelogEfforts(GetTimelogEffortsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/timelog/efforts";
+    }
+
+    rpc GetDashboard(GetDashboardReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/dashboard";
+    }
+
+    rpc GetProjectOverview(GetProjectOverviewReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/project/overview";
+    }
+
+    rpc GetPersonalTimelog(GetPersonalTimelogReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/personal/timelog";
+    }
+
+    rpc Search(SearchReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/search";
+    }
+
+    rpc GetInitStatus(GetInitStatusReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/init/status";
+    }
+
+    rpc GetAccountInfo(GetAccountInfoReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/init/account";
+    }
+
+    rpc ListSchedulerTasks(ListSchedulerTasksReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/tasks";
+    }
+
+    rpc CreateSchedulerTask(CreateSchedulerTaskReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/tasks";
+    }
+
+    rpc UpdateSchedulerTask(UpdateSchedulerTaskReq) returns (common.ApiResponse) {
+        option (api.put) = "/api/v1/scheduler/tasks/:id";
+    }
+
+    rpc DeleteSchedulerTask(DeleteSchedulerTaskReq) returns (common.ApiResponse) {
+        option (api.delete) = "/api/v1/scheduler/tasks/:id";
+    }
+
+    rpc ToggleSchedulerTask(ToggleSchedulerTaskReq) returns (common.ApiResponse) {
+        option (api.patch) = "/api/v1/scheduler/tasks/:id/toggle";
+    }
+
+    rpc RunSchedulerTaskNow(RunSchedulerTaskNowReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/tasks/:id/run";
+    }
+
+    rpc GetSchedulerTaskLogs(GetSchedulerTaskLogsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/tasks/:id/logs";
+    }
+
+    rpc GetSchedulerAllLogs(GetSchedulerAllLogsReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/scheduler/logs";
+    }
+
+    rpc TestSchedulerWebhook(TestSchedulerWebhookReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/test-webhook";
+    }
+
+    rpc PreviewSchedulerReport(PreviewSchedulerReportReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/scheduler/preview";
+    }
+
+    rpc MCPHandleAction(MCPHandleActionReq) returns (common.ApiResponse) {
+        option (api.post) = "/mcp";
+    }
+
+    rpc MCPHandleActionGet(MCPHandleActionGetReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp";
+    }
+
+    rpc MCPHandleListTools(MCPHandleListToolsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tools";
+    }
+
+    rpc MCPHandleGetTool(MCPHandleGetToolReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tools/:name";
+    }
+
+    rpc MCPPing(MCPPingReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/ping";
+    }
+
+    rpc MCPGetProducts(MCPGetProductsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/products";
+    }
+
+    rpc MCPGetProjects(MCPGetProjectsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/projects";
+    }
+
+    rpc MCPGetExecutions(MCPGetExecutionsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/executions";
+    }
+
+    rpc MCPGetBugs(MCPGetBugsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/bugs";
+    }
+
+    rpc MCPGetStories(MCPGetStoriesReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/stories";
+    }
+
+    rpc MCPGetTasks(MCPGetTasksReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tasks";
+    }
+
+    rpc MCPGetUsers(MCPGetUsersReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/users";
+    }
+
+    rpc MCPGetTimelog(MCPGetTimelogReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/timelog";
+    }
+}
+
+message GetVersionReq {}
+message HealthCheckReq {}
+message GetProductsReq {}
+
+message GetProjectsReq {
+    int32 product_id = 1 [(api.query) = "productId"];
+}
+
+message GetExecutionsReq {
+    int32 project_id = 1 [(api.query) = "projectId"];
+    int32 product_id = 2 [(api.query) = "productId"];
+}
+
+message GetBugsReq {
+    int32 product_id = 1 [(api.query) = "productId"];
+    int32 project_id = 2 [(api.query) = "projectId"];
+    string status = 3 [(api.query) = "status"];
+    string assigned_to = 4 [(api.query) = "assignedTo"];
+    string start_date = 5 [(api.query) = "startDate"];
+    string end_date = 6 [(api.query) = "endDate"];
+    string specific_date = 7 [(api.query) = "specificDate"];
+    string version = 8 [(api.query) = "version"];
+    int32 page = 9 [(api.query) = "page"];
+    int32 page_size = 10 [(api.query) = "pageSize"];
+}
+
+message GetBuildsByProjectReq {
+    int32 project_id = 1 [(api.query) = "projectId"];
+}
+
+message GetBuildsByExecutionReq {
+    int32 execution_id = 1 [(api.query) = "executionId"];
+}
+
+message GetStoriesReq {
+    int32 product_id = 1 [(api.query) = "productId"];
+    int32 project_id = 2 [(api.query) = "projectId"];
+    int32 execution_id = 3 [(api.query) = "executionId"];
+    string assigned_to = 4 [(api.query) = "assignedTo"];
+    string start_date = 5 [(api.query) = "startDate"];
+    string end_date = 6 [(api.query) = "endDate"];
+    string specific_date = 7 [(api.query) = "specificDate"];
+    int32 page = 8 [(api.query) = "page"];
+    int32 page_size = 9 [(api.query) = "pageSize"];
+}
+
+message GetTasksReq {
+    int32 product_id = 1 [(api.query) = "productId"];
+    int32 execution_id = 2 [(api.query) = "executionId"];
+    string assigned_to = 3 [(api.query) = "assignedTo"];
+    string status = 4 [(api.query) = "status"];
+    string start_date = 5 [(api.query) = "startDate"];
+    string end_date = 6 [(api.query) = "endDate"];
+    int32 page = 7 [(api.query) = "page"];
+    int32 page_size = 8 [(api.query) = "pageSize"];
+}
+
+message GetUsersReq {
+    int32 page = 1 [(api.query) = "page"];
+    int32 page_size = 2 [(api.query) = "pageSize"];
+}
+
+message GetUsersAllReq {}
+message GetCurrentUserReq {}
+
+message GetTimelogAnalysisReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string project_id = 2 [(api.query) = "projectId"];
+    string execution_id = 3 [(api.query) = "executionId"];
+    string assigned_to = 4 [(api.query) = "assignedTo"];
+    string date_from = 5 [(api.query) = "dateFrom"];
+    string date_to = 6 [(api.query) = "dateTo"];
+}
+
+message GetTimelogDashboardReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string project_id = 2 [(api.query) = "projectId"];
+    string execution_id = 3 [(api.query) = "executionId"];
+    string assigned_to = 4 [(api.query) = "assignedTo"];
+    string date_from = 5 [(api.query) = "dateFrom"];
+    string date_to = 6 [(api.query) = "dateTo"];
+}
+
+message GetTimelogEffortsReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string project_id = 2 [(api.query) = "projectId"];
+    string execution_id = 3 [(api.query) = "executionId"];
+    string assigned_to = 4 [(api.query) = "assignedTo"];
+    string date_from = 5 [(api.query) = "dateFrom"];
+    string date_to = 6 [(api.query) = "dateTo"];
+}
+
+message GetDashboardReq {
+    int32 product_id = 1 [(api.query) = "productId"];
+}
+
+message GetProjectOverviewReq {
+    int32 project_id = 1 [(api.query) = "projectId"];
+}
+
+message GetPersonalTimelogReq {
+    string account = 1 [(api.query) = "account"];
+    int32 product_id = 2 [(api.query) = "productId"];
+    string date_from = 3 [(api.query) = "dateFrom"];
+    string date_to = 4 [(api.query) = "dateTo"];
+    string group_by = 5 [(api.query) = "groupBy"];
+}
+
+message SearchReq {
+    string keyword = 1 [(api.query) = "keyword"];
+    int32 product_id = 2 [(api.query) = "productId"];
+    int32 page = 3 [(api.query) = "page"];
+    int32 page_size = 4 [(api.query) = "pageSize"];
+}
+
+message GetInitStatusReq {}
+message GetAccountInfoReq {}
+
+message ListSchedulerTasksReq {}
+
+message CreateSchedulerTaskReq {
+    bytes task = 1 [(api.raw_body) = "task"];
+}
+
+message UpdateSchedulerTaskReq {
+    string id = 1 [(api.path) = "id"];
+    bytes task = 2 [(api.raw_body) = "task"];
+}
+
+message DeleteSchedulerTaskReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message ToggleSchedulerTaskReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message RunSchedulerTaskNowReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message GetSchedulerTaskLogsReq {
+    string id = 1 [(api.path) = "id"];
+}
+
+message GetSchedulerAllLogsReq {}
+
+message TestSchedulerWebhookReq {
+    string url = 1 [(api.query) = "url"];
+}
+
+message PreviewSchedulerReportReq {
+    bytes params = 1 [(api.raw_body) = "params"];
+}
+
+message MCPHandleActionReq {
+    string action = 1 [(api.query) = "action"];
+    bytes params = 2 [(api.raw_body) = "params"];
+}
+
+message MCPHandleActionGetReq {
+    string action = 1 [(api.query) = "action"];
+}
+
+message MCPHandleListToolsReq {}
+
+message MCPHandleGetToolReq {
+    string name = 1 [(api.path) = "name"];
+}
+
+message MCPPingReq {}
+
+message MCPGetProductsReq {}
+
+message MCPGetProjectsReq {
+    string product_id = 1 [(api.query) = "productId"];
+}
+
+message MCPGetExecutionsReq {
+    string project_id = 1 [(api.query) = "projectId"];
+    string product_id = 2 [(api.query) = "productId"];
+}
+
+message MCPGetBugsReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string status = 2 [(api.query) = "status"];
+}
+
+message MCPGetStoriesReq {
+    string product_id = 1 [(api.query) = "productId"];
+}
+
+message MCPGetTasksReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string execution_id = 2 [(api.query) = "executionId"];
+}
+
+message MCPGetUsersReq {}
+
+message MCPGetTimelogReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string date_from = 2 [(api.query) = "dateFrom"];
+    string date_to = 3 [(api.query) = "dateTo"];
+}

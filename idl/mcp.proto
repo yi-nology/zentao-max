@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package mcp;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/mcp";
+
+import "common.proto";
+import "api/api.proto";
+
+service MCPService {
+    rpc HandleAction(HandleActionReq) returns (common.ApiResponse) {
+        option (api.post) = "/mcp";
+    }
+
+    rpc HandleActionGet(HandleActionGetReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp";
+    }
+
+    rpc HandleListTools(HandleListToolsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tools";
+    }
+
+    rpc HandleGetTool(HandleGetToolReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tools/:name";
+    }
+
+    rpc Ping(PingReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/ping";
+    }
+
+    rpc GetProducts(GetProductsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/products";
+    }
+
+    rpc GetProjects(GetProjectsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/projects";
+    }
+
+    rpc GetExecutions(GetExecutionsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/executions";
+    }
+
+    rpc GetBugs(GetBugsReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/bugs";
+    }
+
+    rpc GetStories(GetStoriesReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/stories";
+    }
+
+    rpc GetTasks(GetTasksReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/tasks";
+    }
+
+    rpc GetUsers(GetUsersReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/users";
+    }
+
+    rpc GetTimelog(GetTimelogReq) returns (common.ApiResponse) {
+        option (api.get) = "/mcp/timelog";
+    }
+}
+
+message HandleActionReq {
+    string action = 1 [(api.query) = "action"];
+    bytes params = 2 [(api.raw_body) = "params"];
+}
+
+message HandleActionGetReq {
+    string action = 1 [(api.query) = "action"];
+}
+
+message HandleListToolsReq {}
+
+message HandleGetToolReq {
+    string name = 1 [(api.path) = "name"];
+}
+
+message PingReq {}
+
+message GetProductsReq {}
+
+message GetProjectsReq {
+    string product_id = 1 [(api.query) = "productId"];
+}
+
+message GetExecutionsReq {
+    string project_id = 1 [(api.query) = "projectId"];
+    string product_id = 2 [(api.query) = "productId"];
+}
+
+message GetBugsReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string status = 2 [(api.query) = "status"];
+}
+
+message GetStoriesReq {
+    string product_id = 1 [(api.query) = "productId"];
+}
+
+message GetTasksReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string execution_id = 2 [(api.query) = "executionId"];
+}
+
+message GetUsersReq {}
+
+message GetTimelogReq {
+    string product_id = 1 [(api.query) = "productId"];
+    string date_from = 2 [(api.query) = "dateFrom"];
+    string date_to = 3 [(api.query) = "dateTo"];
+}

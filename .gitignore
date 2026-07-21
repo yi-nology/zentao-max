@@ -1,0 +1,68 @@
+build/bin
+node_modules
+frontend/dist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+
+# Docker build artifacts
+.docker/
+
+# Database files
+auth.db
+backend/cron.db
+cron.db
+
+# Test coverage files
+coverage.out
+backend/coverage.out
+
+# Environment files
+backend/.env
+backend/config.yaml
+
+# Frontend build artifacts
+frontend/package.json.md5
+
+# Build scripts with hardcoded config
+build-app.sh
+
+# IDE and test files
+.idea/
+.trae/
+.qoder/
+.zcode/
+
+zentao-max-app
+zentao-max-local
+zentao-max-server
+app
+server
+backend/mcp
+data/
+zentao-max-local-new
+
+# Wails v3 构建产物
+/bin/
+/zentao-max
+/zentao-max.exe
+/.task/
+build/android/.gradle/
+build/android/build/
+build/android/app/build/
+build/ios/build/
+
+# 调试日志误入
+backend/core/zentao/stderr
+backend/core/zentao/stdout
+*.log
+backend/*.log
+
+# 本地配置
+/.env

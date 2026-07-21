@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/common";
+
+message ApiResponse {
+    int32 code = 1;
+    string message = 2;
+    bytes data = 3;
+}
+
+message PaginatedData {
+    bytes list = 1;
+    int32 total = 2;
+    int32 page = 3;
+    int32 page_size = 4;
+}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package init;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/init";
+
+import "common.proto";
+import "api/api.proto";
+
+service InitService {
+    rpc GetInitStatus(GetInitStatusReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/init/status";
+    }
+
+    rpc GetAccountInfo(GetAccountInfoReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/init/account";
+    }
+}
+
+message GetInitStatusReq {}
+
+message GetAccountInfoReq {}

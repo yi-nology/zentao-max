@@ -1,0 +1,10 @@
+{
+  "idl": [
+    "../idl/zentao.proto"
+  ],
+  "module": "github.com/yi-nology/zentao-max",
+  "out_dir": ".",
+  "handler_dir": "biz/handler/zentao",
+  "model_dir": "biz/model",
+  "sort_router": true
+}

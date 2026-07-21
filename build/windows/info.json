@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.0.1"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "0.0.1",
+			"CompanyName": "MurphyYi",
+			"FileDescription": "禅道项目管理桌面助手",
+			"LegalCopyright": "(c) 2026, MurphyYi",
+			"ProductName": "zentao-max",
+			"Comments": "Some Product Comments"
+		}
+	}
+}

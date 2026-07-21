@@ -1,0 +1,114 @@
+/* ============================================
+   Common Layout Styles - Design System
+   ============================================ */
+
+/* Page Container */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg, 20px);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Filter Card */
+.filter-card {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-normal);
+}
+
+.filter-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Filter Form */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.filter-form .el-form-item {
+  margin-bottom: 0;
+}
+
+/* Table Card */
+.table-card {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-sm);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow var(--transition-normal);
+}
+
+.table-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Table Header */
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+  background-color: #FAFBFC;
+}
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Pagination Wrapper */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border-light);
+  background-color: #FAFBFC;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--color-text-tertiary);
+}
+
+/* Responsive */
+@media screen and (max-width: 768px) {
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-form .el-form-item {
+    margin-right: 0;
+  }
+
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pagination-wrapper {
+    justify-content: center;
+  }
+}

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package initapi;
+
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/initapi";
+
+import "common.proto";
+import "api/api.proto";
+
+service InitService {
+    rpc GetInitStatus(GetInitStatusReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/v1/init/status";
+    }
+
+    rpc GetAccountInfo(GetAccountInfoReq) returns (common.ApiResponse) {
+        option (api.get) = "/api/init/account";
+    }
+
+    rpc SubmitLogin(SubmitLoginReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/init/login";
+    }
+
+    rpc TestZentaoConnection(TestZentaoConnectionReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/init/test";
+    }
+
+    rpc ImportZentaoSID(ImportZentaoSIDReq) returns (common.ApiResponse) {
+        option (api.post) = "/api/v1/init/zentaosid";
+    }
+
+    rpc DeleteZentaoSID(DeleteZentaoSIDReq) returns (common.ApiResponse) {
+        option (api.delete) = "/api/v1/init/zentaosid";
+    }
+}
+
+message GetInitStatusReq {}
+message GetAccountInfoReq {}
+message SubmitLoginReq {
+    string domain = 1;
+    string account = 2;
+    string password = 3;
+    string realm = 4;
+}
+message TestZentaoConnectionReq { string domain = 1; }
+message ImportZentaoSIDReq {
+    string zentaosid = 1;
+    string note = 2;
+}
+message DeleteZentaoSIDReq {}

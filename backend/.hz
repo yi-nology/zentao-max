@@ -1,6 +1,9 @@
 {
   "idl": [
-    "../idl/zentao.proto"
+    "../idl/zentao.proto",
+    "../idl/initapi.proto",
+    "../idl/mcp.proto",
+    "../idl/scheduler.proto"
   ],
   "module": "github.com/yi-nology/zentao-max",
   "out_dir": ".",

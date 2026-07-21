@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package zentao;
 
-option go_package = "github.com/yi-nology/zentao-max/backend/biz/model/zentao";
+option go_package = "github.com/yi-nology/zentao-max/backend/biz/model";
 
 import "common.proto";
 import "api/api.proto";

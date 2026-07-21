@@ -2,11 +2,11 @@ name: Build Wails App
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
     tags:
       - v*.*.*
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
   release:
     types: [ created ]
 
@@ -14,6 +14,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ACTIONS_CACHE_VERBOSITY: detailed
   APP_NAME: zentao-max
+  # 私有 repo: Go 别走 proxy.golang.org, 直接走 git, 跳过 sum 校验
+  GOPRIVATE: github.com/yi-nology/*
+  GONOSUMDB: github.com/yi-nology/*
+  GONOSUMCHECK: github.com/yi-nology/*
 
 jobs:
   build:
@@ -44,6 +48,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 显式开启: 把 GITHUB_TOKEN 写到 .git/config, 让后续 git 命令可鉴权
+          persist-credentials: true
+
+      - name: Configure git for private Go modules
+        # GOPRIVATE 让 Go 跳过 proxy 直走 git, 但 git ls-remote 仍要凭证
+        # 把 https://github.com/ 改写成带 token 的 URL, 私有 repo module 解析才能过
+        run: |
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Set up Go
         uses: actions/setup-go@v5

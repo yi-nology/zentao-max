@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Tasks (session mode) ----
@@ -48,8 +48,8 @@ type sessionTask struct {
 	Deleted      string  `json:"deleted"`
 }
 
-func (t sessionTask) toSDK() zentao.Task {
-	return zentao.Task{
+func (t sessionTask) toSDK() zentaosdk.Task {
+	return zentaosdk.Task{
 		ID:           t.ID,
 		Project:      t.Project,
 		Execution:    t.Execution,
@@ -73,13 +73,13 @@ func (t sessionTask) toSDK() zentao.Task {
 	}
 }
 
-func (c *Client) getTasksSession(ctx context.Context, executionID, page, pageSize int) ([]zentao.Task, error) {
+func (c *Client) getTasksSession(ctx context.Context, executionID, page, pageSize int) ([]zentaosdk.Task, error) {
 	path := fmt.Sprintf("/execution-task-%d.json", executionID)
 	var resp sessionExecutionTaskResp
 	if err := c.doSessionJSON(ctx, "GetTasks", path, &resp); err != nil {
 		return nil, err
 	}
-	all := make([]zentao.Task, 0, len(resp.Tasks))
+	all := make([]zentaosdk.Task, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {
 		all = append(all, t.toSDK())
 	}
@@ -97,12 +97,12 @@ func (c *Client) getTasksSession(ctx context.Context, executionID, page, pageSiz
 	return all[start:end], nil
 }
 
-func (c *Client) getAllTasksByProjectSession(ctx context.Context, projectID int) ([]zentao.Task, error) {
+func (c *Client) getAllTasksByProjectSession(ctx context.Context, projectID int) ([]zentaosdk.Task, error) {
 	execs, err := c.getExecutionsSession(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	var out []zentao.Task
+	var out []zentaosdk.Task
 	for _, e := range execs {
 		ts, terr := c.getTasksSession(ctx, e.ID, 1, 100000)
 		if terr != nil {
@@ -113,12 +113,12 @@ func (c *Client) getAllTasksByProjectSession(ctx context.Context, projectID int)
 	return out, nil
 }
 
-func (c *Client) getAllTasksByProductSession(ctx context.Context, productID int) ([]zentao.Task, error) {
+func (c *Client) getAllTasksByProductSession(ctx context.Context, productID int) ([]zentaosdk.Task, error) {
 	projects, err := c.getProjectsByProductSession(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
-	var out []zentao.Task
+	var out []zentaosdk.Task
 	for _, p := range projects {
 		ts, terr := c.getAllTasksByProjectSession(ctx, p.ID)
 		if terr != nil {
@@ -143,7 +143,7 @@ type sessionMyTaskResp struct {
 // 用于 daily note 同步时找/确认 special "📓 Daily Notes" task。
 //
 // 失败模式：受限实例限流时返 0 字节或 wrong shape，调用方应 fallback 到本地 SQLite。
-func (c *Client) ListMyTasks(ctx context.Context, status string) ([]zentao.Task, error) {
+func (c *Client) ListMyTasks(ctx context.Context, status string) ([]zentaosdk.Task, error) {
 	if c.session == nil {
 		return nil, fmt.Errorf("会话客户端未初始化")
 	}
@@ -155,7 +155,7 @@ func (c *Client) ListMyTasks(ctx context.Context, status string) ([]zentao.Task,
 	if err := c.doSessionJSON(ctx, "ListMyTasks", path, &resp); err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Task, 0, len(resp.Tasks))
+	out := make([]zentaosdk.Task, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {
 		if t.Deleted == "1" {
 			continue

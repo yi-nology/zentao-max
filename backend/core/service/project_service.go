@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-max/backend/core/dto"
@@ -26,7 +26,7 @@ func NewProjectService(client *myzentao.Client) *ProjectService {
 // 1. 如果有产品ID，按产品筛选项目
 // 2. 否则获取所有项目
 func (s *ProjectService) GetProjects(query *dto.ProjectQueryDTO) ([]vo.ProjectVO, error) {
-	var projects []zentao.Project
+	var projects []zentaosdk.Project
 	var err error
 
 	if query.ProductID != 0 {
@@ -46,7 +46,7 @@ func (s *ProjectService) GetProjects(query *dto.ProjectQueryDTO) ([]vo.ProjectVO
 }
 
 // convertToVO 将zentao.Project转换为vo.ProjectVO
-func (s *ProjectService) convertToVO(projects []zentao.Project) []vo.ProjectVO {
+func (s *ProjectService) convertToVO(projects []zentaosdk.Project) []vo.ProjectVO {
 	if len(projects) == 0 {
 		return []vo.ProjectVO{}
 	}
@@ -85,7 +85,7 @@ func NewExecutionService(client *myzentao.Client) *ExecutionService {
 // 2. 如果有产品ID，获取产品下所有项目的执行/迭代
 // 3. 否则返回空列表
 func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.ExecutionVO, error) {
-	var executions []zentao.Execution
+	var executions []zentaosdk.Execution
 
 	if query.ProjectID != 0 {
 		// 按项目筛选
@@ -122,7 +122,7 @@ func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.Exe
 }
 
 // convertToVO 将zentao.Execution转换为vo.ExecutionVO
-func (s *ExecutionService) convertToVO(executions []zentao.Execution) []vo.ExecutionVO {
+func (s *ExecutionService) convertToVO(executions []zentaosdk.Execution) []vo.ExecutionVO {
 	if len(executions) == 0 {
 		return []vo.ExecutionVO{}
 	}

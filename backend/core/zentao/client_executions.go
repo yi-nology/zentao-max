@@ -3,11 +3,11 @@ package zentao
 import (
 	"context"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // GetExecutions 获取执行列表
-func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Execution, error) {
+func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentaosdk.Execution, error) {
 	all, err := c.getExecutionsSession(context.Background(), projectID)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentao.Exec
 }
 
 // GetExecutionsContext 获取执行列表（支持 context 取消）
-func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, pageSize int) ([]zentao.Execution, error) {
+func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, pageSize int) ([]zentaosdk.Execution, error) {
 	all, err := c.getExecutionsSession(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, 
 
 // ExecutionContext 执行上下文（包含执行信息和关联的项目）
 type ExecutionContext struct {
-	Exec     zentao.Execution
+	Exec     zentaosdk.Execution
 	ProjName string
 	ExecName string
 }

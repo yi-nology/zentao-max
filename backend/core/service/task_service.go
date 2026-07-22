@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-max/backend/core/dto"
@@ -37,12 +37,12 @@ func NewTaskService(client *myzentao.Client) *TaskService {
 // 3. 应用筛选条件（指派人、状态、时间范围）
 // 4. 分页处理
 func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error) {
-	var allTasks []zentao.Task
+	var allTasks []zentaosdk.Task
 	var err error
 
 	if query.ExecutionID != 0 {
 		cacheKey := fmt.Sprintf("tasks:execution:%d", query.ExecutionID)
-		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentao.Task, error) {
+		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentaosdk.Task, error) {
 			return s.client.GetTasks(query.ExecutionID, 1, 10000)
 		})
 		if err != nil {
@@ -52,7 +52,7 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 		// 按 product 维度收集：受限 session 模式下，如果 product 范围内确实有
 		// project/execution/task，filter 之后能看到；否则 fallback 到全 execution。
 		cacheKey := "tasks:all:product:" + fmt.Sprint(query.ProductID)
-		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentao.Task, error) {
+		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentaosdk.Task, error) {
 			return s.fetchAllTasks(query.ProductID)
 		})
 		if err != nil {
@@ -79,9 +79,9 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 
 	// 按指派人筛选
 	if query.AssignedTo != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Task) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Task) bool {
 			return func() string {
-				if ref, ok := item.AssignedTo.(zentao.UserRef); ok {
+				if ref, ok := item.AssignedTo.(zentaosdk.UserRef); ok {
 					return ref.Account
 				}
 				return ""
@@ -91,14 +91,14 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 
 	// 按状态筛选
 	if query.Status != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Task) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Task) bool {
 			return item.Status == query.Status
 		})
 	}
 
 	// 按日期范围筛选
 	if query.StartDate != "" || query.EndDate != "" {
-		chainFilter = chainFilter.FilterByDate(query.StartDate, query.EndDate, func(item zentao.Task) string {
+		chainFilter = chainFilter.FilterByDate(query.StartDate, query.EndDate, func(item zentaosdk.Task) string {
 			return item.OpenedDate
 		})
 	}
@@ -120,7 +120,7 @@ func (s *TaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 }
 
 // convertToVO 将zentao.Task转换为vo.TaskVO
-func (s *TaskService) convertToVO(tasks []zentao.Task) []vo.TaskVO {
+func (s *TaskService) convertToVO(tasks []zentaosdk.Task) []vo.TaskVO {
 	if len(tasks) == 0 {
 		return []vo.TaskVO{}
 	}
@@ -155,13 +155,13 @@ func (s *TaskService) convertToVO(tasks []zentao.Task) []vo.TaskVO {
 }
 
 // getTasksWithCache 直接调 loadFunc（已删除 zentao 包级 GlobalCache，缓存由 service 层 SQLite/其他层提供）。
-func (s *TaskService) getTasksWithCache(_ string, loadFunc func() ([]zentao.Task, error)) ([]zentao.Task, error) {
+func (s *TaskService) getTasksWithCache(_ string, loadFunc func() ([]zentaosdk.Task, error)) ([]zentaosdk.Task, error) {
 	return loadFunc()
 }
 
 // fetchAllTasks 获取所有执行的任务
-func (s *TaskService) fetchAllTasks(productId int) ([]zentao.Task, error) {
-	var allTasks []zentao.Task
+func (s *TaskService) fetchAllTasks(productId int) ([]zentaosdk.Task, error) {
+	var allTasks []zentaosdk.Task
 
 	projects, err := s.client.GetProjectsByProduct(productId, 1, 2000)
 	if err != nil {
@@ -197,14 +197,14 @@ func (s *TaskService) fetchAllTasks(productId int) ([]zentao.Task, error) {
 // 受限 session 模式下 product 维度跟 user 维度数据不严格对应（<user-account> 的 task
 // 不一定都关联到选中的 product），按 product 过滤容易 0 数据。dashboard 风格
 // 直接遍历全 execution 是更稳的"全量"语义。
-func (s *TaskService) fetchAllTasksAcrossExecutions() ([]zentao.Task, error) {
+func (s *TaskService) fetchAllTasksAcrossExecutions() ([]zentaosdk.Task, error) {
 	// GetExecutionsByProductContext 在 session 模式下忽略 productID受限实现
 	// 注：见 client_session_products.go:374 _ = productID），永远返回全 execution。
 	allExecCtxs, err := s.client.GetExecutionsByProductContext(context.Background(), 0)
 	if err != nil {
 		return nil, err
 	}
-	var allTasks []zentao.Task
+	var allTasks []zentaosdk.Task
 	for _, ec := range allExecCtxs {
 		tasks, err := s.client.GetTasks(ec.Exec.ID, 1, 10000)
 		if err != nil {

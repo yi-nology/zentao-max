@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/dto"
 	"github.com/yi-nology/zentao-max/backend/core/utils"
@@ -26,7 +26,7 @@ func NewBugService(client *myzentao.Client) *BugService {
 // 2. 应用筛选条件（状态、指派人、版本、时间范围）
 // 3. 分页处理
 func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
-	var bugs []zentao.Bug
+	var bugs []zentaosdk.Bug
 	var err error
 
 	// 如果有产品ID，按产品查询
@@ -38,7 +38,7 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 			bugs, err = s.client.GetAllBugsIncludeClosed(query.ProductID)
 		} else if query.AssignedTo != "" {
 			// 指派人过滤使用SearchBugs减少内存消耗
-			params := zentao.BugSearchParams{
+			params := zentaosdk.BugSearchParams{
 				ProductID:  query.ProductID,
 				Status:     query.Status,
 				AssignedTo: query.AssignedTo,
@@ -59,7 +59,7 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		}
 	} else {
 		// 如果没有产品ID，返回空列表
-		bugs = []zentao.Bug{}
+		bugs = []zentaosdk.Bug{}
 	}
 
 	// 使用链式过滤器进行筛选
@@ -67,14 +67,14 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 按状态筛选（version/type 分支下 bugs 包含全部状态，需在内存过滤）
 	if query.Status != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 			return item.Status == query.Status
 		})
 	}
 
 	// 按版本筛选（openedBuild 包含指定版本名称）
 	if query.Version != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 			for _, build := range item.OpenedBuild {
 				if build == query.Version {
 					return true
@@ -86,20 +86,20 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 按类型筛选
 	if query.Type != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 			return item.Type == query.Type
 		})
 	}
 
 	// 按时间范围或具体日期筛选
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 			filtered := utils.FilterByDateRangeOrSpecific(
-				[]zentao.Bug{item},
+				[]zentaosdk.Bug{item},
 				query.StartDate,
 				query.EndDate,
 				query.SpecificDate,
-				func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
+				func(b zentaosdk.Bug) string { s, _ := b.OpenedDate.(string); return s },
 			)
 			return len(filtered) > 0
 		})
@@ -122,7 +122,7 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 }
 
 // convertToVO 将zentao.Bug转换为vo.BugVO
-func (s *BugService) convertToVO(bugs []zentao.Bug) []vo.BugVO {
+func (s *BugService) convertToVO(bugs []zentaosdk.Bug) []vo.BugVO {
 	if len(bugs) == 0 {
 		return []vo.BugVO{}
 	}

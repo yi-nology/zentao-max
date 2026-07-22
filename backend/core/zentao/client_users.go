@@ -5,11 +5,11 @@ import (
 
 	"github.com/yi-nology/zentao-max/backend/core/metrics"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // GetUsers 获取用户列表（支持分页）
-func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) {
+func (c *Client) GetUsers(page, pageSize int) (*zentaosdk.UserListResponse, error) {
 	allUsers, err := c.GetUsersAll()
 	if err != nil {
 		return nil, err
@@ -21,8 +21,8 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 	start := (page - 1) * pageSize
 	end := start + pageSize
 	if start >= total {
-		return &zentao.UserListResponse{
-			Users: []zentao.User{},
+		return &zentaosdk.UserListResponse{
+			Users: []zentaosdk.User{},
 			Page:  page,
 			Total: total,
 			Limit: pageSize,
@@ -32,7 +32,7 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 		end = total
 	}
 
-	return &zentao.UserListResponse{
+	return &zentaosdk.UserListResponse{
 		Users: allUsers[start:end],
 		Page:  page,
 		Total: total,
@@ -41,7 +41,7 @@ func (c *Client) GetUsers(page, pageSize int) (*zentao.UserListResponse, error) 
 }
 
 // GetUsersAll 获取所有用户列表
-func (c *Client) GetUsersAll() ([]zentao.User, error) {
+func (c *Client) GetUsersAll() ([]zentaosdk.User, error) {
 	return c.getUsersAllSession(context.Background())
 }
 
@@ -51,7 +51,7 @@ func (c *Client) GetUsersAll() ([]zentao.User, error) {
 // 因为 /user-browse.json 在受限实例上经常被权限拦截，
 // 但 /user-profile.json 总能拿到自己。
 //
-// 返回的 *zentao.User.ID 就是 effort-calendar 等端点需要的 userID。
-func (c *Client) GetCurrentUser() (*zentao.User, error) {
+// 返回的 *zentaosdk.User.ID 就是 effort-calendar 等端点需要的 userID。
+func (c *Client) GetCurrentUser() (*zentaosdk.User, error) {
 	return c.getCurrentUserSession(context.Background())
 }

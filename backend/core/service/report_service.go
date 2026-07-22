@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
@@ -52,7 +52,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 		statusFilter = "active"
 	}
 
-	filtered := make([]zentao.Bug, 0)
+	filtered := make([]zentaosdk.Bug, 0)
 	statusBreakdown := map[string]int{"active": 0, "resolved": 0, "closed": 0}
 	for _, b := range bugs {
 		statusBreakdown[b.Status]++
@@ -176,7 +176,7 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 }
 
 func (s *ReportService) GenerateRequirementReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.RequirementReport, error) {
-	var stories []zentao.Story
+	var stories []zentaosdk.Story
 	var err error
 
 	if projectID > 0 {
@@ -199,7 +199,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 	for _, st := range stories {
 		name := ""
 		account := ""
-		if ref, ok := st.AssignedTo.(zentao.UserRef); ok {
+		if ref, ok := st.AssignedTo.(zentaosdk.UserRef); ok {
 			name = ref.Realname
 			account = ref.Account
 		} else if ref, ok := st.AssignedTo.(map[string]interface{}); ok {
@@ -305,7 +305,7 @@ func buildRequirementMessage(title string, t time.Time, total int, details []mod
 }
 
 func (s *ReportService) GenerateTaskReport(productID int, projectID int, projectName string, productName string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.TaskProgressReport, error) {
-	var tasks []zentao.Task
+	var tasks []zentaosdk.Task
 	var err error
 
 	if projectID > 0 {
@@ -340,7 +340,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 	for _, t := range tasks {
 		name := ""
 		account := ""
-		if ref, ok := t.AssignedTo.(zentao.UserRef); ok {
+		if ref, ok := t.AssignedTo.(zentaosdk.UserRef); ok {
 			name = ref.Realname
 			account = ref.Account
 		} else if ref, ok := t.AssignedTo.(map[string]interface{}); ok {

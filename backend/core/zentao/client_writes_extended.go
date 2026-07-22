@@ -8,7 +8,7 @@ import (
 
 	neturl "net/url"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // 本文件补齐 SDK 的剩余写操作（Phase2c 扩展）。
@@ -37,16 +37,16 @@ func joinInts(ids []int) string {
 
 // ---- Bug create/update/delete ----
 
-func (c *Client) CreateBug(productID int, req zentao.BugCreateRequest) (*zentao.Bug, error) {
+func (c *Client) CreateBug(productID int, req zentaosdk.BugCreateRequest) (*zentaosdk.Bug, error) {
 
 	form := bugCreateForm(productID, req)
 	if err := c.doSessionPost(context.Background(), "CreateBug", "/bug-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Bug{}, nil
+	return &zentaosdk.Bug{}, nil
 }
 
-func bugCreateForm(productID int, req zentao.BugCreateRequest) neturl.Values {
+func bugCreateForm(productID int, req zentaosdk.BugCreateRequest) neturl.Values {
 	form := neturl.Values{}
 	form.Set("product", strconv.Itoa(productID))
 	form.Set("title", req.Title)
@@ -71,7 +71,7 @@ func bugCreateForm(productID int, req zentao.BugCreateRequest) neturl.Values {
 	return form
 }
 
-func (c *Client) UpdateBug(bugID int, req zentao.BugUpdateRequest) (*zentao.Bug, error) {
+func (c *Client) UpdateBug(bugID int, req zentaosdk.BugUpdateRequest) (*zentaosdk.Bug, error) {
 
 	form := neturl.Values{}
 	form.Set("title", req.Title)
@@ -88,7 +88,7 @@ func (c *Client) UpdateBug(bugID int, req zentao.BugUpdateRequest) (*zentao.Bug,
 		fmt.Sprintf("/bug-edit-%d.json", bugID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Bug{}, nil
+	return &zentaosdk.Bug{}, nil
 }
 
 func (c *Client) DeleteBug(bugID int) error {
@@ -98,7 +98,7 @@ func (c *Client) DeleteBug(bugID int) error {
 
 // ---- Task create/update/delete/activate ----
 
-func (c *Client) CreateTask(executionID int, req zentao.TaskCreateRequest) (*zentao.Task, error) {
+func (c *Client) CreateTask(executionID int, req zentaosdk.TaskCreateRequest) (*zentaosdk.Task, error) {
 
 	form := neturl.Values{}
 	form.Set("execution", strconv.Itoa(executionID))
@@ -118,7 +118,7 @@ func (c *Client) CreateTask(executionID int, req zentao.TaskCreateRequest) (*zen
 		"/task-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Task{}, nil
+	return &zentaosdk.Task{}, nil
 }
 
 // CreateTaskNoExecution 创建无 iteration 关联的全局 task（产品/项目/执行=0）。
@@ -146,7 +146,7 @@ func (c *Client) CreateTaskNoExecution(name, taskType, assignedTo, desc string) 
 		"/task-create.json", form)
 }
 
-func (c *Client) UpdateTask(taskID int, req zentao.TaskUpdateRequest) (*zentao.Task, error) {
+func (c *Client) UpdateTask(taskID int, req zentaosdk.TaskUpdateRequest) (*zentaosdk.Task, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -160,7 +160,7 @@ func (c *Client) UpdateTask(taskID int, req zentao.TaskUpdateRequest) (*zentao.T
 		fmt.Sprintf("/task-edit-%d.json", taskID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Task{}, nil
+	return &zentaosdk.Task{}, nil
 }
 
 func (c *Client) DeleteTask(taskID int) error {
@@ -179,7 +179,7 @@ func (c *Client) ActivateTask(taskID int, consumed, left float64) error {
 
 // ---- Story create/update/delete ----
 
-func (c *Client) CreateStory(req zentao.StoryCreateRequest) (*zentao.Story, error) {
+func (c *Client) CreateStory(req zentaosdk.StoryCreateRequest) (*zentaosdk.Story, error) {
 
 	form := neturl.Values{}
 	form.Set("product", strconv.Itoa(req.Product))
@@ -197,10 +197,10 @@ func (c *Client) CreateStory(req zentao.StoryCreateRequest) (*zentao.Story, erro
 		"/story-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Story{}, nil
+	return &zentaosdk.Story{}, nil
 }
 
-func (c *Client) UpdateStory(storyID int, req zentao.StoryUpdateRequest) (*zentao.Story, error) {
+func (c *Client) UpdateStory(storyID int, req zentaosdk.StoryUpdateRequest) (*zentaosdk.Story, error) {
 
 	form := neturl.Values{}
 	form.Set("title", req.Title)
@@ -214,7 +214,7 @@ func (c *Client) UpdateStory(storyID int, req zentao.StoryUpdateRequest) (*zenta
 		fmt.Sprintf("/story-edit-%d.json", storyID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Story{}, nil
+	return &zentaosdk.Story{}, nil
 }
 
 func (c *Client) DeleteStory(storyID int) error {
@@ -285,7 +285,7 @@ func (c *Client) BatchCreateEffort(ctx context.Context, date string, items []Bat
 
 // ---- Plan create/update/delete + link/unlink ----
 
-func (c *Client) CreatePlan(productID int, req zentao.PlanCreateRequest) (*zentao.Plan, error) {
+func (c *Client) CreatePlan(productID int, req zentaosdk.PlanCreateRequest) (*zentaosdk.Plan, error) {
 
 	form := neturl.Values{}
 	form.Set("product", strconv.Itoa(productID))
@@ -297,10 +297,10 @@ func (c *Client) CreatePlan(productID int, req zentao.PlanCreateRequest) (*zenta
 		"/plan-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Plan{}, nil
+	return &zentaosdk.Plan{}, nil
 }
 
-func (c *Client) UpdatePlan(planID int, req zentao.PlanCreateRequest) (*zentao.Plan, error) {
+func (c *Client) UpdatePlan(planID int, req zentaosdk.PlanCreateRequest) (*zentaosdk.Plan, error) {
 
 	form := neturl.Values{}
 	form.Set("title", req.Title)
@@ -311,7 +311,7 @@ func (c *Client) UpdatePlan(planID int, req zentao.PlanCreateRequest) (*zentao.P
 		fmt.Sprintf("/plan-edit-%d.json", planID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Plan{}, nil
+	return &zentaosdk.Plan{}, nil
 }
 
 func (c *Client) DeletePlan(planID int) error {
@@ -353,7 +353,7 @@ func (c *Client) UnlinkBugsFromPlan(planID int, bugIDs []int) error {
 
 // ---- Case create/update/delete ----
 
-func (c *Client) CreateCase(productID int, req zentao.CaseCreateRequest) (*zentao.Case, error) {
+func (c *Client) CreateCase(productID int, req zentaosdk.CaseCreateRequest) (*zentaosdk.Case, error) {
 
 	form := neturl.Values{}
 	form.Set("product", strconv.Itoa(productID))
@@ -372,10 +372,10 @@ func (c *Client) CreateCase(productID int, req zentao.CaseCreateRequest) (*zenta
 		"/testcase-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Case{}, nil
+	return &zentaosdk.Case{}, nil
 }
 
-func (c *Client) UpdateCase(caseID int, req zentao.CaseUpdateRequest) (*zentao.Case, error) {
+func (c *Client) UpdateCase(caseID int, req zentaosdk.CaseUpdateRequest) (*zentaosdk.Case, error) {
 
 	form := neturl.Values{}
 	form.Set("title", req.Title)
@@ -386,7 +386,7 @@ func (c *Client) UpdateCase(caseID int, req zentao.CaseUpdateRequest) (*zentao.C
 		fmt.Sprintf("/testcase-edit-%d.json", caseID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Case{}, nil
+	return &zentaosdk.Case{}, nil
 }
 
 func (c *Client) DeleteCase(caseID int) error {
@@ -397,7 +397,7 @@ func (c *Client) DeleteCase(caseID int) error {
 // ---- Product/Project/Program/Execution/Build/User create/update/delete ----
 // 这些是基础实体管理，session 模式同样走 PHP 表单端点。
 
-func (c *Client) CreateProduct(req zentao.ProductCreateRequest) (*zentao.Product, error) {
+func (c *Client) CreateProduct(req zentaosdk.ProductCreateRequest) (*zentaosdk.Product, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -408,10 +408,10 @@ func (c *Client) CreateProduct(req zentao.ProductCreateRequest) (*zentao.Product
 		"/product-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Product{}, nil
+	return &zentaosdk.Product{}, nil
 }
 
-func (c *Client) UpdateProduct(productID int, req zentao.ProductCreateRequest) (*zentao.Product, error) {
+func (c *Client) UpdateProduct(productID int, req zentaosdk.ProductCreateRequest) (*zentaosdk.Product, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -421,7 +421,7 @@ func (c *Client) UpdateProduct(productID int, req zentao.ProductCreateRequest) (
 		fmt.Sprintf("/product-edit-%d.json", productID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Product{}, nil
+	return &zentaosdk.Product{}, nil
 }
 
 func (c *Client) DeleteProduct(productID int) error {
@@ -429,7 +429,7 @@ func (c *Client) DeleteProduct(productID int) error {
 		fmt.Sprintf("/product-delete-%d.json", productID), neturl.Values{})
 }
 
-func (c *Client) CreateProject(req zentao.ProjectCreateRequest) (*zentao.Project, error) {
+func (c *Client) CreateProject(req zentaosdk.ProjectCreateRequest) (*zentaosdk.Project, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -441,10 +441,10 @@ func (c *Client) CreateProject(req zentao.ProjectCreateRequest) (*zentao.Project
 		"/project-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Project{}, nil
+	return &zentaosdk.Project{}, nil
 }
 
-func (c *Client) UpdateProject(projectID int, req zentao.ProjectCreateRequest) (*zentao.Project, error) {
+func (c *Client) UpdateProject(projectID int, req zentaosdk.ProjectCreateRequest) (*zentaosdk.Project, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -453,7 +453,7 @@ func (c *Client) UpdateProject(projectID int, req zentao.ProjectCreateRequest) (
 		fmt.Sprintf("/project-edit-%d.json", projectID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Project{}, nil
+	return &zentaosdk.Project{}, nil
 }
 
 func (c *Client) DeleteProject(projectID int) error {
@@ -461,7 +461,7 @@ func (c *Client) DeleteProject(projectID int) error {
 		fmt.Sprintf("/project-delete-%d.json", projectID), neturl.Values{})
 }
 
-func (c *Client) CreateProgram(req zentao.ProgramCreateRequest) (*zentao.Program, error) {
+func (c *Client) CreateProgram(req zentaosdk.ProgramCreateRequest) (*zentaosdk.Program, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -472,10 +472,10 @@ func (c *Client) CreateProgram(req zentao.ProgramCreateRequest) (*zentao.Program
 		"/program-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Program{}, nil
+	return &zentaosdk.Program{}, nil
 }
 
-func (c *Client) UpdateProgram(programID int, req zentao.ProgramCreateRequest) (*zentao.Program, error) {
+func (c *Client) UpdateProgram(programID int, req zentaosdk.ProgramCreateRequest) (*zentaosdk.Program, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -484,7 +484,7 @@ func (c *Client) UpdateProgram(programID int, req zentao.ProgramCreateRequest) (
 		fmt.Sprintf("/program-edit-%d.json", programID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Program{}, nil
+	return &zentaosdk.Program{}, nil
 }
 
 func (c *Client) DeleteProgram(programID int) error {
@@ -492,7 +492,7 @@ func (c *Client) DeleteProgram(programID int) error {
 		fmt.Sprintf("/program-delete-%d.json", programID), neturl.Values{})
 }
 
-func (c *Client) CreateExecution(projectID int, req zentao.ExecutionCreateRequest) (*zentao.Execution, error) {
+func (c *Client) CreateExecution(projectID int, req zentaosdk.ExecutionCreateRequest) (*zentaosdk.Execution, error) {
 
 	form := neturl.Values{}
 	form.Set("project", strconv.Itoa(projectID))
@@ -504,10 +504,10 @@ func (c *Client) CreateExecution(projectID int, req zentao.ExecutionCreateReques
 		"/execution-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Execution{}, nil
+	return &zentaosdk.Execution{}, nil
 }
 
-func (c *Client) UpdateExecution(executionID int, req zentao.ExecutionCreateRequest) (*zentao.Execution, error) {
+func (c *Client) UpdateExecution(executionID int, req zentaosdk.ExecutionCreateRequest) (*zentaosdk.Execution, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -516,7 +516,7 @@ func (c *Client) UpdateExecution(executionID int, req zentao.ExecutionCreateRequ
 		fmt.Sprintf("/execution-edit-%d.json", executionID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Execution{}, nil
+	return &zentaosdk.Execution{}, nil
 }
 
 func (c *Client) DeleteExecution(executionID int) error {
@@ -524,7 +524,7 @@ func (c *Client) DeleteExecution(executionID int) error {
 		fmt.Sprintf("/execution-delete-%d.json", executionID), neturl.Values{})
 }
 
-func (c *Client) CreateBuild(projectID int, req zentao.BuildCreateRequest) (*zentao.Build, error) {
+func (c *Client) CreateBuild(projectID int, req zentaosdk.BuildCreateRequest) (*zentaosdk.Build, error) {
 
 	form := neturl.Values{}
 	form.Set("project", strconv.Itoa(projectID))
@@ -537,10 +537,10 @@ func (c *Client) CreateBuild(projectID int, req zentao.BuildCreateRequest) (*zen
 		"/build-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.Build{}, nil
+	return &zentaosdk.Build{}, nil
 }
 
-func (c *Client) UpdateBuild(buildID int, req zentao.BuildCreateRequest) (*zentao.Build, error) {
+func (c *Client) UpdateBuild(buildID int, req zentaosdk.BuildCreateRequest) (*zentaosdk.Build, error) {
 
 	form := neturl.Values{}
 	form.Set("name", req.Name)
@@ -548,7 +548,7 @@ func (c *Client) UpdateBuild(buildID int, req zentao.BuildCreateRequest) (*zenta
 		fmt.Sprintf("/build-edit-%d.json", buildID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.Build{}, nil
+	return &zentaosdk.Build{}, nil
 }
 
 func (c *Client) DeleteBuild(buildID int) error {
@@ -556,7 +556,7 @@ func (c *Client) DeleteBuild(buildID int) error {
 		fmt.Sprintf("/build-delete-%d.json", buildID), neturl.Values{})
 }
 
-func (c *Client) CreateUser(req zentao.UserCreateRequest) (*zentao.User, error) {
+func (c *Client) CreateUser(req zentaosdk.UserCreateRequest) (*zentaosdk.User, error) {
 
 	form := neturl.Values{}
 	form.Set("account", req.Account)
@@ -567,10 +567,10 @@ func (c *Client) CreateUser(req zentao.UserCreateRequest) (*zentao.User, error) 
 		"/user-create.json", form); err != nil {
 		return nil, err
 	}
-	return &zentao.User{}, nil
+	return &zentaosdk.User{}, nil
 }
 
-func (c *Client) UpdateUser(userID int, req zentao.UserUpdateRequest) (*zentao.User, error) {
+func (c *Client) UpdateUser(userID int, req zentaosdk.UserUpdateRequest) (*zentaosdk.User, error) {
 
 	form := neturl.Values{}
 	form.Set("realname", req.Realname)
@@ -579,7 +579,7 @@ func (c *Client) UpdateUser(userID int, req zentao.UserUpdateRequest) (*zentao.U
 		fmt.Sprintf("/user-edit-%d.json", userID), form); err != nil {
 		return nil, err
 	}
-	return &zentao.User{}, nil
+	return &zentaosdk.User{}, nil
 }
 
 func (c *Client) DeleteUser(userID int) error {

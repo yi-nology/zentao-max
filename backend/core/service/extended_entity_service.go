@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -30,7 +30,7 @@ func (s *CaseService) GetCasesByProduct(productID, page, pageSize int) (*vo.Pagi
 	return &vo.PaginatedVO{List: all, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-func (s *CaseService) convertCases(in []zentao.Case) []vo.CaseVO {
+func (s *CaseService) convertCases(in []zentaosdk.Case) []vo.CaseVO {
 	out := make([]vo.CaseVO, 0, len(in))
 	for _, c := range in {
 		out = append(out, vo.CaseVO{

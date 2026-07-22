@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Users (session mode) ----
@@ -35,8 +35,8 @@ type sessionUser struct {
 	Join     string `json:"join"`
 }
 
-func (u sessionUser) toSDK() zentao.User {
-	return zentao.User{
+func (u sessionUser) toSDK() zentaosdk.User {
+	return zentaosdk.User{
 		ID:       u.ID,
 		Account:  u.Account,
 		Realname: u.Realname,
@@ -51,7 +51,7 @@ func (u sessionUser) toSDK() zentao.User {
 }
 
 // getCurrentUserSession 通过 /user-profile.json 获取当前登录用户。
-func (c *Client) getCurrentUserSession(ctx context.Context) (*zentao.User, error) {
+func (c *Client) getCurrentUserSession(ctx context.Context) (*zentaosdk.User, error) {
 	var resp sessionUserProfileResp
 	if err := c.doSessionJSON(ctx, "GetCurrentUser", "/user-profile.json", &resp); err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func isEmptyBodyParseError(err error) bool {
 
 // getUsersAllSession 获取用户列表。权限允许时走 /user-browse.json；
 // 否则回退到仅当前用户。前端 dashboard 的 current-user 合成依赖此方法。
-func (c *Client) getUsersAllSession(ctx context.Context) ([]zentao.User, error) {
+func (c *Client) getUsersAllSession(ctx context.Context) ([]zentaosdk.User, error) {
 	var resp struct {
 		Title   string                 `json:"title"`
 		Users   map[string]sessionUser `json:"users"`
@@ -109,11 +109,11 @@ func (c *Client) getUsersAllSession(ctx context.Context) ([]zentao.User, error) 
 			if merr != nil {
 				return nil, merr
 			}
-			return []zentao.User{*me}, nil
+			return []zentaosdk.User{*me}, nil
 		}
 		return nil, err
 	}
-	out := make([]zentao.User, 0, len(resp.Users))
+	out := make([]zentaosdk.User, 0, len(resp.Users))
 	for _, u := range resp.Users {
 		// 受限实例 SSO 限流时 /user-browse.json 偶尔返错端点数据（3400 个空 user），
 		// id=0 + account="" 的占位 user 没意义，过滤掉。
@@ -128,13 +128,13 @@ func (c *Client) getUsersAllSession(ctx context.Context) ([]zentao.User, error) 
 		if err != nil {
 			return nil, err
 		}
-		return []zentao.User{*me}, nil
+		return []zentaosdk.User{*me}, nil
 	}
 	return out, nil
 }
 
 // getUsersSession 分页包装 GetUsersAll（内存分页，与 Token 模式行为一致）。
-func (c *Client) getUsersSession(ctx context.Context, page, pageSize int) ([]zentao.User, error) {
+func (c *Client) getUsersSession(ctx context.Context, page, pageSize int) ([]zentaosdk.User, error) {
 	all, err := c.getUsersAllSession(ctx)
 	if err != nil {
 		return nil, err

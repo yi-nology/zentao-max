@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/config"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 )
@@ -21,7 +21,7 @@ func initTestLogger(t *testing.T) {
 // 它们针对 testdata/ 目录下脱敏的真实样本（从 your-zentao-server.com 采集）运行，
 // 不需要任何外部凭据，因此可以安全地在 CI 中运行。
 
-// TestSessionBugMapping 验证 bug-browse.json 样本能正确映射到 SDK 的 zentao.Bug。
+// TestSessionBugMapping 验证 bug-browse.json 样本能正确映射到 SDK 的 zentaosdk.Bug。
 // 关键点：openedBy/assignedTo 是字符串账号，应映射到 UserRef.Account。
 func TestSessionBugMapping(t *testing.T) {
 	raw, err := os.ReadFile("testdata/sample_bug_browse.json")
@@ -339,4 +339,4 @@ func TestSessionLive(t *testing.T) {
 }
 
 // 确保 zentao 包被引用（filterBugs 等用到了）。
-var _ = zentao.BugSearchParams{}
+var _ = zentaosdk.BugSearchParams{}

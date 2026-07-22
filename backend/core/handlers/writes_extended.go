@@ -6,7 +6,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/errors"
 )
 
@@ -34,7 +34,7 @@ func (h *WriteHandler) CreateBug(ctx context.Context, c *app.RequestContext) {
 		errors.BadRequest(c, "缺少 productId")
 		return
 	}
-	var req zentao.BugCreateRequest
+	var req zentaosdk.BugCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -52,7 +52,7 @@ func (h *WriteHandler) UpdateBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugUpdateRequest
+	var req zentaosdk.BugUpdateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -85,7 +85,7 @@ func (h *WriteHandler) CreateTask(ctx context.Context, c *app.RequestContext) {
 		errors.BadRequest(c, "缺少 executionId")
 		return
 	}
-	var req zentao.TaskCreateRequest
+	var req zentaosdk.TaskCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -103,7 +103,7 @@ func (h *WriteHandler) UpdateTask(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.TaskUpdateRequest
+	var req zentaosdk.TaskUpdateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -152,7 +152,7 @@ func (h *WriteHandler) ActivateTask(ctx context.Context, c *app.RequestContext) 
 // ---- Story create/update/delete ----
 
 func (h *WriteHandler) CreateStory(ctx context.Context, c *app.RequestContext) {
-	var req zentao.StoryCreateRequest
+	var req zentaosdk.StoryCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -170,7 +170,7 @@ func (h *WriteHandler) UpdateStory(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.StoryUpdateRequest
+	var req zentaosdk.StoryUpdateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -228,7 +228,7 @@ func (h *WriteHandler) CreatePlan(ctx context.Context, c *app.RequestContext) {
 		errors.BadRequest(c, "缺少 productId")
 		return
 	}
-	var req zentao.PlanCreateRequest
+	var req zentaosdk.PlanCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -246,7 +246,7 @@ func (h *WriteHandler) UpdatePlan(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.PlanCreateRequest
+	var req zentaosdk.PlanCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -359,7 +359,7 @@ func (h *WriteHandler) CreateCase(ctx context.Context, c *app.RequestContext) {
 		errors.BadRequest(c, "缺少 productId")
 		return
 	}
-	var req zentao.CaseCreateRequest
+	var req zentaosdk.CaseCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -377,7 +377,7 @@ func (h *WriteHandler) UpdateCase(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.CaseUpdateRequest
+	var req zentaosdk.CaseUpdateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -406,7 +406,7 @@ func (h *WriteHandler) DeleteCase(ctx context.Context, c *app.RequestContext) {
 // 这些是基础实体管理端点。为简洁，每个实体三个端点（create/update/delete）。
 
 func (h *WriteHandler) CreateProduct(ctx context.Context, c *app.RequestContext) {
-	var req zentao.ProductCreateRequest
+	var req zentaosdk.ProductCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -424,7 +424,7 @@ func (h *WriteHandler) UpdateProduct(ctx context.Context, c *app.RequestContext)
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.ProductCreateRequest
+	var req zentaosdk.ProductCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -450,7 +450,7 @@ func (h *WriteHandler) DeleteProduct(ctx context.Context, c *app.RequestContext)
 }
 
 func (h *WriteHandler) CreateProject(ctx context.Context, c *app.RequestContext) {
-	var req zentao.ProjectCreateRequest
+	var req zentaosdk.ProjectCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -468,7 +468,7 @@ func (h *WriteHandler) UpdateProject(ctx context.Context, c *app.RequestContext)
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.ProjectCreateRequest
+	var req zentaosdk.ProjectCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -494,7 +494,7 @@ func (h *WriteHandler) DeleteProject(ctx context.Context, c *app.RequestContext)
 }
 
 func (h *WriteHandler) CreateProgram(ctx context.Context, c *app.RequestContext) {
-	var req zentao.ProgramCreateRequest
+	var req zentaosdk.ProgramCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -512,7 +512,7 @@ func (h *WriteHandler) UpdateProgram(ctx context.Context, c *app.RequestContext)
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.ProgramCreateRequest
+	var req zentaosdk.ProgramCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -543,7 +543,7 @@ func (h *WriteHandler) CreateExecution(ctx context.Context, c *app.RequestContex
 		errors.BadRequest(c, "缺少 projectId")
 		return
 	}
-	var req zentao.ExecutionCreateRequest
+	var req zentaosdk.ExecutionCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -561,7 +561,7 @@ func (h *WriteHandler) UpdateExecution(ctx context.Context, c *app.RequestContex
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.ExecutionCreateRequest
+	var req zentaosdk.ExecutionCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -592,7 +592,7 @@ func (h *WriteHandler) CreateBuild(ctx context.Context, c *app.RequestContext) {
 		errors.BadRequest(c, "缺少 projectId")
 		return
 	}
-	var req zentao.BuildCreateRequest
+	var req zentaosdk.BuildCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -610,7 +610,7 @@ func (h *WriteHandler) UpdateBuild(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BuildCreateRequest
+	var req zentaosdk.BuildCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -636,7 +636,7 @@ func (h *WriteHandler) DeleteBuild(ctx context.Context, c *app.RequestContext) {
 }
 
 func (h *WriteHandler) CreateUser(ctx context.Context, c *app.RequestContext) {
-	var req zentao.UserCreateRequest
+	var req zentaosdk.UserCreateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -654,7 +654,7 @@ func (h *WriteHandler) UpdateUser(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.UserUpdateRequest
+	var req zentaosdk.UserUpdateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return

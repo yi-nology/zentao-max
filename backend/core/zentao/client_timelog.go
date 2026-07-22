@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // effortItem 工时记录项
@@ -49,12 +49,12 @@ func mapToSlice(m map[string]*statItem) []statItem {
 }
 
 // GetTaskEfforts 获取任务的工时记录
-func (c *Client) GetTaskEfforts(taskID int) ([]zentao.EffortEntry, error) {
+func (c *Client) GetTaskEfforts(taskID int) ([]zentaosdk.EffortEntry, error) {
 	return c.getTaskEffortsSession(context.Background(), taskID)
 }
 
 // GetTaskEffortsContext 获取任务的工时记录（支持 context 取消）
-func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zentao.EffortEntry, error) {
+func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zentaosdk.EffortEntry, error) {
 	return c.getTaskEffortsSession(ctx, taskID)
 }
 
@@ -92,7 +92,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	}
 
 	if filterProjectID > 0 {
-		filtered := make([]zentao.Project, 0)
+		filtered := make([]zentaosdk.Project, 0)
 		for _, p := range projects {
 			if p.ID == filterProjectID {
 				filtered = append(filtered, p)
@@ -103,7 +103,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	}
 
 	type execWithContext struct {
-		Exec     zentao.Execution
+		Exec     zentaosdk.Execution
 		ProjName string
 	}
 
@@ -116,7 +116,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 			break
 		}
 		allExecs = append(allExecs, execWithContext{
-			Exec:     zentao.Execution{ID: filterExecutionID},
+			Exec:     zentaosdk.Execution{ID: filterExecutionID},
 			ProjName: projName,
 		})
 	} else {
@@ -132,7 +132,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	}
 
 	type taskContext struct {
-		Task     zentao.Task
+		Task     zentaosdk.Task
 		ProjName string
 		ExecName string
 	}

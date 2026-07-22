@@ -5,7 +5,7 @@ import (
 	"fmt"
 	neturl "net/url"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // 本文件为 wrapper 补齐写操作（session 模式）。
@@ -13,7 +13,7 @@ import (
 
 // ---- Bug writes ----
 
-func (c *Client) ResolveBug(bugID int, req zentao.BugResolveRequest) error {
+func (c *Client) ResolveBug(bugID int, req zentaosdk.BugResolveRequest) error {
 	form := neturl.Values{}
 	form.Set("resolution", req.Resolution)
 	form.Set("resolvedBuild", req.ResolvedBuild)
@@ -24,7 +24,7 @@ func (c *Client) ResolveBug(bugID int, req zentao.BugResolveRequest) error {
 		fmt.Sprintf("/bug-resolve-%d.json", bugID), form)
 }
 
-func (c *Client) CloseBug(bugID int, req zentao.BugCloseRequest) error {
+func (c *Client) CloseBug(bugID int, req zentaosdk.BugCloseRequest) error {
 	form := neturl.Values{}
 	if req.Comment != "" {
 		form.Set("comment", req.Comment)
@@ -33,7 +33,7 @@ func (c *Client) CloseBug(bugID int, req zentao.BugCloseRequest) error {
 		fmt.Sprintf("/bug-close-%d.json", bugID), form)
 }
 
-func (c *Client) AssignBug(bugID int, req zentao.BugAssignRequest) error {
+func (c *Client) AssignBug(bugID int, req zentaosdk.BugAssignRequest) error {
 	form := neturl.Values{}
 	form.Set("assignedTo", req.AssignedTo)
 	if req.Comment != "" {
@@ -43,7 +43,7 @@ func (c *Client) AssignBug(bugID int, req zentao.BugAssignRequest) error {
 		fmt.Sprintf("/bug-assignTo-%d.json", bugID), form)
 }
 
-func (c *Client) ConfirmBug(bugID int, req zentao.BugConfirmRequest) error {
+func (c *Client) ConfirmBug(bugID int, req zentaosdk.BugConfirmRequest) error {
 	form := neturl.Values{}
 	if req.Comment != "" {
 		form.Set("comment", req.Comment)
@@ -52,7 +52,7 @@ func (c *Client) ConfirmBug(bugID int, req zentao.BugConfirmRequest) error {
 		fmt.Sprintf("/bug-confirm-%d.json", bugID), form)
 }
 
-func (c *Client) ActivateBug(bugID int, req zentao.BugActivateRequest) error {
+func (c *Client) ActivateBug(bugID int, req zentaosdk.BugActivateRequest) error {
 	form := neturl.Values{}
 	if req.AssignedTo != "" {
 		form.Set("assignedTo", req.AssignedTo)
@@ -66,7 +66,7 @@ func (c *Client) ActivateBug(bugID int, req zentao.BugActivateRequest) error {
 
 // ---- Task writes ----
 
-func (c *Client) StartTask(taskID int, req zentao.TaskStartRequest) error {
+func (c *Client) StartTask(taskID int, req zentaosdk.TaskStartRequest) error {
 	form := neturl.Values{}
 	if req.RealStarted != "" {
 		form.Set("realStarted", req.RealStarted)
@@ -80,7 +80,7 @@ func (c *Client) StartTask(taskID int, req zentao.TaskStartRequest) error {
 		fmt.Sprintf("/task-start-%d.json", taskID), form)
 }
 
-func (c *Client) FinishTask(taskID int, req zentao.TaskFinishRequest) error {
+func (c *Client) FinishTask(taskID int, req zentaosdk.TaskFinishRequest) error {
 	form := neturl.Values{}
 	form.Set("consumed", fmt.Sprintf("%g", req.Consumed))
 	if req.FinishedDate != "" {
@@ -93,7 +93,7 @@ func (c *Client) FinishTask(taskID int, req zentao.TaskFinishRequest) error {
 		fmt.Sprintf("/task-finish-%d.json", taskID), form)
 }
 
-func (c *Client) PauseTask(taskID int, req zentao.TaskPauseRequest) error {
+func (c *Client) PauseTask(taskID int, req zentaosdk.TaskPauseRequest) error {
 	form := neturl.Values{}
 	if req.Comment != "" {
 		form.Set("comment", req.Comment)
@@ -102,7 +102,7 @@ func (c *Client) PauseTask(taskID int, req zentao.TaskPauseRequest) error {
 		fmt.Sprintf("/task-pause-%d.json", taskID), form)
 }
 
-func (c *Client) AssignTask(taskID int, req zentao.TaskAssignRequest) error {
+func (c *Client) AssignTask(taskID int, req zentaosdk.TaskAssignRequest) error {
 	form := neturl.Values{}
 	form.Set("assignedTo", req.AssignedTo)
 	form.Set("left", fmt.Sprintf("%g", req.Left))

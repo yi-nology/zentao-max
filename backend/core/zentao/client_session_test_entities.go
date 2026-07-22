@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Test Cases (session mode) ----
@@ -41,13 +41,13 @@ type sessionCase struct {
 	Deleted      string          `json:"deleted"`
 }
 
-func (c sessionCase) toSDK() zentao.Case {
+func (c sessionCase) toSDK() zentaosdk.Case {
 	id := parseCaseID(c.ID)
 	module, _ := c.Module.Int64()
 	story, _ := c.Story.Int64()
 	pri, _ := c.Pri.Int64()
 	ver, _ := c.Version.Int64()
-	return zentao.Case{
+	return zentaosdk.Case{
 		ID:           id,
 		Product:      c.Product,
 		Project:      c.Project,
@@ -59,9 +59,9 @@ func (c sessionCase) toSDK() zentao.Case {
 		Pri:          int(pri),
 		Type:         c.Type,
 		Status:       c.Status,
-		OpenedBy:     zentao.UserRef{Account: c.OpenedBy},
+		OpenedBy:     zentaosdk.UserRef{Account: c.OpenedBy},
 		OpenedDate:   c.OpenedDate,
-		LastEditedBy: &zentao.UserRef{Account: c.LastEditedBy},
+		LastEditedBy: &zentaosdk.UserRef{Account: c.LastEditedBy},
 		Version:      int(ver),
 	}
 }
@@ -95,7 +95,7 @@ func parseCaseID(raw json.RawMessage) int {
 //
 //   - pageSize > 0: 单页模式, 按 page 拉取对应页（依赖 testcase-browse 分页段 URL, 受限实例不支持）。
 //   - pageSize <= 0: 全量模式, 自动翻页取全部, 返回的 recTotal 是最终累加长度。
-func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentao.Case, int, error) {
+func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Case, int, error) {
 	// testcase-browse 分页段格式：/testcase-browse-{pid}-{branch}-{browseType}-{recTotal}-{recPerPage}-{page}.json
 	// recPerPage 必须从 server Pager 取真实值（受限实例=20, 其它=20/50/100），不能 hardcode。
 	defaultRecPerPage := 20
@@ -122,7 +122,7 @@ func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, 
 		}
 		// page=1 时, 首探结果本身就是目标页, 直接用
 		if page == 1 {
-			out := make([]zentao.Case, 0, len(firstResp.Cases))
+			out := make([]zentaosdk.Case, 0, len(firstResp.Cases))
 			for _, cs := range firstResp.Cases {
 				out = append(out, cs.toSDK())
 			}
@@ -141,7 +141,7 @@ func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, 
 			}
 			return nil, recTotal, err
 		}
-		out := make([]zentao.Case, 0, len(resp.Cases))
+		out := make([]zentaosdk.Case, 0, len(resp.Cases))
 		for _, cs := range resp.Cases {
 			out = append(out, cs.toSDK())
 		}
@@ -149,7 +149,7 @@ func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, 
 	}
 
 	// 全量模式：自动翻页拉完
-	var out []zentao.Case
+	var out []zentaosdk.Case
 	recTotal := 0
 	recPerPage := defaultRecPerPage
 	for p := 1; ; p++ {
@@ -188,7 +188,7 @@ func (c *Client) getCasesByProductSession(ctx context.Context, productID, page, 
 }
 
 // getAllCasesSession Deprecated: 请用 GetAllCases 走 v1 REST API。
-func (c *Client) getAllCasesSession(ctx context.Context, productID int) ([]zentao.Case, error) {
+func (c *Client) getAllCasesSession(ctx context.Context, productID int) ([]zentaosdk.Case, error) {
 	out, _, err := c.getCasesByProductSession(ctx, productID, 1, 0) // pageSize=0 表示翻页取全部
 	return out, err
 }
@@ -229,13 +229,13 @@ type v1UserRef struct {
 	Realname string `json:"realname"`
 }
 
-func (c v1CaseItem) toSDK() zentao.Case {
+func (c v1CaseItem) toSDK() zentaosdk.Case {
 	id := parseCaseID(c.ID)
 	module, _ := c.Module.Int64()
 	story, _ := c.Story.Int64()
 	pri, _ := c.Pri.Int64()
 	ver, _ := c.Version.Int64()
-	out := zentao.Case{
+	out := zentaosdk.Case{
 		ID:           id,
 		Product:      c.Product,
 		Project:      c.Project,
@@ -251,10 +251,10 @@ func (c v1CaseItem) toSDK() zentao.Case {
 		Version:      int(ver),
 	}
 	if c.OpenedBy != nil {
-		out.OpenedBy = zentao.UserRef{Account: c.OpenedBy.Account, Realname: c.OpenedBy.Realname}
+		out.OpenedBy = zentaosdk.UserRef{Account: c.OpenedBy.Account, Realname: c.OpenedBy.Realname}
 	}
 	if c.LastEditedBy != nil {
-		out.LastEditedBy = &zentao.UserRef{Account: c.LastEditedBy.Account, Realname: c.LastEditedBy.Realname}
+		out.LastEditedBy = &zentaosdk.UserRef{Account: c.LastEditedBy.Account, Realname: c.LastEditedBy.Realname}
 	}
 	return out
 }
@@ -262,7 +262,7 @@ func (c v1CaseItem) toSDK() zentao.Case {
 // getCasesByProductV1 走 v1 REST API 拉取产品下的用例单页.
 // path: /api.php/v1/testcases?product={pid}&page={page}&limit={limit}.
 // 返 ([]Case, total, err). total 直接来自响应 total 字段.
-func (c *Client) getCasesByProductV1(ctx context.Context, productID, page, pageSize int) ([]zentao.Case, int, error) {
+func (c *Client) getCasesByProductV1(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Case, int, error) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
@@ -281,7 +281,7 @@ func (c *Client) getCasesByProductV1(ctx context.Context, productID, page, pageS
 		}
 		return nil, 0, err
 	}
-	out := make([]zentao.Case, 0, len(resp.Testcases))
+	out := make([]zentaosdk.Case, 0, len(resp.Testcases))
 	for _, tc := range resp.Testcases {
 		out = append(out, tc.toSDK())
 	}
@@ -313,9 +313,9 @@ type sessionTestTask struct {
 	Deleted   string      `json:"deleted"`
 }
 
-func (t sessionTestTask) toSDK() zentao.TestTask {
+func (t sessionTestTask) toSDK() zentaosdk.TestTask {
 	build, _ := t.Build.Int64()
-	return zentao.TestTask{
+	return zentaosdk.TestTask{
 		ID:        t.ID,
 		Project:   t.Project,
 		Product:   t.Product,
@@ -323,7 +323,7 @@ func (t sessionTestTask) toSDK() zentao.TestTask {
 		Execution: t.Execution,
 		Build:     int(build),
 		Type:      t.Type,
-		Owner:     zentao.UserRef{Account: t.Owner},
+		Owner:     zentaosdk.UserRef{Account: t.Owner},
 		Pri:       t.Pri,
 		Begin:     t.Begin,
 		End:       t.End,
@@ -332,7 +332,7 @@ func (t sessionTestTask) toSDK() zentao.TestTask {
 	}
 }
 
-func (c *Client) getTestTasksSession(ctx context.Context, productID, page, pageSize int) ([]zentao.TestTask, error) {
+func (c *Client) getTestTasksSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.TestTask, error) {
 	path := fmt.Sprintf("/testtask-browse-%d.json", productID)
 	var resp sessionTestTaskBrowseResp
 	if err := c.doSessionJSON(ctx, "GetTestTasks", path, &resp); err != nil {
@@ -341,7 +341,7 @@ func (c *Client) getTestTasksSession(ctx context.Context, productID, page, pageS
 		}
 		return nil, err
 	}
-	all := make([]zentao.TestTask, 0, len(resp.Tasks))
+	all := make([]zentaosdk.TestTask, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {
 		all = append(all, t.toSDK())
 	}

@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -72,7 +72,7 @@ func (s *UserService) GetCurrentUser() (*vo.UserVO, error) {
 }
 
 // convertToVO 将zentao.User转换为vo.UserVO
-func (s *UserService) convertToVO(users []zentao.User) []vo.UserVO {
+func (s *UserService) convertToVO(users []zentaosdk.User) []vo.UserVO {
 	if len(users) == 0 {
 		return []vo.UserVO{}
 	}

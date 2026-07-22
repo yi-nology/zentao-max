@@ -3,14 +3,14 @@ package service
 import (
 	"testing"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/utils"
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 )
 
-func createMockBugs() []zentao.Bug {
-	return []zentao.Bug{
+func createMockBugs() []zentaosdk.Bug {
+	return []zentaosdk.Bug{
 		{
 			ID:         1,
 			Project:    10,
@@ -18,8 +18,8 @@ func createMockBugs() []zentao.Bug {
 			Title:      "Bug 1",
 			Status:     "active",
 			OpenedDate: "2024-01-15 10:00:00",
-			AssignedTo: zentao.UserRef{Account: "user1", Realname: "User 1"},
-			OpenedBy:   zentao.UserRef{Account: "user2", Realname: "User 2"},
+			AssignedTo: zentaosdk.UserRef{Account: "user1", Realname: "User 1"},
+			OpenedBy:   zentaosdk.UserRef{Account: "user2", Realname: "User 2"},
 		},
 		{
 			ID:         2,
@@ -28,8 +28,8 @@ func createMockBugs() []zentao.Bug {
 			Title:      "Bug 2",
 			Status:     "resolved",
 			OpenedDate: "2024-01-16 11:00:00",
-			AssignedTo: zentao.UserRef{Account: "user1", Realname: "User 1"},
-			OpenedBy:   zentao.UserRef{Account: "user3", Realname: "User 3"},
+			AssignedTo: zentaosdk.UserRef{Account: "user1", Realname: "User 1"},
+			OpenedBy:   zentaosdk.UserRef{Account: "user3", Realname: "User 3"},
 		},
 		{
 			ID:         3,
@@ -38,8 +38,8 @@ func createMockBugs() []zentao.Bug {
 			Title:      "Bug 3",
 			Status:     "active",
 			OpenedDate: "2024-01-17 12:00:00",
-			AssignedTo: zentao.UserRef{Account: "user2", Realname: "User 2"},
-			OpenedBy:   zentao.UserRef{Account: "user1", Realname: "User 1"},
+			AssignedTo: zentaosdk.UserRef{Account: "user2", Realname: "User 2"},
+			OpenedBy:   zentaosdk.UserRef{Account: "user1", Realname: "User 1"},
 		},
 	}
 }
@@ -70,7 +70,7 @@ func TestBugService_ConvertToVO(t *testing.T) {
 func TestBugService_ConvertToVO_Empty(t *testing.T) {
 	service := &BugService{client: nil}
 
-	vos := service.convertToVO([]zentao.Bug{})
+	vos := service.convertToVO([]zentaosdk.Bug{})
 
 	if len(vos) != 0 {
 		t.Errorf("expected 0 VOs, got %d", len(vos))
@@ -116,13 +116,13 @@ func TestBugService_DateFilterLogic(t *testing.T) {
 			chainFilter := utils.NewChainFilter(bugs)
 
 			if tt.startDate != "" || tt.endDate != "" || tt.specificDate != "" {
-				chainFilter = chainFilter.Filter(func(item zentao.Bug) bool {
+				chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 					filtered := utils.FilterByDateRangeOrSpecific(
-						[]zentao.Bug{item},
+						[]zentaosdk.Bug{item},
 						tt.startDate,
 						tt.endDate,
 						tt.specificDate,
-						func(b zentao.Bug) string { s, _ := b.OpenedDate.(string); return s },
+						func(b zentaosdk.Bug) string { s, _ := b.OpenedDate.(string); return s },
 					)
 					return len(filtered) > 0
 				})
@@ -189,18 +189,18 @@ func TestBugService_Pagination(t *testing.T) {
 func TestBugService_VOTypes(t *testing.T) {
 	service := &BugService{client: nil}
 
-	bug := zentao.Bug{
+	bug := zentaosdk.Bug{
 		ID:         42,
 		Project:    10,
 		Product:    100,
 		Title:      "Test Bug",
 		Status:     "active",
 		OpenedDate: "2024-01-15 10:00:00",
-		AssignedTo: zentao.UserRef{Account: "user1", Realname: "User 1"},
-		OpenedBy:   zentao.UserRef{Account: "user2", Realname: "User 2"},
+		AssignedTo: zentaosdk.UserRef{Account: "user1", Realname: "User 1"},
+		OpenedBy:   zentaosdk.UserRef{Account: "user2", Realname: "User 2"},
 	}
 
-	vos := service.convertToVO([]zentao.Bug{bug})
+	vos := service.convertToVO([]zentaosdk.Bug{bug})
 	if len(vos) != 1 {
 		t.Fatalf("expected 1 VO, got %d", len(vos))
 	}

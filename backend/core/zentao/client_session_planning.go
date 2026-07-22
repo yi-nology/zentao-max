@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Plans (session mode) ----
@@ -28,8 +28,8 @@ type sessionPlan struct {
 	ClosedBy string `json:"closedBy"`
 }
 
-func (p sessionPlan) toSDK() zentao.Plan {
-	return zentao.Plan{
+func (p sessionPlan) toSDK() zentaosdk.Plan {
+	return zentaosdk.Plan{
 		ID:       p.ID,
 		Product:  p.Product,
 		Parent:   p.Parent,
@@ -42,7 +42,7 @@ func (p sessionPlan) toSDK() zentao.Plan {
 	}
 }
 
-func (c *Client) getPlansSession(ctx context.Context, productID, page, pageSize int) ([]zentao.Plan, error) {
+func (c *Client) getPlansSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Plan, error) {
 	path := fmt.Sprintf("/productplan-browse-%d.json", productID)
 	var resp sessionPlanBrowseResp
 	if err := c.doSessionJSON(ctx, "GetPlans", path, &resp); err != nil {
@@ -51,7 +51,7 @@ func (c *Client) getPlansSession(ctx context.Context, productID, page, pageSize 
 		}
 		return nil, err
 	}
-	all := make([]zentao.Plan, 0, len(resp.Plans))
+	all := make([]zentaosdk.Plan, 0, len(resp.Plans))
 	for _, p := range resp.Plans {
 		all = append(all, p.toSDK())
 	}
@@ -83,8 +83,8 @@ type sessionProgram struct {
 	PM     string `json:"PM"`
 }
 
-func (p sessionProgram) toSDK() zentao.Program {
-	return zentao.Program{
+func (p sessionProgram) toSDK() zentaosdk.Program {
+	return zentaosdk.Program{
 		ID:     p.ID,
 		Name:   p.Name,
 		Code:   p.Code,
@@ -98,7 +98,7 @@ func (p sessionProgram) toSDK() zentao.Program {
 	}
 }
 
-func (c *Client) getProgramsSession(ctx context.Context, page, pageSize int) ([]zentao.Program, error) {
+func (c *Client) getProgramsSession(ctx context.Context, page, pageSize int) ([]zentaosdk.Program, error) {
 	var resp sessionProgramBrowseResp
 	if err := c.doSessionJSON(ctx, "GetPrograms", "/program-browse.json", &resp); err != nil {
 		if IsSessionAccessDenied(err) {
@@ -106,7 +106,7 @@ func (c *Client) getProgramsSession(ctx context.Context, page, pageSize int) ([]
 		}
 		return nil, err
 	}
-	all := make([]zentao.Program, 0, len(resp.Programs))
+	all := make([]zentaosdk.Program, 0, len(resp.Programs))
 	for _, p := range resp.Programs {
 		all = append(all, p.toSDK())
 	}
@@ -139,8 +139,8 @@ type sessionRelease struct {
 	SubStatus string `json:"subStatus"`
 }
 
-func (r sessionRelease) toSDK() zentao.Release {
-	return zentao.Release{
+func (r sessionRelease) toSDK() zentaosdk.Release {
+	return zentaosdk.Release{
 		ID:        r.ID,
 		Product:   r.Product,
 		Build:     r.Build,
@@ -155,7 +155,7 @@ func (r sessionRelease) toSDK() zentao.Release {
 	}
 }
 
-func (c *Client) getReleasesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentao.Release, error) {
+func (c *Client) getReleasesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Release, error) {
 	path := fmt.Sprintf("/release-browse-%d.json", productID)
 	var resp sessionReleaseBrowseResp
 	if err := c.doSessionJSON(ctx, "GetReleasesByProduct", path, &resp); err != nil {
@@ -164,7 +164,7 @@ func (c *Client) getReleasesByProductSession(ctx context.Context, productID, pag
 		}
 		return nil, err
 	}
-	all := make([]zentao.Release, 0, len(resp.Releases))
+	all := make([]zentaosdk.Release, 0, len(resp.Releases))
 	for _, r := range resp.Releases {
 		all = append(all, r.toSDK())
 	}
@@ -176,10 +176,10 @@ func (c *Client) getReleasesByProductSession(ctx context.Context, productID, pag
 
 // 分页辅助（泛型在 Go 1.18+ 可用，但为避免每个 SDK 类型都写一份，这里用具体类型）。
 func paginateSlice[T any](in []T, page, pageSize int) []T { return doPaginate(in, page, pageSize) }
-func paginateSliceProgram(in []zentao.Program, page, pageSize int) []zentao.Program {
+func paginateSliceProgram(in []zentaosdk.Program, page, pageSize int) []zentaosdk.Program {
 	return doPaginate(in, page, pageSize)
 }
-func paginateSliceRelease(in []zentao.Release, page, pageSize int) []zentao.Release {
+func paginateSliceRelease(in []zentaosdk.Release, page, pageSize int) []zentaosdk.Release {
 	return doPaginate(in, page, pageSize)
 }
 

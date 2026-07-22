@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -31,7 +31,7 @@ func (s *ProductService) GetProducts() ([]vo.ProductVO, error) {
 }
 
 // convertToVO 将zentao.Product转换为vo.ProductVO
-func (s *ProductService) convertToVO(products []zentao.Product) []vo.ProductVO {
+func (s *ProductService) convertToVO(products []zentaosdk.Product) []vo.ProductVO {
 	if len(products) == 0 {
 		return []vo.ProductVO{}
 	}

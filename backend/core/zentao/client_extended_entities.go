@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // 本文件为 SDK 已支持但 wrapper 此前未暴露的 5 个实体补齐读取方法。
@@ -18,14 +18,14 @@ import (
 // 不支持 server-side 翻页 (分页段 URL 返空), 翻页必须用 v1 路径.
 //
 // 第二个返回值 recTotal 让 service 层能正确填充 PaginatedVO.Total，避免前端分页 total 永远是单页长度。
-func (c *Client) GetCasesByProduct(productID, page, pageSize int) ([]zentao.Case, int, error) {
+func (c *Client) GetCasesByProduct(productID, page, pageSize int) ([]zentaosdk.Case, int, error) {
 	if c.session == nil {
 		return nil, 0, fmt.Errorf("会话客户端未初始化")
 	}
 	return c.getCasesByProductV1(context.Background(), productID, page, pageSize)
 }
 
-func (c *Client) GetAllCases(productID int) ([]zentao.Case, error) {
+func (c *Client) GetAllCases(productID int) ([]zentaosdk.Case, error) {
 	if c.session == nil {
 		return nil, fmt.Errorf("会话客户端未初始化")
 	}
@@ -36,24 +36,24 @@ func (c *Client) GetAllCases(productID int) ([]zentao.Case, error) {
 
 // ---- Plans ----
 
-func (c *Client) GetPlans(productID, page, pageSize int) ([]zentao.Plan, error) {
+func (c *Client) GetPlans(productID, page, pageSize int) ([]zentaosdk.Plan, error) {
 	return c.getPlansSession(context.Background(), productID, page, pageSize)
 }
 
 // ---- Programs ----
 
-func (c *Client) GetPrograms(page, pageSize int) ([]zentao.Program, error) {
+func (c *Client) GetPrograms(page, pageSize int) ([]zentaosdk.Program, error) {
 	return c.getProgramsSession(context.Background(), page, pageSize)
 }
 
 // ---- Releases ----
 
-func (c *Client) GetReleasesByProduct(productID, page, pageSize int) ([]zentao.Release, error) {
+func (c *Client) GetReleasesByProduct(productID, page, pageSize int) ([]zentaosdk.Release, error) {
 	return c.getReleasesByProductSession(context.Background(), productID, page, pageSize)
 }
 
 // ---- Test Tasks ----
 
-func (c *Client) GetTestTasksByProduct(productID, page, pageSize int) ([]zentao.TestTask, error) {
+func (c *Client) GetTestTasksByProduct(productID, page, pageSize int) ([]zentaosdk.TestTask, error) {
 	return c.getTestTasksSession(context.Background(), productID, page, pageSize)
 }

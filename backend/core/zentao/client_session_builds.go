@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Builds (session mode) ----
@@ -39,8 +39,8 @@ type sessionBuild struct {
 	Deleted   string `json:"deleted"`
 }
 
-func (b sessionBuild) toSDK() zentao.Build {
-	return zentao.Build{
+func (b sessionBuild) toSDK() zentaosdk.Build {
+	return zentaosdk.Build{
 		ID:        b.ID,
 		Product:   b.Product,
 		Project:   b.Project,
@@ -59,7 +59,7 @@ func (b sessionBuild) toSDK() zentao.Build {
 
 // fetchBuildsByExecutionSession 取单个 execution 的全部 build。
 // 权限拒绝（user-deny）时返回空切片而非错误，便于上层优雅降级。
-func (c *Client) fetchBuildsByExecutionSession(ctx context.Context, executionID int) ([]zentao.Build, error) {
+func (c *Client) fetchBuildsByExecutionSession(ctx context.Context, executionID int) ([]zentaosdk.Build, error) {
 	path := fmt.Sprintf("/build-%d.json", executionID)
 	var resp sessionBuildResp
 	if err := c.doSessionJSON(ctx, "GetBuildsByExecution", path, &resp); err != nil {
@@ -68,25 +68,25 @@ func (c *Client) fetchBuildsByExecutionSession(ctx context.Context, executionID 
 		}
 		return nil, err
 	}
-	out := make([]zentao.Build, 0, len(resp.Builds))
+	out := make([]zentaosdk.Build, 0, len(resp.Builds))
 	for _, b := range resp.Builds {
 		out = append(out, b.toSDK())
 	}
 	return out, nil
 }
 
-func (c *Client) getBuildsByExecutionSession(ctx context.Context, executionID, _, _ int) ([]zentao.Build, error) {
+func (c *Client) getBuildsByExecutionSession(ctx context.Context, executionID, _, _ int) ([]zentaosdk.Build, error) {
 	return c.fetchBuildsByExecutionSession(ctx, executionID)
 }
 
-func (c *Client) getBuildsByProjectSession(ctx context.Context, projectID, page, pageSize int) ([]zentao.Build, error) {
+func (c *Client) getBuildsByProjectSession(ctx context.Context, projectID, page, pageSize int) ([]zentaosdk.Build, error) {
 	// 先取 project 的 executions，再合并每个 execution 的 build（去重 by ID）。
 	execs, err := c.getExecutionsSession(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	seen := make(map[int]bool)
-	var all []zentao.Build
+	var all []zentaosdk.Build
 	for _, e := range execs {
 		bs, berr := c.fetchBuildsByExecutionSession(ctx, e.ID)
 		if berr != nil {

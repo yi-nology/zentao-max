@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Stories (session mode) ----
@@ -44,8 +44,8 @@ type sessionStory struct {
 	Deleted    string  `json:"deleted"`
 }
 
-func (s sessionStory) toSDK() zentao.Story {
-	return zentao.Story{
+func (s sessionStory) toSDK() zentaosdk.Story {
+	return zentaosdk.Story{
 		ID:         s.ID,
 		Product:    s.Product,
 		Module:     s.Module,
@@ -69,12 +69,12 @@ func (s sessionStory) toSDK() zentao.Story {
 	}
 }
 
-func (c *Client) getStoriesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentao.Story, error) {
+func (c *Client) getStoriesByProductSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Story, error) {
 	all, err := c.getAllStoriesSession(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Story, 0, len(all))
+	out := make([]zentaosdk.Story, 0, len(all))
 	start := (page - 1) * pageSize
 	if start < 0 {
 		start = 0
@@ -89,27 +89,27 @@ func (c *Client) getStoriesByProductSession(ctx context.Context, productID, page
 	return out, nil
 }
 
-func (c *Client) getAllStoriesSession(ctx context.Context, productID int) ([]zentao.Story, error) {
+func (c *Client) getAllStoriesSession(ctx context.Context, productID int) ([]zentaosdk.Story, error) {
 	path := fmt.Sprintf("/product-browse-%d-story.json", productID)
 	var resp sessionProductStoryResp
 	if err := c.doSessionJSON(ctx, "GetAllStories", path, &resp); err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Story, 0, len(resp.Stories))
+	out := make([]zentaosdk.Story, 0, len(resp.Stories))
 	for _, s := range resp.Stories {
 		out = append(out, s.toSDK())
 	}
 	return out, nil
 }
 
-func (c *Client) getStoriesByProjectSession(ctx context.Context, projectID, page, pageSize int) ([]zentao.Story, error) {
+func (c *Client) getStoriesByProjectSession(ctx context.Context, projectID, page, pageSize int) ([]zentaosdk.Story, error) {
 	// 通过 execution 反查：项目下所有 execution 的 story 合并。
 	execs, err := c.getExecutionsSession(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	seen := make(map[int]bool)
-	var out []zentao.Story
+	var out []zentaosdk.Story
 	for _, e := range execs {
 		ss, serr := c.getStoriesByExecutionSession(ctx, e.ID, 1, 10000)
 		if serr != nil {
@@ -136,14 +136,14 @@ func (c *Client) getStoriesByProjectSession(ctx context.Context, projectID, page
 	return out[start:end], nil
 }
 
-func (c *Client) getStoriesByExecutionSession(ctx context.Context, executionID, page, pageSize int) ([]zentao.Story, error) {
+func (c *Client) getStoriesByExecutionSession(ctx context.Context, executionID, page, pageSize int) ([]zentaosdk.Story, error) {
 	// /execution-story-{execID}.json 在受限实例上可用，结构同 product-browse-story。
 	path := fmt.Sprintf("/execution-story-%d.json", executionID)
 	var resp sessionProductStoryResp
 	if err := c.doSessionJSON(ctx, "GetStoriesByExecution", path, &resp); err != nil {
 		return nil, err
 	}
-	all := make([]zentao.Story, 0, len(resp.Stories))
+	all := make([]zentaosdk.Story, 0, len(resp.Stories))
 	for _, s := range resp.Stories {
 		all = append(all, s.toSDK())
 	}
@@ -161,6 +161,6 @@ func (c *Client) getStoriesByExecutionSession(ctx context.Context, executionID, 
 	return all[start:end], nil
 }
 
-func (c *Client) getAllStoriesByProjectSession(ctx context.Context, projectID int) ([]zentao.Story, error) {
+func (c *Client) getAllStoriesByProjectSession(ctx context.Context, projectID int) ([]zentaosdk.Story, error) {
 	return c.getStoriesByProjectSession(ctx, projectID, 1, 100000)
 }

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Efforts (session mode) ----
@@ -42,8 +42,8 @@ type sessionEffortEntry struct {
 	Deleted    string  `json:"deleted"`
 }
 
-func (e sessionEffortEntry) toSDK() zentao.EffortEntry {
-	return zentao.EffortEntry{
+func (e sessionEffortEntry) toSDK() zentaosdk.EffortEntry {
+	return zentaosdk.EffortEntry{
 		ID:         e.ID,
 		ObjectType: e.ObjectType,
 		ObjectID:   e.ObjectID,
@@ -61,7 +61,7 @@ func (e sessionEffortEntry) toSDK() zentao.EffortEntry {
 	}
 }
 
-func (c *Client) getTaskEffortsSession(ctx context.Context, taskID int) ([]zentao.EffortEntry, error) {
+func (c *Client) getTaskEffortsSession(ctx context.Context, taskID int) ([]zentaosdk.EffortEntry, error) {
 	path := fmt.Sprintf("/task-recordEstimate-%d.json", taskID)
 	var wrapper sessionEffortWrapper
 	if err := c.doSessionJSON(ctx, "GetTaskEfforts", path, &wrapper); err != nil {
@@ -74,14 +74,14 @@ func (c *Client) getTaskEffortsSession(ctx context.Context, taskID int) ([]zenta
 }
 
 // parseSessionEffort 兼容 effort 字段的三种 shape。
-func parseSessionEffort(raw json.RawMessage) []zentao.EffortEntry {
+func parseSessionEffort(raw json.RawMessage) []zentaosdk.EffortEntry {
 	if len(raw) == 0 {
 		return nil
 	}
 	// 尝试 map[string]sessionEffortEntry
 	var m map[string]sessionEffortEntry
 	if err := json.Unmarshal(raw, &m); err == nil {
-		out := make([]zentao.EffortEntry, 0, len(m))
+		out := make([]zentaosdk.EffortEntry, 0, len(m))
 		for _, e := range m {
 			if e.Deleted == "1" {
 				continue
@@ -93,7 +93,7 @@ func parseSessionEffort(raw json.RawMessage) []zentao.EffortEntry {
 	// 尝试 []sessionEffortEntry
 	var arr []sessionEffortEntry
 	if err := json.Unmarshal(raw, &arr); err == nil {
-		out := make([]zentao.EffortEntry, 0, len(arr))
+		out := make([]zentaosdk.EffortEntry, 0, len(arr))
 		for _, e := range arr {
 			if e.Deleted == "1" {
 				continue

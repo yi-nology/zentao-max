@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -31,7 +31,7 @@ func (s *BuildService) GetBuildsByExecution(executionID int) ([]vo.BuildVO, erro
 	return s.convertToVO(builds), nil
 }
 
-func (s *BuildService) convertToVO(builds []zentao.Build) []vo.BuildVO {
+func (s *BuildService) convertToVO(builds []zentaosdk.Build) []vo.BuildVO {
 	if len(builds) == 0 {
 		return []vo.BuildVO{}
 	}

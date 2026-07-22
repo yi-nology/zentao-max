@@ -6,7 +6,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/errors"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
 )
@@ -38,7 +38,7 @@ func (h *WriteHandler) ResolveBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugResolveRequest
+	var req zentaosdk.BugResolveRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -56,7 +56,7 @@ func (h *WriteHandler) CloseBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugCloseRequest
+	var req zentaosdk.BugCloseRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -74,7 +74,7 @@ func (h *WriteHandler) AssignBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugAssignRequest
+	var req zentaosdk.BugAssignRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -92,7 +92,7 @@ func (h *WriteHandler) ConfirmBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugConfirmRequest
+	var req zentaosdk.BugConfirmRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -110,7 +110,7 @@ func (h *WriteHandler) ActivateBug(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.BugActivateRequest
+	var req zentaosdk.BugActivateRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -130,7 +130,7 @@ func (h *WriteHandler) StartTask(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.TaskStartRequest
+	var req zentaosdk.TaskStartRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -148,7 +148,7 @@ func (h *WriteHandler) FinishTask(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.TaskFinishRequest
+	var req zentaosdk.TaskFinishRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -166,7 +166,7 @@ func (h *WriteHandler) PauseTask(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.TaskPauseRequest
+	var req zentaosdk.TaskPauseRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return
@@ -184,7 +184,7 @@ func (h *WriteHandler) AssignTask(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
-	var req zentao.TaskAssignRequest
+	var req zentaosdk.TaskAssignRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		errors.BadRequest(c, "参数格式错误")
 		return

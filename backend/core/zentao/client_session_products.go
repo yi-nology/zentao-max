@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Products ----
@@ -46,8 +46,8 @@ type sessionProduct struct {
 	PO      string `json:"PO"`
 }
 
-func (p sessionProduct) toSDK() zentao.Product {
-	return zentao.Product{
+func (p sessionProduct) toSDK() zentaosdk.Product {
+	return zentaosdk.Product{
 		ID:     p.ID,
 		Name:   p.Name,
 		Code:   p.Code,
@@ -60,8 +60,8 @@ func (p sessionProduct) toSDK() zentao.Product {
 // getProductsSession 会话模式获取产品列表。
 // /product-all.json 单页即返回全部产品（实测受限实例 ~445 个产品，无翻页）。
 // 若有翻页则按 pager.pageTotal 循环。
-func (c *Client) getProductsSession(ctx context.Context) ([]zentao.Product, error) {
-	var out []zentao.Product
+func (c *Client) getProductsSession(ctx context.Context) ([]zentaosdk.Product, error) {
+	var out []zentaosdk.Product
 	page := 1
 	for {
 		var path string
@@ -120,8 +120,8 @@ type sessionProject struct {
 	Product int    `json:"project"` // 关联产品 ID（禅道 projectStats.project 字段；0 表示无关联）
 }
 
-func (p sessionProject) toSDK() zentao.Project {
-	return zentao.Project{
+func (p sessionProject) toSDK() zentaosdk.Project {
+	return zentaosdk.Project{
 		ID:     p.ID,
 		Name:   p.Name,
 		Code:   p.Code,
@@ -134,7 +134,7 @@ func (p sessionProject) toSDK() zentao.Project {
 	}
 }
 
-func (c *Client) getProjectsByProductSession(ctx context.Context, productID int) ([]zentao.Project, error) {
+func (c *Client) getProjectsByProductSession(ctx context.Context, productID int) ([]zentaosdk.Project, error) {
 	if productID <= 0 {
 		return c.getAllProjectsSession(ctx)
 	}
@@ -144,8 +144,8 @@ func (c *Client) getProjectsByProductSession(ctx context.Context, productID int)
 	if err != nil {
 		return nil, err
 	}
-	allSDK := make([]zentao.Project, 0, len(all))
-	byID := make(map[int]zentao.Project, len(all))
+	allSDK := make([]zentaosdk.Project, 0, len(all))
+	byID := make(map[int]zentaosdk.Project, len(all))
 	for _, p := range all {
 		sdk := p.toSDK()
 		allSDK = append(allSDK, sdk)
@@ -154,9 +154,9 @@ func (c *Client) getProjectsByProductSession(ctx context.Context, productID int)
 
 	linkedProjectIDs, err := c.fetchProductProjectIDsViaBugs(ctx, productID)
 	if err != nil {
-		return []zentao.Project{}, nil
+		return []zentaosdk.Project{}, nil
 	}
-	out := make([]zentao.Project, 0, len(linkedProjectIDs))
+	out := make([]zentaosdk.Project, 0, len(linkedProjectIDs))
 	for _, id := range linkedProjectIDs {
 		if p, ok := byID[id]; ok {
 			out = append(out, p)
@@ -188,12 +188,12 @@ func (c *Client) fetchProductProjectIDsViaBugs(ctx context.Context, productID in
 	return out, nil
 }
 
-func (c *Client) getAllProjectsSession(ctx context.Context) ([]zentao.Project, error) {
+func (c *Client) getAllProjectsSession(ctx context.Context) ([]zentaosdk.Project, error) {
 	raw, err := c.getAllProjectsRaw(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Project, 0, len(raw))
+	out := make([]zentaosdk.Project, 0, len(raw))
 	for _, p := range raw {
 		out = append(out, p.toSDK())
 	}
@@ -240,7 +240,7 @@ func (c *Client) getAllProjectsRaw(ctx context.Context) ([]sessionProject, error
 	}
 }
 
-func (c *Client) getProjectSession(ctx context.Context, projectID int) (*zentao.Project, error) {
+func (c *Client) getProjectSession(ctx context.Context, projectID int) (*zentaosdk.Project, error) {
 	projects, err := c.getAllProjectsSession(ctx)
 	if err != nil {
 		return nil, err
@@ -276,8 +276,8 @@ type sessionExecution struct {
 	Desc      string `json:"desc"`
 }
 
-func (e sessionExecution) toSDK() zentao.Execution {
-	return zentao.Execution{
+func (e sessionExecution) toSDK() zentaosdk.Execution {
+	return zentaosdk.Execution{
 		ID:        e.ID,
 		Project:   e.Project,
 		Name:      e.Name,
@@ -292,12 +292,12 @@ func (e sessionExecution) toSDK() zentao.Execution {
 	}
 }
 
-func (c *Client) getExecutionsSession(ctx context.Context, projectID int) ([]zentao.Execution, error) {
+func (c *Client) getExecutionsSession(ctx context.Context, projectID int) ([]zentaosdk.Execution, error) {
 	all, err := c.getAllExecutionsSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Execution, 0, len(all))
+	out := make([]zentaosdk.Execution, 0, len(all))
 	for _, e := range all {
 		if e.Project == projectID {
 			out = append(out, e)
@@ -306,8 +306,8 @@ func (c *Client) getExecutionsSession(ctx context.Context, projectID int) ([]zen
 	return out, nil
 }
 
-func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentao.Execution, error) {
-	var out []zentao.Execution
+func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execution, error) {
+	var out []zentaosdk.Execution
 	page := 1
 	recTotal := 0
 	const recPerPage = 100

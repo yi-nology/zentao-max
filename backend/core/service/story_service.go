@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/core/dto"
 	"github.com/yi-nology/zentao-max/backend/core/utils"
@@ -29,7 +29,7 @@ func NewStoryService(client *myzentao.Client) *StoryService {
 // 2. 应用筛选条件（指派人、时间范围）
 // 3. 分页处理
 func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error) {
-	var stories []zentao.Story
+	var stories []zentaosdk.Story
 	var err error
 
 	// 优先级: executionID > projectID > productID > 全 execution fallback
@@ -61,7 +61,7 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 
 	// 按指派人筛选
 	if query.AssignedTo != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Story) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Story) bool {
 			assignedStr := ""
 			if item.AssignedTo != nil {
 				switch v := item.AssignedTo.(type) {
@@ -79,13 +79,13 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 
 	// 按时间范围或具体日期筛选
 	if query.StartDate != "" || query.EndDate != "" || query.SpecificDate != "" {
-		chainFilter = chainFilter.Filter(func(item zentao.Story) bool {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Story) bool {
 			filtered := utils.FilterByDateRangeOrSpecific(
-				[]zentao.Story{item},
+				[]zentaosdk.Story{item},
 				query.StartDate,
 				query.EndDate,
 				query.SpecificDate,
-				func(s zentao.Story) string { return s.OpenedDate },
+				func(s zentaosdk.Story) string { return s.OpenedDate },
 			)
 			return len(filtered) > 0
 		})
@@ -111,12 +111,12 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 //
 // 受限 session 模式下 user 的 story 不一定都关联到选中的 product，按 product
 // 过滤容易 0 数据。dashboard 风格遍历全 execution 是更稳的"全量"语义。
-func (s *StoryService) fetchAllStoriesAcrossExecutions() ([]zentao.Story, error) {
+func (s *StoryService) fetchAllStoriesAcrossExecutions() ([]zentaosdk.Story, error) {
 	allExecCtxs, err := s.client.GetExecutionsByProductContext(context.Background(), 0)
 	if err != nil {
 		return nil, err
 	}
-	var allStories []zentao.Story
+	var allStories []zentaosdk.Story
 	for _, ec := range allExecCtxs {
 		stories, err := s.client.GetStoriesByExecution(ec.Exec.ID, 1, 10000)
 		if err != nil {
@@ -128,7 +128,7 @@ func (s *StoryService) fetchAllStoriesAcrossExecutions() ([]zentao.Story, error)
 }
 
 // convertToVO 将zentao.Story转换为vo.StoryVO
-func (s *StoryService) convertToVO(stories []zentao.Story) []vo.StoryVO {
+func (s *StoryService) convertToVO(stories []zentaosdk.Story) []vo.StoryVO {
 	if len(stories) == 0 {
 		return []vo.StoryVO{}
 	}

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/models"
 )
 
@@ -41,7 +41,7 @@ func ConvertSliceFunc[S any, T any](sources []S, converterFunc func(S) T) []T {
 type BugConverter struct{}
 
 // Convert 转换单个Bug
-func (c *BugConverter) Convert(source zentao.Bug) models.Bug {
+func (c *BugConverter) Convert(source zentaosdk.Bug) models.Bug {
 	return models.Bug{
 		ID:            source.ID,
 		Project:       source.Project,
@@ -78,7 +78,7 @@ func (c *BugConverter) Convert(source zentao.Bug) models.Bug {
 }
 
 // ConvertBugs 批量转换Bug
-func ConvertBugs(sources []zentao.Bug) []models.Bug {
+func ConvertBugs(sources []zentaosdk.Bug) []models.Bug {
 	converter := &BugConverter{}
 	return ConvertSlice(sources, converter)
 }
@@ -87,7 +87,7 @@ func ConvertBugs(sources []zentao.Bug) []models.Bug {
 type TaskConverter struct{}
 
 // Convert 转换单个Task
-func (c *TaskConverter) Convert(source zentao.Task) models.Task {
+func (c *TaskConverter) Convert(source zentaosdk.Task) models.Task {
 	return models.Task{
 		ID:           source.ID,
 		Project:      source.Project,
@@ -114,7 +114,7 @@ func (c *TaskConverter) Convert(source zentao.Task) models.Task {
 }
 
 // ConvertTasks 批量转换Task
-func ConvertTasks(sources []zentao.Task) []models.Task {
+func ConvertTasks(sources []zentaosdk.Task) []models.Task {
 	converter := &TaskConverter{}
 	return ConvertSlice(sources, converter)
 }
@@ -123,7 +123,7 @@ func ConvertTasks(sources []zentao.Task) []models.Task {
 type StoryConverter struct{}
 
 // Convert 转换单个Story
-func (c *StoryConverter) Convert(source zentao.Story) models.Story {
+func (c *StoryConverter) Convert(source zentaosdk.Story) models.Story {
 	return models.Story{
 		ID:           source.ID,
 		Product:      source.Product,
@@ -150,7 +150,7 @@ func (c *StoryConverter) Convert(source zentao.Story) models.Story {
 }
 
 // ConvertStories 批量转换Story
-func ConvertStories(sources []zentao.Story) []models.Story {
+func ConvertStories(sources []zentaosdk.Story) []models.Story {
 	converter := &StoryConverter{}
 	return ConvertSlice(sources, converter)
 }
@@ -159,7 +159,7 @@ func ConvertStories(sources []zentao.Story) []models.Story {
 type ProductConverter struct{}
 
 // Convert 转换单个Product
-func (c *ProductConverter) Convert(source zentao.Product) models.Product {
+func (c *ProductConverter) Convert(source zentaosdk.Product) models.Product {
 	return models.Product{
 		ID:     source.ID,
 		Name:   source.Name,
@@ -171,7 +171,7 @@ func (c *ProductConverter) Convert(source zentao.Product) models.Product {
 }
 
 // ConvertProducts 批量转换Product
-func ConvertProducts(sources []zentao.Product) []models.Product {
+func ConvertProducts(sources []zentaosdk.Product) []models.Product {
 	converter := &ProductConverter{}
 	return ConvertSlice(sources, converter)
 }
@@ -180,7 +180,7 @@ func ConvertProducts(sources []zentao.Product) []models.Product {
 type ProjectConverter struct{}
 
 // Convert 转换单个Project
-func (c *ProjectConverter) Convert(source zentao.Project) models.Project {
+func (c *ProjectConverter) Convert(source zentaosdk.Project) models.Project {
 	return models.Project{
 		ID:       source.ID,
 		Name:     source.Name,
@@ -196,7 +196,7 @@ func (c *ProjectConverter) Convert(source zentao.Project) models.Project {
 }
 
 // ConvertProjects 批量转换Project
-func ConvertProjects(sources []zentao.Project) []models.Project {
+func ConvertProjects(sources []zentaosdk.Project) []models.Project {
 	converter := &ProjectConverter{}
 	return ConvertSlice(sources, converter)
 }
@@ -205,7 +205,7 @@ func ConvertProjects(sources []zentao.Project) []models.Project {
 type ExecutionConverter struct{}
 
 // Convert 转换单个Execution
-func (c *ExecutionConverter) Convert(source zentao.Execution) models.Execution {
+func (c *ExecutionConverter) Convert(source zentaosdk.Execution) models.Execution {
 	return models.Execution{
 		ID:      source.ID,
 		Project: source.Project,
@@ -219,7 +219,7 @@ func (c *ExecutionConverter) Convert(source zentao.Execution) models.Execution {
 }
 
 // ConvertExecutions 批量转换Execution
-func ConvertExecutions(sources []zentao.Execution) []models.Execution {
+func ConvertExecutions(sources []zentaosdk.Execution) []models.Execution {
 	converter := &ExecutionConverter{}
 	return ConvertSlice(sources, converter)
 }

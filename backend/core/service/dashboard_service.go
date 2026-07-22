@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
 	"github.com/yi-nology/zentao-max/backend/core/vo"
@@ -54,7 +54,7 @@ func (s *DashboardService) Search(keyword string, productID int, page int, pageS
 
 // ========== 统计辅助 ==========
 
-func calcBugStats(bugs []zentao.Bug) vo.BugStatsVO {
+func calcBugStats(bugs []zentaosdk.Bug) vo.BugStatsVO {
 	stats := vo.BugStatsVO{
 		BySeverity: make(map[string]int),
 		ByType:     make(map[string]int),
@@ -79,7 +79,7 @@ func calcBugStats(bugs []zentao.Bug) vo.BugStatsVO {
 	return stats
 }
 
-func calcStoryStats(stories []zentao.Story) vo.StoryStatsVO {
+func calcStoryStats(stories []zentaosdk.Story) vo.StoryStatsVO {
 	stats := vo.StoryStatsVO{
 		ByStage: make(map[string]int),
 		Total:   len(stories),
@@ -98,7 +98,7 @@ func calcStoryStats(stories []zentao.Story) vo.StoryStatsVO {
 	return stats
 }
 
-func calcTaskStats(tasks []zentao.Task) vo.TaskStatsVO {
+func calcTaskStats(tasks []zentaosdk.Task) vo.TaskStatsVO {
 	stats := vo.TaskStatsVO{Total: len(tasks)}
 	for _, t := range tasks {
 		switch t.Status {
@@ -115,7 +115,7 @@ func calcTaskStats(tasks []zentao.Task) vo.TaskStatsVO {
 	return stats
 }
 
-func convertBugs(bugs []zentao.Bug) []vo.BugVO {
+func convertBugs(bugs []zentaosdk.Bug) []vo.BugVO {
 	result := make([]vo.BugVO, 0, len(bugs))
 	for _, b := range bugs {
 		result = append(result, vo.BugVO{
@@ -132,7 +132,7 @@ func convertBugs(bugs []zentao.Bug) []vo.BugVO {
 	return result
 }
 
-func convertTasks(tasks []zentao.Task) []vo.TaskVO {
+func convertTasks(tasks []zentaosdk.Task) []vo.TaskVO {
 	result := make([]vo.TaskVO, 0, len(tasks))
 	for _, t := range tasks {
 		result = append(result, vo.TaskVO{
@@ -236,8 +236,8 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 	dashboard := &vo.DashboardVO{}
 
 	var (
-		bugs     []zentao.Bug
-		stories  []zentao.Story
+		bugs     []zentaosdk.Bug
+		stories  []zentaosdk.Story
 		execCtxs []myzentao.ExecutionContext
 		wg       sync.WaitGroup
 		bgCtx    context.Context
@@ -329,11 +329,11 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 
 // filterBugsByDateRange 按 OpenedDate 过滤 Bug 列表
 // startDate/endDate 为空表示不过滤；end 包含当天（截到 23:59:59）
-func filterBugsByDateRange(bugs []zentao.Bug, startDate, endDate string) []zentao.Bug {
+func filterBugsByDateRange(bugs []zentaosdk.Bug, startDate, endDate string) []zentaosdk.Bug {
 	if startDate == "" && endDate == "" || len(bugs) == 0 {
 		return bugs
 	}
-	result := make([]zentao.Bug, 0, len(bugs))
+	result := make([]zentaosdk.Bug, 0, len(bugs))
 	for _, b := range bugs {
 		// Bug.OpenedDate 是 interface{}，需要类型断言
 		rawDate := ""
@@ -352,11 +352,11 @@ func filterBugsByDateRange(bugs []zentao.Bug, startDate, endDate string) []zenta
 	return result
 }
 
-func filterStoriesByDateRange(stories []zentao.Story, startDate, endDate string) []zentao.Story {
+func filterStoriesByDateRange(stories []zentaosdk.Story, startDate, endDate string) []zentaosdk.Story {
 	if startDate == "" && endDate == "" || len(stories) == 0 {
 		return stories
 	}
-	result := make([]zentao.Story, 0, len(stories))
+	result := make([]zentaosdk.Story, 0, len(stories))
 	for _, s := range stories {
 		if isDateInRange(s.OpenedDate, startDate, endDate) {
 			result = append(result, s)
@@ -365,11 +365,11 @@ func filterStoriesByDateRange(stories []zentao.Story, startDate, endDate string)
 	return result
 }
 
-func filterTasksByDateRange(tasks []zentao.Task, startDate, endDate string) []zentao.Task {
+func filterTasksByDateRange(tasks []zentaosdk.Task, startDate, endDate string) []zentaosdk.Task {
 	if startDate == "" && endDate == "" || len(tasks) == 0 {
 		return tasks
 	}
-	result := make([]zentao.Task, 0, len(tasks))
+	result := make([]zentaosdk.Task, 0, len(tasks))
 	for _, t := range tasks {
 		if isDateInRange(t.OpenedDate, startDate, endDate) {
 			result = append(result, t)
@@ -422,8 +422,8 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 	}
 
 	var (
-		bugs  []zentao.Bug
-		tasks []zentao.Task
+		bugs  []zentaosdk.Bug
+		tasks []zentaosdk.Task
 		wg    sync.WaitGroup
 	)
 
@@ -649,9 +649,9 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 }
 
 // collectTasksContext 并发收集任务（支持 context 取消）
-func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs []myzentao.ExecutionContext) []zentao.Task {
+func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs []myzentao.ExecutionContext) []zentaosdk.Task {
 	var (
-		all []zentao.Task
+		all []zentaosdk.Task
 		mu  sync.Mutex
 		wg  sync.WaitGroup
 	)
@@ -677,12 +677,12 @@ func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs 
 }
 
 // collectTasksByProjectContext 按项目收集任务（支持 context 取消）
-func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, projectID int) []zentao.Task {
+func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, projectID int) []zentaosdk.Task {
 	executions, err := client.GetExecutionsContext(ctx, projectID, 1, 200)
 	if err != nil {
 		return nil
 	}
-	var all []zentao.Task
+	var all []zentaosdk.Task
 	for _, e := range executions {
 		select {
 		case <-ctx.Done():

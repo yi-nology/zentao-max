@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // GetProducts 获取产品列表
-func (c *Client) GetProducts() ([]zentao.Product, error) {
+func (c *Client) GetProducts() ([]zentaosdk.Product, error) {
 	return c.getProductsSession(context.Background())
 }
 
 // GetProduct 获取产品详情
-func (c *Client) GetProduct(productID int) (*zentao.Product, error) {
+func (c *Client) GetProduct(productID int) (*zentaosdk.Product, error) {
 	all, err := c.getProductsSession(context.Background())
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (c *Client) GetProduct(productID int) (*zentao.Product, error) {
 }
 
 // GetProductContext 获取产品详情（支持 context 取消）
-func (c *Client) GetProductContext(ctx context.Context, productID int) (*zentao.Product, error) {
+func (c *Client) GetProductContext(ctx context.Context, productID int) (*zentaosdk.Product, error) {
 	all, err := c.getProductsSession(ctx)
 	if err != nil {
 		return nil, err

@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 func TestIsDateInRange(t *testing.T) {
@@ -78,7 +78,7 @@ func TestIsDateInRange(t *testing.T) {
 }
 
 func TestFilterBugsByDateRange(t *testing.T) {
-	bugs := []zentao.Bug{
+	bugs := []zentaosdk.Bug{
 		{ID: 1, OpenedDate: "2024-06-01 10:00:00"},
 		{ID: 2, OpenedDate: "2024-06-15 10:00:00"},
 		{ID: 3, OpenedDate: "2024-07-01 10:00:00"},
@@ -100,7 +100,7 @@ func TestFilterBugsByDateRange(t *testing.T) {
 	})
 
 	t.Run("空列表应该返回空", func(t *testing.T) {
-		got := filterBugsByDateRange([]zentao.Bug{}, "2024-06-01", "2024-06-30")
+		got := filterBugsByDateRange([]zentaosdk.Bug{}, "2024-06-01", "2024-06-30")
 		if len(got) != 0 {
 			t.Errorf("want 0, got %d", len(got))
 		}
@@ -108,7 +108,7 @@ func TestFilterBugsByDateRange(t *testing.T) {
 }
 
 func TestFilterStoriesByDateRange(t *testing.T) {
-	stories := []zentao.Story{
+	stories := []zentaosdk.Story{
 		{ID: 1, OpenedDate: "2024-06-01"},
 		{ID: 2, OpenedDate: "2024-07-01"},
 	}

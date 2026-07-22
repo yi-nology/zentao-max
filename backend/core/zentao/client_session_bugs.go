@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/yi-nology/common/biz/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // ---- Bugs (session mode) ----
@@ -26,7 +26,7 @@ type sessionBugBrowseResp struct {
 }
 
 // sessionBug 是 *.json 端点里单条 bug 的原始结构。
-// 与 SDK zentao.Bug 的关键差异：openedBy/assignedTo 是账号字符串（SDK 是 UserRef 对象），
+// 与 SDK zentaosdk.Bug 的关键差异：openedBy/assignedTo 是账号字符串（SDK 是 UserRef 对象），
 // openedBuild 是字符串（SDK 是 FlexibleString），severity/pri 是 int（SDK 是 interface{}）。
 type sessionBug struct {
 	ID           int    `json:"id"`
@@ -63,8 +63,8 @@ type sessionBug struct {
 	Deleted      string `json:"deleted"`
 }
 
-func (b sessionBug) toSDK() zentao.Bug {
-	return zentao.Bug{
+func (b sessionBug) toSDK() zentaosdk.Bug {
+	return zentaosdk.Bug{
 		ID:            b.ID,
 		Project:       b.Project,
 		Product:       b.Product,
@@ -84,10 +84,10 @@ func (b sessionBug) toSDK() zentao.Bug {
 		Story:         b.Story,
 		Confirmed:     b.Confirmed,
 		Status:        b.Status,
-		OpenedBy:      zentao.UserRef{Account: b.OpenedBy},
+		OpenedBy:      zentaosdk.UserRef{Account: b.OpenedBy},
 		OpenedDate:    b.OpenedDate,
-		OpenedBuild:   zentao.FlexibleString(nonEmpty(b.OpenedBuild)),
-		AssignedTo:    zentao.UserRef{Account: b.AssignedTo},
+		OpenedBuild:   zentaosdk.FlexibleString(nonEmpty(b.OpenedBuild)),
+		AssignedTo:    zentaosdk.UserRef{Account: b.AssignedTo},
 		AssignedDate:  b.AssignedDate,
 		Deadline:      b.Deadline,
 		ResolvedBy:    b.ResolvedBy,
@@ -111,14 +111,14 @@ func nonEmpty(s string) []string {
 }
 
 // fetchBugsPageSession 拉取 bug-browse 的单页。recTotal 传 0 表示首探。
-func (c *Client) fetchBugsPageSession(ctx context.Context, productID, page int, browseType string, recTotal int) ([]zentao.Bug, *sessionPager, error) {
+func (c *Client) fetchBugsPageSession(ctx context.Context, productID, page int, browseType string, recTotal int) ([]zentaosdk.Bug, *sessionPager, error) {
 	path := fmt.Sprintf("/bug-browse-%d-0-%s-0--%d-%d-%d.json",
 		productID, browseType, recTotal, sessionBugRecPerPage, page)
 	var resp sessionBugBrowseResp
 	if err := c.doSessionJSON(ctx, "GetBugs", path, &resp); err != nil {
 		return nil, nil, err
 	}
-	bugs := make([]zentao.Bug, 0, len(resp.Bugs))
+	bugs := make([]zentaosdk.Bug, 0, len(resp.Bugs))
 	for _, b := range resp.Bugs {
 		bugs = append(bugs, b.toSDK())
 	}
@@ -127,8 +127,8 @@ func (c *Client) fetchBugsPageSession(ctx context.Context, productID, page int, 
 
 // getAllBugsSession 自动翻页拉取产品全部 bug（含 closed，browseType=all）。
 // 优先复用上层 cache（与 Token 模式 GetAllBugsContext 一致）。
-func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentao.Bug, error) {
-	var all []zentao.Bug
+func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentaosdk.Bug, error) {
+	var all []zentaosdk.Bug
 	page := 1
 	recTotal := 0
 	for {
@@ -157,18 +157,18 @@ func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentao
 	}
 }
 
-func (c *Client) getBugsSession(ctx context.Context, productID, page, pageSize int) ([]zentao.Bug, error) {
+func (c *Client) getBugsSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Bug, error) {
 	bugs, _, err := c.fetchBugsPageSession(ctx, productID, page, "all", 0)
 	_ = pageSize
 	return bugs, err
 }
 
-func (c *Client) getBugsByProjectSession(ctx context.Context, productID, projectID, page, pageSize int) ([]zentao.Bug, error) {
+func (c *Client) getBugsByProjectSession(ctx context.Context, productID, projectID, page, pageSize int) ([]zentaosdk.Bug, error) {
 	all, err := c.getAllBugsSession(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]zentao.Bug, 0)
+	out := make([]zentaosdk.Bug, 0)
 	for _, b := range all {
 		if b.Project == projectID {
 			out = append(out, b)
@@ -178,13 +178,13 @@ func (c *Client) getBugsByProjectSession(ctx context.Context, productID, project
 	return paginateBugs(out, page, pageSize), nil
 }
 
-func (c *Client) getAllBugsByProjectSession(ctx context.Context, projectID int) ([]zentao.Bug, error) {
+func (c *Client) getAllBugsByProjectSession(ctx context.Context, projectID int) ([]zentaosdk.Bug, error) {
 	// 产品维度未知，取全部产品全部 bug 后按 project 过滤。
 	products, err := c.getProductsSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []zentao.Bug
+	var out []zentaosdk.Bug
 	for _, p := range products {
 		bugs, berr := c.getAllBugsSession(ctx, p.ID)
 		if berr != nil {
@@ -201,7 +201,7 @@ func (c *Client) getAllBugsByProjectSession(ctx context.Context, projectID int) 
 	return out, nil
 }
 
-func (c *Client) searchBugsSession(_ context.Context, params zentao.BugSearchParams) ([]zentao.Bug, error) {
+func (c *Client) searchBugsSession(_ context.Context, params zentaosdk.BugSearchParams) ([]zentaosdk.Bug, error) {
 	// 复用 token 模式的内存过滤语义：先拉全部，再按条件筛。
 	all, err := c.getAllBugsSession(context.Background(), params.ProductID)
 	if err != nil {
@@ -211,7 +211,7 @@ func (c *Client) searchBugsSession(_ context.Context, params zentao.BugSearchPar
 }
 
 // paginateBugs 内存分页（1-based page）。
-func paginateBugs(in []zentao.Bug, page, pageSize int) []zentao.Bug {
+func paginateBugs(in []zentaosdk.Bug, page, pageSize int) []zentaosdk.Bug {
 	if pageSize <= 0 {
 		pageSize = 100
 	}
@@ -230,8 +230,8 @@ func paginateBugs(in []zentao.Bug, page, pageSize int) []zentao.Bug {
 }
 
 // filterBugs 在内存中按 BugSearchParams 过滤（与 SDK SearchBugs 语义一致）。
-func filterBugs(in []zentao.Bug, p zentao.BugSearchParams) []zentao.Bug {
-	out := make([]zentao.Bug, 0, len(in))
+func filterBugs(in []zentaosdk.Bug, p zentaosdk.BugSearchParams) []zentaosdk.Bug {
+	out := make([]zentaosdk.Bug, 0, len(in))
 	for _, b := range in {
 		if p.Status != "" && b.Status != p.Status {
 			continue

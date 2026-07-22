@@ -118,8 +118,12 @@ func (c *Client) GetEffortCalendar(ctx context.Context, userID, year int) ([]Cal
 		// 必须用 GetRawJSON 跳过外层解包，直接读 body。
 		body, err := c.GetRawJSON(ctx, path)
 		if err != nil {
+			// 致命会话错误（登录失效 / 权限拒绝）必须 wrap errDoNotServeStale，
+			// 让 SessionCache 跳过 L2 stale fallback 直接把 err 透传，
+			// 否则前端会拿到旧 stale 数据误以为"今天确实没工时"或"账号真没权限"。
+			// 跟 client.go doSessionJSONCached 的 safeLoader 保持一致语义。
 			if IsSessionAuthError(err) || IsSessionAccessDenied(err) {
-				return nil, nil // 未登录/无权限时返空（前端兜底）
+				return nil, fmt.Errorf("%w: %w", errDoNotServeStale, err)
 			}
 			return nil, err
 		}

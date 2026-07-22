@@ -1,10 +1,21 @@
 package zentao
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
+
+// testZenSIDName 是测试里种 session cookie 用的固定 name（避 linter goconst）。
+const testZenSIDName = "zentaosid"
 
 // TestParseCalendarObjectType 验证 [T]/[B]/[S]/[P]/空 五种 title 前缀解析。
 func TestParseCalendarObjectType(t *testing.T) {
@@ -164,4 +175,112 @@ func contains(haystack []byte, needle string) bool {
 		}
 	}
 	return false
+}
+
+// TestGetEffortCalendar_AuthError_NotCached 回归 V040+ 教训：
+// 会话失效 / 权限拒绝时 GetEffortCalendar 的 loader 必须 wrap errDoNotServeStale，
+// 让 SessionCache 跳过 L2 stale fallback 直接把 error 透传。
+// 否则空数据会被当成功结果写进 L1/L2 cache，登录恢复后前端仍看到"空日历"。
+func TestGetEffortCalendar_AuthError_NotCached(t *testing.T) {
+	// 用一个会让 GetRawJSON 触发 errSessionReloginRequired 的 server：
+	// 所有响应体以 '<' 开头 → GetRawJSON 启发式判定为 user-login redirect。
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user-login.html", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			http.SetCookie(w, &http.Cookie{Name: testZenSIDName, Value: "s", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+			w.WriteHeader(200)
+		case http.MethodPost:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"result":"success"}`))
+		}
+	})
+	mux.HandleFunc("/user-refreshRandom.html", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("r"))
+	})
+	// 关键：GetRawJSON 拉到的 body 以 '<' 开头 → 触发 errSessionReloginRequired。
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!DOCTYPE html><html><body>session expired</body></html>`))
+	})
+	authSrv := httptest.NewServer(mux)
+	defer authSrv.Close()
+
+	cacheDB := filepath.Join(t.TempDir(), "effort-auth.db")
+	c := NewSessionClient(authSrv.URL, "u", "p", "kydc", cacheDB, nil)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = c.Close(ctx)
+	})
+
+	// 调 GetEffortCalendar → 触发 loader → GetRawJSON 返 errSessionReloginRequired
+	// → wrap errDoNotServeStale → GetOrLoad 直接把 err 透出（不进 cache）。
+	_, err := c.GetEffortCalendar(context.Background(), 1, 2026)
+	if err == nil {
+		t.Fatal("expected error on auth failure, got nil")
+	}
+	if !errors.Is(err, errDoNotServeStale) {
+		t.Errorf("err should wrap errDoNotServeStale, got: %v", err)
+	}
+
+	// 验证 cache 没被填：直接查 L1 应该有 0 条（use NewSessionCache 直接造一个看 Stats）。
+	if c.cache == nil {
+		t.Fatal("cache should be initialized")
+	}
+	stats := c.cache.Stats()
+	if stats.L1Size != 0 {
+		t.Errorf("auth error should NOT populate cache, L1Size=%d", stats.L1Size)
+	}
+}
+
+// TestGetAllBugs_BrowseTypeAll 验证 GetAllBugs 走 browseType=all（禅道语义：含 closed）。
+// 配合删掉的 GetAllBugsIncludeClosed，确保两个用例合并后行为不变。
+func TestGetAllBugs_BrowseTypeAll(t *testing.T) {
+	var got atomic.Value // string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user-login.html", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			http.SetCookie(w, &http.Cookie{Name: testZenSIDName, Value: "s", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
+			w.WriteHeader(200)
+		case http.MethodPost:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"result":"success"}`))
+		}
+	})
+	mux.HandleFunc("/user-refreshRandom.html", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("r"))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".json") {
+			got.Store(r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		inner, _ := json.Marshal(map[string]interface{}{
+			"title": "fake", "productID": 1, "bugs": []interface{}{}, "pager": map[string]int{"recTotal": 0, "pageTotal": 1},
+		})
+		_, _ = w.Write([]byte(`{"status":"success","data":"` + escapeJSONString(string(inner)) + `","md5":"x"}`))
+	})
+	pathSrv := httptest.NewServer(mux)
+	defer pathSrv.Close()
+
+	cacheDB := filepath.Join(t.TempDir(), "bug-path.db")
+	c := NewSessionClient(pathSrv.URL, "u", "p", "kydc", cacheDB, nil)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = c.Close(ctx)
+	})
+
+	if _, err := c.GetAllBugs(1); err != nil {
+		t.Fatalf("GetAllBugs err: %v", err)
+	}
+
+	p, _ := got.Load().(string)
+	if !strings.Contains(p, "-0-all-") {
+		t.Errorf("GetAllBugs should use browseType=all (含 closed 语义), got path=%q", p)
+	}
 }

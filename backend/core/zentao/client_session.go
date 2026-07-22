@@ -77,7 +77,7 @@ func NewSessionTransport(server, account, password, realm string) *SessionTransp
 		Timeout: 120 * time.Second,
 		Jar:     jar,
 		Transport: &http.Transport{
-			// 内网禅道常用自签名证书，与上游 SDK doGet / GetAllBugsIncludeClosed 行为一致。
+			// 内网禅道常用自签名证书，与上游 SDK doGet / GetAllBugs 行为一致。
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}

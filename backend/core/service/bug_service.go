@@ -35,7 +35,8 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		// 注意：closed 状态的 bug 不会被禅道默认接口返回，
 		// 必须用 status=all 全量获取（含 closed）后在内存过滤
 		if query.Version != "" || query.Type != "" || query.Status != "" {
-			bugs, err = s.client.GetAllBugsIncludeClosed(query.ProductID)
+			// 全量已含 closed / resolved（browseType=all），无需额外过滤
+			bugs, err = s.client.GetAllBugs(query.ProductID)
 		} else if query.AssignedTo != "" {
 			// 指派人过滤使用SearchBugs减少内存消耗
 			params := zentaosdk.BugSearchParams{

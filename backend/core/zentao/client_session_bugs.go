@@ -201,9 +201,10 @@ func (c *Client) getAllBugsByProjectSession(ctx context.Context, projectID int) 
 	return out, nil
 }
 
-func (c *Client) searchBugsSession(_ context.Context, params zentaosdk.BugSearchParams) ([]zentaosdk.Bug, error) {
+func (c *Client) searchBugsSession(ctx context.Context, params zentaosdk.BugSearchParams) ([]zentaosdk.Bug, error) {
 	// 复用 token 模式的内存过滤语义：先拉全部，再按条件筛。
-	all, err := c.getAllBugsSession(context.Background(), params.ProductID)
+	// 注意：ctx 必须真传下去，否则调用方取消 / 超时不会终止底层翻页循环。
+	all, err := c.getAllBugsSession(ctx, params.ProductID)
 	if err != nil {
 		return nil, err
 	}

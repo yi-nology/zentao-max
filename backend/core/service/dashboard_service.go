@@ -194,11 +194,15 @@ func toWeekKey(dateStr string) string {
 // GetDashboardContext 获取仪表盘数据（支持 context 取消和日期范围过滤）
 // startDate/endDate 为空表示不过滤；格式 YYYY-MM-DD
 // 若注入了 CacheService，优先走缓存：缓存未命中回源后写入；回源失败有过期缓存时 fallback
+//
+// 缓存 key 必须把 (startDate, endDate) 编进 entityType，否则不同日期范围的请求
+// 会共享同一份 cache，前端切日期看到的"过滤后数据"实际是第一次请求时的日期
+// 过滤过的旧数据（V040+ 教训：date filter 在 cache 命中后被静默跳过）。
 func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
-	// 缓存键包含日期范围（不同时间范围不共享缓存）
-	cacheKey := fmt.Sprintf("dashboard:%s:%s", startDate, endDate)
 	if s.cache != nil && productID > 0 {
-		result, err := s.cache.GetOrLoad(ctx, storage.EntityDashboard, productID, DefaultCacheTTL,
+		// 缓存键含日期范围（不同时间范围不共享缓存）
+		cacheKey := fmt.Sprintf("%s:%s:%s", storage.EntityDashboard, startDate, endDate)
+		result, err := s.cache.GetOrLoad(ctx, cacheKey, productID, DefaultCacheTTL,
 			func(ctx context.Context) ([]byte, error) {
 				d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
 				if err != nil {
@@ -209,7 +213,6 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 		if err != nil {
 			return nil, err
 		}
-		_ = cacheKey // cacheKey 用于将来精细化（当前用 productID 区分）
 		var dashboard vo.DashboardVO
 		if err := json.Unmarshal(result.Data, &dashboard); err != nil {
 			return nil, err

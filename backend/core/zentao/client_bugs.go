@@ -36,15 +36,17 @@ func (c *Client) SearchBugs(params zentaosdk.BugSearchParams) ([]zentaosdk.Bug, 
 	return c.searchBugsSession(context.Background(), params)
 }
 
-// GetAllBugs 获取产品全部 Bug（自动翻页）
+// GetAllBugs 获取产品全部 Bug（自动翻页，含 closed / resolved 等所有状态）。
+//
+// 禅道 session 端点 /bug-browse-{pid}-0-{browseType}-... 的 browseType 实际语义：
+//   - "unclosed"：只看未关闭（默认）
+//   - "all"：全状态（含 closed / resolved）—— 本方法走这个
+//   - "active"：激活态
+//
+// 注意：禅道不走 status query 参数，browseType 是 URL 段之一。
+// 旧版 "GetAllBugsIncludeClosed" 跟本方法完全等价（都走 browseType=all），
+// 已删除以免误导。
 func (c *Client) GetAllBugs(productID int) ([]zentaosdk.Bug, error) {
-	return c.getAllBugsSession(context.Background(), productID)
-}
-
-// GetAllBugsIncludeClosed 获取产品全部 Bug（含 closed 状态）
-// 禅道默认 /products/{id}/bugs 接口不返回 closed bug，
-// 需显式传 status=all 才能获取全部状态。自动翻页。
-func (c *Client) GetAllBugsIncludeClosed(productID int) ([]zentaosdk.Bug, error) {
 	return c.getAllBugsSession(context.Background(), productID)
 }
 

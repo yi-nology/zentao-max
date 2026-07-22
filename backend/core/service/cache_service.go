@@ -67,9 +67,21 @@ func (s *CacheService) GetOrLoad(
 	// 2. 回源
 	freshData, loadErr := loader(ctx)
 	if loadErr == nil {
-		// 回源成功，写缓存（异步避免阻塞）
+		// 回源成功，写缓存（异步避免阻塞）。
+		// 关键：ctx 用调用方传入的 + 5s 超时（不是 Background），store 已 Close 时
+		// 错误能及时返回 + 5s 内必退出，避免 goroutine 永久 hang。
 		go func() {
-			if err := s.store.Set(context.Background(), entityType, productID, freshData, ttl); err != nil {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("cache async write panicked",
+						zap.String("entityType", entityType),
+						zap.Int("productID", productID),
+						zap.Any("panic", r))
+				}
+			}()
+			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.store.Set(writeCtx, entityType, productID, freshData, ttl); err != nil {
 				logger.Warn("cache write failed",
 					zap.String("entityType", entityType),
 					zap.Int("productID", productID),

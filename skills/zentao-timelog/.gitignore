@@ -1,0 +1,6 @@
+# 运行时产物不入库：台账记录工作内容、缓存记录隧道状态（见 README 安全建议）
+.cache/*
+!.cache/.gitkeep
+.ledger/*
+!.ledger/.gitkeep
+__pycache__/

@@ -105,6 +105,19 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 - **前端**: `/login` 页（`views/Login.vue` + `useAuth`）；Layout 头部只读/管理员徽章；`api.ts` 对 401 分流——含"管理员登录"字样跳 `/login?redirect=...`，其余（禅道配置失效）跳 `/init-guide`。
 - **注意**: 初始化完成后再走 `/init-guide` 重新配置禅道连接也需要先登录管理员。限流为配置驱动（`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。
 
+## Skills (Agent 技能包, `skills/`)
+
+仓库内置两个可分发的 Agent 技能（直连禅道实例的 session 方式，支持 realm 统一认证域，
+凭证走 `~/.zentao-credentials.env`，模板见 `skills/config.example.env`；配置含 SSH 跳板机
+隧道支持）。改这两个技能时同步更新其 SKILL.md：
+
+- **`skills/zentao-timelog/`**：Excel 批量填报禅道工时/任务日志（`scripts/zt.py`：whoami/tasks/plan/submit/verify）。核心红线：先 plan 再 submit、`left[1]` 必发且为绝对值、AJAX 外壳 `{"status":"success"}` 必须穿透 `data` 判定且写后必回读、失败行不入台账可安全重跑、工时被外部系统同步后只能网页改。
+- **`skills/zentao-bug/`**：BUG 查询（`get_bug.py`，`bug-view-{id}.json` 外层 data 需二次解析）、解决/关闭/编辑（`close_bug.ps1`）与质量分析五字段批量填写（`set_quality_fields.ps1`：fixedPackageVersion + reasonAnalysis/advice/implementation/testAdvise 一次 `bug-edit` 全量写全，必须带 openedBuild/execution/title 原值）。
+
+与后端 API 的关系：Bug 流转、批量工时（`POST /api/v1/efforts/batch`）等能力应用本身已提供
+REST/MCP 入口；技能包覆盖的是应用 API 未暴露的实例侧细节（质量分析字段、Excel 工作流、
+biz8.x 全量更新语义、跳板机隧道）。
+
 ## Authentication Modes (双认证模式)
 
 应用支持两种禅道认证与数据访问模式，按配置的 `realm` 字段自动切换：

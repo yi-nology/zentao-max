@@ -31,22 +31,12 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 
 	// 如果有产品ID，按产品查询
 	if query.ProductID != 0 {
-		// 版本/类型/状态过滤需要获取所有bug（含closed），在内存中过滤
+		// 版本/类型/状态/指派人过滤需要获取所有bug（含closed），在内存中过滤
 		// 注意：closed 状态的 bug 不会被禅道默认接口返回，
 		// 必须用 status=all 全量获取（含 closed）后在内存过滤
-		if query.Version != "" || query.Type != "" || query.Status != "" {
+		if query.AssignedTo != "" || query.Version != "" || query.Type != "" || query.Status != "" {
 			// 全量已含 closed / resolved（browseType=all），无需额外过滤
 			bugs, err = s.client.GetAllBugs(query.ProductID)
-		} else if query.AssignedTo != "" {
-			// 指派人过滤使用SearchBugs减少内存消耗
-			params := zentaosdk.BugSearchParams{
-				ProductID:  query.ProductID,
-				Status:     query.Status,
-				AssignedTo: query.AssignedTo,
-				Limit:      1000,
-				Page:       1,
-			}
-			bugs, err = s.client.SearchBugs(params)
 		} else if query.ProjectID != 0 {
 			// 如果只有项目ID，使用GetBugsByProject
 			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1, 1000)
@@ -64,12 +54,39 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	}
 
 	// 使用链式过滤器进行筛选
+	chainFilter := applyBugFilters(bugs, query)
+
+	// 获取总数
+	total := chainFilter.Count()
+
+	// 执行分页
+	pagedBugs := chainFilter.Paginate(query.Page, query.PageSize).Result()
+
+	list := s.convertToVO(pagedBugs)
+
+	return &vo.PaginatedVO{
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+	}, nil
+}
+
+// applyBugFilters 对全量 bug 列表应用查询条件（不含分页），列表与统计卡共用同一筛选口径
+func applyBugFilters(bugs []zentaosdk.Bug, query *dto.BugQueryDTO) *utils.ChainFilter[zentaosdk.Bug] {
 	chainFilter := utils.NewChainFilter(bugs)
 
 	// 按状态筛选（version/type 分支下 bugs 包含全部状态，需在内存过滤）
 	if query.Status != "" {
 		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
 			return item.Status == query.Status
+		})
+	}
+
+	// 按指派人筛选（AssignedTo 是 UserRef，按账号精确匹配）
+	if query.AssignedTo != "" {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
+			return item.AssignedTo.Account == query.AssignedTo
 		})
 	}
 
@@ -106,20 +123,28 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 		})
 	}
 
-	// 获取总数
-	total := chainFilter.Count()
+	return chainFilter
+}
 
-	// 执行分页
-	pagedBugs := chainFilter.Paginate(query.Page, query.PageSize).Result()
+// GetBugStatusCounts 返回应用筛选条件后（不分页）的各状态 Bug 数量，供统计卡使用。
+// 统计基于含 closed 的全量数据，否则"已关闭"永远是 0。
+func (s *BugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error) {
+	counts := map[string]int{"active": 0, "resolved": 0, "closed": 0}
+	if query.ProductID == 0 {
+		return counts, nil
+	}
 
-	list := s.convertToVO(pagedBugs)
+	bugs, err := s.client.GetAllBugs(query.ProductID)
+	if err != nil {
+		return nil, err
+	}
 
-	return &vo.PaginatedVO{
-		List:     list,
-		Total:    total,
-		Page:     query.Page,
-		PageSize: query.PageSize,
-	}, nil
+	for _, bug := range applyBugFilters(bugs, query).Result() {
+		if _, ok := counts[bug.Status]; ok {
+			counts[bug.Status]++
+		}
+	}
+	return counts, nil
 }
 
 // convertToVO 将zentao.Bug转换为vo.BugVO

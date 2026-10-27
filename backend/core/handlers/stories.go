@@ -40,5 +40,22 @@ func (h *StoryHandler) GetStories(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	errors.Success(c, result)
+	// 统计卡需要全量（分页前）的各状态数量，随列表一并返回
+	statusCounts, err := h.storyService.GetStoryStatusCounts(&query)
+	if err != nil {
+		if _, ok := err.(*service.ValidationError); ok {
+			errors.BadRequest(c, err.Error())
+			return
+		}
+		errors.Error(c, errors.ExternalError("禅道", err))
+		return
+	}
+
+	errors.Success(c, map[string]interface{}{
+		"list":         result.List,
+		"total":        result.Total,
+		"page":         result.Page,
+		"pageSize":     result.PageSize,
+		"statusCounts": statusCounts,
+	})
 }

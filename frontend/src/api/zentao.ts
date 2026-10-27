@@ -146,7 +146,8 @@ export const getBugStatusOptions = (): SelectOption[] => {
   return [
     { label: '激活', value: 'active' },
     { label: '已解决', value: 'resolved' },
-    { label: '已关闭', value: 'closed' }
+    { label: '已关闭', value: 'closed' },
+    { label: '评审中', value: 'reviewing' }
   ]
 }
 

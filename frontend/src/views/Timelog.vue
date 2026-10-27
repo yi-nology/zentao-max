@@ -1,5 +1,9 @@
 <template>
-  <div class="timelog-container">
+  <div
+    class="timelog-container"
+    v-loading="loading"
+    element-loading-text="正在获取数据..."
+  >
     <div class="filter-card">
       <div class="quick-btns">
         <span class="quick-label">快捷选择:</span>
@@ -89,7 +93,9 @@
           <el-table-column prop="taskName" label="任务名称" min-width="200">
             <template #default="scope">{{ scope.row.taskName.length > 40 ? scope.row.taskName.substring(0, 40) + '...' : scope.row.taskName }}</template>
           </el-table-column>
-          <el-table-column prop="taskType" label="类型" width="100" />
+          <el-table-column prop="taskType" label="类型" width="100">
+            <template #default="scope">{{ getTaskTypeLabel(scope.row.taskType) }}</template>
+          </el-table-column>
           <el-table-column prop="project" label="项目" width="150" />
           <el-table-column prop="execution" label="执行" width="150" />
           <el-table-column prop="account" label="人员" width="100">
@@ -104,8 +110,6 @@
         </el-table>
       </div>
     </template>
-
-    <el-loading v-if="loading" fullscreen text="正在获取数据..." />
 
     <div v-if="!showResult && !loading" class="empty-state">
       <el-empty description="请选择筛选条件并点击查询统计" />
@@ -169,6 +173,7 @@ const setQuickRange = (range: string): void => {
 
 const queryTimelog = async (): Promise<void> => {
   if (!filters.value.dateFrom || !filters.value.dateTo) { ElMessage.warning('请选择时间范围'); return }
+  if (!globalSelection.product) { ElMessage.warning('请先在顶部选择产品'); return }
   syncRoute()
   loading.value = true
   try {
@@ -227,6 +232,7 @@ const handleSortChange = (sort: SortParams): void => {
   analysisData.value.efforts = sorted
 }
 const getUserName = (account: string): string => { const user = users.value.find(u => u.account === account); return user ? (user.realname || account) : account }
+const getTaskTypeLabel = (type: string): string => ({ devel: '开发', test: '测试', design: '设计', study: '学习', discuss: '讨论', docs: '文档', meeting: '会议' }[type] || type)
 
 // 导出当前过滤后的工时数据
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
@@ -237,7 +243,7 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   const cols: ExportColumn<TimelogEffort>[] = [
     { header: '日期', access: e => e.date },
     { header: '任务名称', access: e => e.taskName },
-    { header: '类型', access: e => e.taskType },
+    { header: '类型', access: e => getTaskTypeLabel(e.taskType) },
     { header: '项目', access: e => e.project },
     { header: '执行', access: e => e.execution },
     { header: '账号', access: e => e.account },

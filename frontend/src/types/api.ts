@@ -230,6 +230,8 @@ export interface PaginatedResponse<T> {
   total: number
   page: number
   pageSize: number
+  /** 列表接口附带：应用筛选后（分页前）的各状态数量，供统计分段卡使用 */
+  statusCounts?: Record<string, number>
 }
 
 // Dashboard types

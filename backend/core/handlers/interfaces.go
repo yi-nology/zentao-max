@@ -12,6 +12,7 @@ import (
 
 type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
+	GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error)
 }
 
 type BuildServicer interface {
@@ -21,10 +22,12 @@ type BuildServicer interface {
 
 type TaskServicer interface {
 	GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
+	GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error)
 }
 
 type StoryServicer interface {
 	GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error)
+	GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error)
 }
 
 type ProductServicer interface {

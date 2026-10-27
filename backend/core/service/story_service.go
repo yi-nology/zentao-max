@@ -29,34 +29,71 @@ func NewStoryService(client *myzentao.Client) *StoryService {
 // 2. 应用筛选条件（指派人、时间范围）
 // 3. 分页处理
 func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error) {
-	var stories []zentaosdk.Story
-	var err error
-
-	// 优先级: executionID > projectID > productID > 全 execution fallback
-	if query.ExecutionID != 0 {
-		stories, err = s.client.GetStoriesByExecution(query.ExecutionID, 1, 1000)
-	} else if query.ProjectID != 0 {
-		stories, err = s.client.GetStoriesByProject(query.ProjectID, 1, 1000)
-	} else if query.ProductID != 0 {
-		stories, err = s.client.GetStoriesByProduct(query.ProductID, 1, 1000)
-		if err == nil && len(stories) == 0 {
-			// product 维度没数据时，fallback 到全 execution 收集（dashboard 同款）
-			stories, err = s.fetchAllStoriesAcrossExecutions()
-		}
-	} else {
-		// 全部缺省：直接全 execution 收集（dashboard 同款），保证 health check
-		// 跟产品选择解耦，页面也能看到 <user-account> 实际关联的 story
-		stories, err = s.fetchAllStoriesAcrossExecutions()
-		if err != nil {
-			return nil, err
-		}
-	}
-
+	stories, err := s.fetchStories(query)
 	if err != nil {
 		return nil, err
 	}
 
 	// 使用链式过滤器进行筛选
+	chainFilter := applyStoryFilters(stories, query)
+
+	// 获取总数
+	total := chainFilter.Count()
+
+	// 执行分页
+	pagedStories := chainFilter.Paginate(query.Page, query.PageSize).Result()
+
+	list := s.convertToVO(pagedStories)
+
+	return &vo.PaginatedVO{
+		List:     list,
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+	}, nil
+}
+
+// GetStoryStatusCounts 返回应用筛选条件后（不分页）的各状态需求数量，供统计卡使用
+func (s *StoryService) GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error) {
+	counts := map[string]int{"draft": 0, "active": 0, "reviewing": 0, "changed": 0, "closed": 0}
+
+	stories, err := s.fetchStories(query)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, story := range applyStoryFilters(stories, query).Result() {
+		if _, ok := counts[story.Status]; ok {
+			counts[story.Status]++
+		}
+	}
+	return counts, nil
+}
+
+// fetchStories 按优先级 executionID > projectID > productID 拉取需求全量
+func (s *StoryService) fetchStories(query *dto.StoryQueryDTO) ([]zentaosdk.Story, error) {
+	// 优先级: executionID > projectID > productID > 全 execution fallback
+	if query.ExecutionID != 0 {
+		return s.client.GetStoriesByExecution(query.ExecutionID, 1, 1000)
+	}
+	if query.ProjectID != 0 {
+		return s.client.GetStoriesByProject(query.ProjectID, 1, 1000)
+	}
+	if query.ProductID != 0 {
+		stories, err := s.client.GetStoriesByProduct(query.ProductID, 1, 1000)
+		if err == nil && len(stories) == 0 {
+			// product 维度没数据时，fallback 到全 execution 收集（dashboard 同款）
+			return s.fetchAllStoriesAcrossExecutions()
+		}
+		return stories, err
+	}
+	// 全部缺省：直接全 execution 收集（dashboard 同款），保证 health check
+	// 跟产品选择解耦，页面也能看到 <user-account> 实际关联的 story
+	return s.fetchAllStoriesAcrossExecutions()
+}
+
+// applyStoryFilters 对需求列表应用查询条件（不含分页），列表与统计卡共用同一筛选口径
+func applyStoryFilters(stories []zentaosdk.Story, query *dto.StoryQueryDTO) *utils.ChainFilter[zentaosdk.Story] {
 	chainFilter := utils.NewChainFilter(stories)
 
 	// 按指派人筛选
@@ -91,20 +128,7 @@ func (s *StoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, er
 		})
 	}
 
-	// 获取总数
-	total := chainFilter.Count()
-
-	// 执行分页
-	pagedStories := chainFilter.Paginate(query.Page, query.PageSize).Result()
-
-	list := s.convertToVO(pagedStories)
-
-	return &vo.PaginatedVO{
-		List:     list,
-		Total:    total,
-		Page:     query.Page,
-		PageSize: query.PageSize,
-	}, nil
+	return chainFilter
 }
 
 // fetchAllStoriesAcrossExecutions 直接遍历全 execution 收集 story（dashboard 同款）。

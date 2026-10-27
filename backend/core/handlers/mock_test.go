@@ -23,6 +23,10 @@ func (m *MockBugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error
 	return m.Result, m.Err
 }
 
+func (m *MockBugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error) {
+	return map[string]int{"active": 0, "resolved": 0, "closed": 0}, nil
+}
+
 type MockTaskService struct {
 	Result *vo.PaginatedVO
 	Err    error
@@ -36,6 +40,10 @@ func (m *MockTaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, er
 	return m.Result, m.Err
 }
 
+func (m *MockTaskService) GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error) {
+	return map[string]int{"wait": 0, "doing": 0, "done": 0, "closed": 0}, nil
+}
+
 type MockStoryService struct {
 	Result *vo.PaginatedVO
 	Err    error
@@ -45,6 +53,10 @@ type MockStoryService struct {
 func (m *MockStoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error) {
 	m.Called = true
 	return m.Result, m.Err
+}
+
+func (m *MockStoryService) GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error) {
+	return map[string]int{"draft": 0, "active": 0, "reviewing": 0, "changed": 0, "closed": 0}, nil
 }
 
 type MockProductService struct {

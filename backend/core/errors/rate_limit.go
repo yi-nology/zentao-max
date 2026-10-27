@@ -124,8 +124,28 @@ func (rl *RateLimiter) Allow(ip string) (bool, int, time.Time) {
 	return true, remaining, info.ResetTime
 }
 
+// RateLimitMiddleware 使用内置默认值（600/分钟）创建限流中间件。
+// 仅适用于没有加载配置文件的场景；正式入口应使用 RateLimitMiddlewareWithConfig。
 func RateLimitMiddleware() app.HandlerFunc {
 	config := DefaultRateLimitConfig()
+	return rateLimitMiddleware(config)
+}
+
+// RateLimitMiddlewareWithConfig 使用配置文件的 rate_limit 设置创建限流中间件。
+// requestsPerMinute / blockDurationMinutes 传 0 时回退到内置默认值，
+// 这样未配置限流的部署保持原有行为。
+func RateLimitMiddlewareWithConfig(requestsPerMinute, blockDurationMinutes int) app.HandlerFunc {
+	config := DefaultRateLimitConfig()
+	if requestsPerMinute > 0 {
+		config.RequestsPerMinute = requestsPerMinute
+	}
+	if blockDurationMinutes > 0 {
+		config.BlockDuration = time.Duration(blockDurationMinutes) * time.Minute
+	}
+	return rateLimitMiddleware(config)
+}
+
+func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 	limiter := NewRateLimiter(config)
 
 	// 不计入限流的路径：健康检查、指标、初始化状态、版本号。

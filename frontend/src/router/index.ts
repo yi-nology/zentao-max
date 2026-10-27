@@ -71,7 +71,9 @@ const routes: AppRoute[] = [
         meta: { title: '定时任务' }
       },
       {
-        path: 'health',
+        // 不用 /health：生产模式下该路径被后端健康检查端点占用（Hertz 路由先于静态兜底），
+        // 整页加载 /health 会拿到 JSON 而非本页
+        path: 'health-check',
         name: 'HealthCheck',
         component: () => import('../views/HealthCheck.vue'),
         meta: { title: '心跳检测' }
@@ -101,7 +103,15 @@ const routes: AppRoute[] = [
     name: 'InitStatus',
     component: () => import('../views/InitStatus.vue'),
     meta: { title: '初始化状态' }
-  }
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Login.vue'),
+    meta: { title: '管理员登录' }
+  },
+  // 未知路径兜底（含旧书签 /health 等），避免深链 404 白屏
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
 ]
 
 const router: Router = createRouter({
@@ -110,7 +120,7 @@ const router: Router = createRouter({
 })
 
 router.beforeEach(async (to, _from, next) => {
-  if (to.path === '/init-guide' || to.path === '/init-status') {
+  if (to.path === '/init-guide' || to.path === '/init-status' || to.path === '/login') {
     next()
     return
   }

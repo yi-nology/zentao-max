@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -9,9 +10,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/route"
+	"go.uber.org/zap"
 
 	bizhandler "github.com/yi-nology/zentao-max/backend/biz/handler/zentao"
 	bizrouter "github.com/yi-nology/zentao-max/backend/biz/router"
+	"github.com/yi-nology/zentao-max/backend/core/auth"
 	"github.com/yi-nology/zentao-max/backend/core/config"
 	"github.com/yi-nology/zentao-max/backend/core/errors"
 	"github.com/yi-nology/zentao-max/backend/core/handlers"
@@ -32,13 +35,31 @@ func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.C
 func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClient *zentao.Client, registry *handlers.HandlerRegistry, hostPort string, staticFS http.FileSystem) *server.Hertz {
 	hertzServer := server.New(server.WithHostPorts(hostPort))
 
+	// 平台访问控制：匿名只读（GET），登录管理员读写
+	cfg := config.Get()
+	authManager := auth.NewManager(
+		cfg.Auth.Admin.Username,
+		cfg.Auth.Admin.Password,
+		auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey),
+	)
+	isFirstStart := func() bool {
+		first, err := initService.IsFirstStart()
+		return err == nil && first
+	}
+
 	hertzServer.Use(middleware.RecoveryMiddleware())
 	hertzServer.Use(middleware.TraceIDMiddleware())
 	hertzServer.Use(middleware.LoggerMiddleware())
 	hertzServer.Use(middleware.MetricsMiddleware())
-	hertzServer.Use(errors.RateLimitMiddleware())
-	hertzServer.Use(utils.PaginationMiddleware())
+	// 限流参数来自配置文件的 rate_limit 段（未配置时回退内置默认 600/分钟）
+	rlCfg := config.Get().RateLimit
+	hertzServer.Use(errors.RateLimitMiddlewareWithConfig(rlCfg.RequestsPerMinute, rlCfg.BlockDurationMinutes))
 	hertzServer.Use(errors.CORSMiddleware())
+	// 认证中间件放在 CORS 之后，保证 401 响应也带 CORS 头
+	hertzServer.Use(authManager.Middleware(isFirstStart))
+	hertzServer.Use(utils.PaginationMiddleware())
+
+	registerAuthRoutes(hertzServer, authManager)
 
 	mcpServer := mcp.NewMCPServerFromServices(
 		registry.GetProductService(),
@@ -77,34 +98,41 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 			}
 
 			f, err := staticFS.Open(filePath)
-			if err != nil {
+			if err == nil {
+				if stat, statErr := f.Stat(); statErr != nil || stat.IsDir() {
+					// 目录请求回退到 index.html
+					_ = f.Close()
+					f, err = staticFS.Open("/index.html")
+					filePath = "/index.html"
+				}
+			} else {
 				// SPA fallback: serve index.html for non-file routes
 				f, err = staticFS.Open("/index.html")
-				if err != nil {
-					c.SetStatusCode(404)
-					return
-				}
+				filePath = "/index.html"
+			}
+			if err != nil {
+				c.SetStatusCode(404)
+				return
 			}
 			defer func() { _ = f.Close() }()
 
 			stat, err := f.Stat()
-			if err != nil || stat.IsDir() {
-				// For directories, try index.html
-				_ = f.Close()
-				f, err = staticFS.Open("/index.html")
-				if err != nil {
-					c.SetStatusCode(404)
-					return
-				}
-				defer func() { _ = f.Close() }()
-				stat, _ = f.Stat()
+			if err != nil {
+				c.SetStatusCode(404)
+				return
 			}
 
 			data := make([]byte, stat.Size())
-			_, _ = f.Read(data)
+			// io.ReadFull：单次 Read 不保证读满，截断会导致页面/资源静默损坏
+			if _, err := io.ReadFull(f, data); err != nil {
+				logger.Error("读取静态文件失败", zap.String("path", filePath), zap.Error(err))
+				c.SetStatusCode(500)
+				return
+			}
 
-			ext := getExt(filePath)
-			if ct := getContentType(ext); ct != "" {
+			// Content-Type 按实际返回的文件推断：SPA fallback 回落到 index.html 时
+			// 请求路径无扩展名，若沿用请求路径会得到 application/octet-stream，浏览器会把页面当文件下载
+			if ct := getContentType(getExt(filePath)); ct != "" {
 				c.Header("Content-Type", ct)
 			}
 			c.Header("Cache-Control", "public, max-age=3600")
@@ -140,6 +168,12 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 	registerBackwardCompatRoutes(r, registry)
 	registerMCPPostRoutes(r, transport)
 	registerMCPAdminRoutes(r)
+}
+
+// registerAuthRoutes 注册平台认证路由（登录/登出/状态）
+func registerAuthRoutes(r *server.Hertz, authManager *auth.Manager) {
+	api := r.Group("/api")
+	authManager.RegisterRoutes(api)
 }
 
 // registerMCPAdminRoutes 注册 MCP 运行时管理 API（热重载 / 状态查询）

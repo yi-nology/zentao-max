@@ -51,9 +51,9 @@
         </div>
         <div class="info-row">
           <span class="info-label">桌面通知</span>
-          <div>
+          <div class="notif-controls">
             <el-switch v-model="notificationEnabled" @change="onNotificationChange" />
-            <el-button v-if="notificationEnabled && notifPermission !== 'granted'" size="small" link type="primary" @click="requestNotifPermission" style="margin-left: 12px">
+            <el-button v-if="notificationEnabled && notifPermission !== 'granted'" size="small" link type="primary" @click="requestNotifPermission">
               授权系统通知
             </el-button>
           </div>
@@ -306,6 +306,17 @@ onMounted(() => {
   font-size: 14px;
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.notif-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notif-controls .el-button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .loading-text, .empty-text {

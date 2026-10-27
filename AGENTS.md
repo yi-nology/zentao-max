@@ -95,6 +95,16 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 | Offline SQLite cache | ✅ | ✅ |
 | Log viewer / Grafana | ✅ | ✅ |
 
+## Platform Auth (平台访问控制, 自 zentao-mini 同步)
+
+`backend/core/auth`：匿名只读（GET/HEAD/OPTIONS 放行），登录管理员读写。
+
+- **凭据**: `auth.admin.username/password`（默认 admin/admin；env `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。
+- **会话**: HMAC 签名无状态 token（exp.signature），HttpOnly Cookie `zentao_max_session` + `Authorization: Bearer` 双通道；`SecretFromEncryptionKey(cfg.Security.EncryptionKey)` 派生签名密钥，重启后会话不失效。登录失败防爆破（10 次/分钟/IP）。
+- **豁免**: `/mcp*`（MCP 有独立 token/只读控制）；`/api/scheduler/preview`（纯读）；首次启动时 `/api/init/login`、`/api/v1/init/login`、`/api/init/zentaosid` 匿名放行（否则全新部署死锁），初始化完成后同样需要管理员。
+- **前端**: `/login` 页（`views/Login.vue` + `useAuth`）；Layout 头部只读/管理员徽章；`api.ts` 对 401 分流——含"管理员登录"字样跳 `/login?redirect=...`，其余（禅道配置失效）跳 `/init-guide`。
+- **注意**: 初始化完成后再走 `/init-guide` 重新配置禅道连接也需要先登录管理员。限流为配置驱动（`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。
+
 ## Authentication Modes (双认证模式)
 
 应用支持两种禅道认证与数据访问模式，按配置的 `realm` 字段自动切换：

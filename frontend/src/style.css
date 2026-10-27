@@ -113,10 +113,25 @@ html.dark .el-table--striped .el-table__body tr.el-table__row--striped td.el-tab
 html.dark .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell { background: var(--color-bg-hover); }
 html.dark .el-input__wrapper, html.dark .el-select__wrapper, html.dark .el-textarea__inner { background-color: var(--color-bg-card) !important; box-shadow: 0 0 0 1px var(--color-border) inset !important; }
 html.dark .el-input__inner, html.dark .el-select__input { color: var(--color-text-primary) !important; }
-html.dark .el-dialog { --el-dialog-bg-color: var(--color-bg-card); }
+html.dark .el-dialog { --el-dialog-bg-color: var(--color-bg-card); border: 1px solid var(--color-border); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55) !important; }
+html.dark .el-overlay { background-color: rgba(0, 0, 0, 0.65) !important; }
 html.dark .el-dialog__title { color: var(--color-text-primary); }
-html.dark .el-descriptions__label { color: var(--color-text-secondary); background: var(--color-bg); }
-html.dark .el-descriptions__content { color: var(--color-text-primary); background: var(--color-bg-card); }
+/* el-descriptions: EP 的 cell 选择器是 .el-descriptions__body .el-descriptions__table .el-descriptions__cell(0,3,0)，
+   覆盖必须对齐特异性，否则 label/content 的背景与文字颜色在暗色下全部失效 */
+html.dark .el-descriptions__body,
+html.dark .el-descriptions__body .el-descriptions__table,
+html.dark .el-descriptions__body .el-descriptions__table .el-descriptions__cell {
+  background-color: var(--color-bg-card);
+  border-color: var(--color-border);
+}
+html.dark .el-descriptions__body .el-descriptions__table .el-descriptions__label {
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg);
+}
+html.dark .el-descriptions__body .el-descriptions__table .el-descriptions__content {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-card);
+}
 html.dark .el-pagination { --el-pagination-bg-color: transparent; }
 html.dark .el-pager li { background: var(--color-bg-card); color: var(--color-text-primary); }
 html.dark .el-pagination .btn-prev, html.dark .el-pagination .btn-next { background: var(--color-bg-card); color: var(--color-text-primary); }

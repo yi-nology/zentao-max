@@ -51,6 +51,14 @@ func BadRequest(c *app.RequestContext, message string) {
 	ErrorWithCode(c, CodeBadRequest, message)
 }
 
+func Unauthorized(c *app.RequestContext, message string) {
+	ErrorWithCode(c, CodeUnauthorized, message)
+}
+
+func Forbidden(c *app.RequestContext, message string) {
+	ErrorWithCode(c, CodeForbidden, message)
+}
+
 func InvalidParam(c *app.RequestContext, paramName string) {
 	ErrorWithCode(c, CodeInvalidParam, fmt.Sprintf("参数 %s 无效", paramName))
 }

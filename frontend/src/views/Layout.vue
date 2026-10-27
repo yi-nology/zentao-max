@@ -28,6 +28,18 @@
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
         <div class="header-actions">
+          <div class="auth-area">
+            <template v-if="authStatus.authenticated">
+              <span class="auth-badge admin">管理员 · {{ authStatus.username }}</span>
+              <button class="auth-btn" :disabled="loggingOut" @click="handleLogout">
+                {{ loggingOut ? '退出中...' : '退出' }}
+              </button>
+            </template>
+            <template v-else>
+              <span class="auth-badge readonly" title="写操作（定时任务、Bug/任务流转、清空日志/缓存等）需要管理员登录">只读模式</span>
+              <router-link class="auth-btn" to="/login">登录</router-link>
+            </template>
+          </div>
           <div class="account-info" v-if="accountInfo">
             <span class="account-status-dot" :class="accountInfo.connected ? 'connected' : 'disconnected'"></span>
             <span class="account-text">{{ accountInfo.account }}</span>
@@ -41,7 +53,9 @@
             <input
               class="search-input"
               type="text"
-              placeholder="搜索 Bug / 需求 / 任务... (Ctrl+K)"
+              name="global-search"
+              placeholder="搜索 Bug / 需求 / 任务…"
+              title="快捷键 Ctrl+K 聚焦搜索"
               v-model="searchKeyword"
               @focus="onSearchFocus"
               @keydown.escape="closeSearch"
@@ -124,10 +138,25 @@ import ProductSelector from '@/components/ProductSelector.vue'
 import { search, getAccountInfo } from '@/api/zentao'
 import api from '@/api/api'
 import { useDesktopNotification } from '@/composables/useDesktopNotification'
+import { useAuth } from '@/composables/useAuth'
 import type { SearchItem, ApiResponse } from '@/types/api'
 
 // 启用桌面通知监听（仅在 Wails 模式生效）
 useDesktopNotification()
+
+// 平台访问控制：匿名只读，管理员读写
+const { authStatus, refreshAuthStatus, logout } = useAuth()
+const loggingOut = ref(false)
+
+const handleLogout = async (): Promise<void> => {
+  loggingOut.value = true
+  try {
+    await logout()
+  } finally {
+    loggingOut.value = false
+    router.push('/')
+  }
+}
 
 interface GlobalSelection {
   product: number | null
@@ -206,6 +235,8 @@ onMounted(async () => {
       accountInfo.value = res.data
     }
   } catch { /* ignore */ }
+
+  refreshAuthStatus()
 
   document.addEventListener('click', onDocClick)
 })
@@ -356,7 +387,7 @@ const menuItems: MenuItem[] = [
   { path: '/timelog', label: '工时统计', icon: 'M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42V7z' },
   { path: '/effort-calendar', label: '工时日历', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { path: '/scheduler', label: '定时任务', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { path: '/health', label: '心跳检测', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+  { path: '/health-check', label: '心跳检测', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
   { path: '/logs', label: '系统日志', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { path: '/mcp-guide', label: 'MCP 对接', icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   { path: '/settings', label: '设置', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
@@ -543,12 +574,66 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   font-weight: 600;
   color: var(--color-text-primary);
   font-family: var(--font-heading);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.auth-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-badge {
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.auth-badge.readonly {
+  color: #b8860b;
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+.auth-badge.admin {
+  color: #2e7d32;
+  background: rgba(76, 175, 80, 0.12);
+  border: 1px solid rgba(76, 175, 80, 0.35);
+}
+
+.auth-btn {
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.auth-btn:hover {
+  color: var(--color-primary, #4f6ef7);
+  border-color: var(--color-primary, #4f6ef7);
+}
+
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .account-info {
@@ -560,6 +645,7 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   background-color: var(--color-bg-hover);
   font-size: 12px;
   color: var(--color-text-secondary);
+  min-width: 0;
 }
 
 .account-status-dot {
@@ -582,9 +668,14 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 .account-text {
   color: var(--color-text-primary);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .account-domain {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
   color: var(--color-text-tertiary);
 }
 
@@ -801,6 +892,27 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 }
 
 /* Responsive */
+@media screen and (max-width: 1500px) {
+  /* 依次让渡次要信息，避免到处出现省略号：先隐藏服务器域名，再缩搜索框 */
+  .account-domain {
+    display: none;
+  }
+
+  .search-input {
+    width: 240px;
+  }
+}
+
+@media screen and (max-width: 1240px) {
+  .search-input {
+    width: 200px;
+  }
+
+  .header-actions :deep(.el-select) {
+    width: 170px !important;
+  }
+}
+
 @media screen and (max-width: 768px) {
   .aside {
     width: 60px;

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Wails v3 alpha** desktop app (Go + Vue 3) for Zentao (禅道) project management. Also deployable as a standalone HTTP server or embedded app with static frontend.
+**纯 Web 应用**（Go Hertz + Vue 3 单二进制：HTTP server + 嵌入式前端）for Zentao (禅道) project management。Wails 桌面模式已于 v0.3.0 移除（浏览器访问 :port 即用）。
 
 **Go module name is `github.com/yi-nology/zentao-max`**. Import paths use `github.com/yi-nology/zentao-max/backend/...`.
 

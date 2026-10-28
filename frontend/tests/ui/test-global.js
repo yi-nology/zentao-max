@@ -5,7 +5,7 @@ async function run(page) {
   const s = h.suite('全局/外壳')
   const errors = page._errors || []
   try {
-    // G1 路由守卫：已初始化态访问 / 应进入 /dashboard（而非 init-guide）
+    // G1 路由守卫：访问 / 应进入 /dashboard
     // URL 可能带 query（如 ?product=200），只断言 path 部分
     const url = page.url()
     const path = new URL(url).pathname

@@ -46,11 +46,6 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	if cfg.Auth.SSO.Enabled {
 		authManager.SetSSO(auth.NewSSOClient(cfg.Auth.SSO.BaseURL))
 	}
-	isFirstStart := func() bool {
-		first, err := initService.IsFirstStart()
-		return err == nil && first
-	}
-
 	hertzServer.Use(middleware.RecoveryMiddleware())
 	hertzServer.Use(middleware.TraceIDMiddleware())
 	hertzServer.Use(middleware.LoggerMiddleware())
@@ -60,7 +55,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	hertzServer.Use(errors.RateLimitMiddlewareWithConfig(rlCfg.RequestsPerMinute, rlCfg.BlockDurationMinutes))
 	hertzServer.Use(errors.CORSMiddleware())
 	// 认证中间件放在 CORS 之后，保证 401 响应也带 CORS 头
-	hertzServer.Use(authManager.Middleware(isFirstStart))
+	hertzServer.Use(authManager.Middleware())
 	hertzServer.Use(utils.PaginationMiddleware())
 
 	registerAuthRoutes(hertzServer, authManager)
@@ -162,8 +157,6 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 
 	r.GET("/metrics", metrics.Handler())
 
-	r.POST("/api/v1/init/login", registry.GetInitHandler().Login)
-
 	// Effort 批量创建（受限实例 batchCreate 端点的 server-side 转发）：
 	// 走 user 真实 curl 验证的 form 格式（id[]/work[]/objectType[]/execution[N]/consumed[]/left[N]），
 	// 端点是 /effort-batchCreate-{date}.html?onlybody=yes。
@@ -191,11 +184,8 @@ func registerMCPAdminRoutes(r *server.Hertz) {
 func registerBackwardCompatRoutes(r *server.Hertz, registry *handlers.HandlerRegistry) {
 	api := r.Group("/api")
 
-	api.POST("/init/login", registry.GetInitHandler().Login)
 	api.GET("/init/status", bizhandler.GetInitStatus)
 	api.GET("/init/account", bizhandler.GetAccountInfo)
-	api.POST("/init/zentaosid", registry.GetInitHandler().ImportZentaoSID)
-	api.DELETE("/init/zentaosid", registry.GetInitHandler().DeleteZentaoSID)
 
 	registerDomainRoutes(api)
 	registerSchedulerRoutes(api, registry.GetSchedulerHandler())

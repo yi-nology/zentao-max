@@ -351,37 +351,6 @@ export const deleteDailyNote = (user: string, date: string): Promise<ApiResponse
   return api.delete(`/effort/notes/${encodeURIComponent(user)}/${date}`)
 }
 
-// === zentaosid 导入（受限实例 SSO 限流 bypass） ===
-//
-// 用法：用户浏览器登录 your-zentao-server.com → DevTools → Application → Cookies
-// → 找 zentaosid → 复制值 → 粘贴到 init-guide 这个 tab → 提交。
-// 后端持久化到 ~/.zentao-max/zentaosid.json，server 重启自动注入 cookie jar，
-// 不再触发 server 端 login()，避开受限实例 SSO "密码尝试次数太多" 长期 lock。
-export const importZentaoSID = (payload: { zentaosid: string; note?: string }): Promise<ApiResponse<{ saved: boolean; injected: boolean; injected_msg?: string }>> => {
-  return api.post('/init/zentaosid', payload)
-}
-
-export const deleteZentaoSID = (): Promise<ApiResponse<{ deleted: boolean }>> => {
-  return api.delete('/init/zentaosid')
-}
-
-// 账号密码登录请求体。realm 非空（如 'kydc'）走会话模式，空走 Token 模式。
-export interface LoginPayload {
-  domain: string
-  account: string
-  password: string
-  realm?: string
-}
-
-// 账号密码登录（POST /api/init/login）。
-export const loginWithCredentials = (payload: LoginPayload): Promise<ApiResponse<AccountInfo>> => {
-  return api.post('/init/login', payload)
-}
-
-export const testZentaoConnection = (): Promise<ApiResponse<unknown>> => {
-  return api.get('/users/current')
-}
-
 export interface DashboardTimeRange {
   productId: number
   startDate?: string

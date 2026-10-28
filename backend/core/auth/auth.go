@@ -172,9 +172,9 @@ func (m *Manager) recordLoginFailure(ip string) {
 // Middleware 返回 Hertz 中间件：
 //   - MCP 端点完全豁免（有自己独立的 mcp.token/只读/白名单访问控制）；
 //   - 读方法（GET/HEAD/OPTIONS）匿名放行；
-//   - 匿名放行的写路径：登录/登出接口、首次启动的禅道连接配置（否则全新部署无法初始化）；
+//   - 匿名放行的写路径：登录/登出接口、SSO 两步、报告预览；
 //   - 其余写方法需要有效会话（Cookie 或 Bearer 头），否则 401。
-func (m *Manager) Middleware(isFirstStart func() bool) app.HandlerFunc {
+func (m *Manager) Middleware() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		path := string(c.Request.URI().Path())
 		// MCP 端点有独立的访问控制（mcp.enabled / mcp.token / read_only / action 白名单），
@@ -191,7 +191,7 @@ func (m *Manager) Middleware(isFirstStart func() bool) app.HandlerFunc {
 			return
 		}
 
-		if m.isAnonymousWriteAllowed(path, isFirstStart) {
+		if m.isAnonymousWriteAllowed(path) {
 			c.Next(ctx)
 			return
 		}
@@ -210,7 +210,7 @@ func (m *Manager) Middleware(isFirstStart func() bool) app.HandlerFunc {
 	}
 }
 
-func (m *Manager) isAnonymousWriteAllowed(path string, isFirstStart func() bool) bool {
+func (m *Manager) isAnonymousWriteAllowed(path string) bool {
 	switch path {
 	case "/api/auth/login", "/api/auth/logout":
 		return true
@@ -220,14 +220,6 @@ func (m *Manager) isAnonymousWriteAllowed(path string, isFirstStart func() bool)
 	// 报告预览只是读禅道数据生成预览，不改任何状态
 	case "/api/scheduler/preview", "/api/v1/scheduler/preview":
 		return true
-	}
-	// 首次启动允许匿名上传禅道连接配置（账号密码 / zentaosid），
-	// 否则全新部署会陷入"要先登录才能初始化"的死锁；初始化完成后同样需要管理员登录
-	if isFirstStart != nil && isFirstStart() {
-		switch path {
-		case "/api/init/login", "/api/v1/init/login", "/api/init/zentaosid":
-			return true
-		}
 	}
 	return false
 }

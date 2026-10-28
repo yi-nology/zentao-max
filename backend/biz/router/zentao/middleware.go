@@ -191,16 +191,6 @@ func _getaccountinfoMw() []app.HandlerFunc {
 	return nil
 }
 
-func _importzentaosidMw() []app.HandlerFunc {
-	// your code...
-	return nil
-}
-
-func _deletezentaosidMw() []app.HandlerFunc {
-	// your code...
-	return nil
-}
-
 func _getinitstatusMw() []app.HandlerFunc {
 	// your code...
 	return nil

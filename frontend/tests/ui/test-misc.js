@@ -243,16 +243,6 @@ async function testInitPages(page) {
   } catch (e) {
     h.record(s, 'InitStatus 页渲染', 'fail', e.message)
   }
-  // InitGuide
-  try {
-    await page.goto(h.BASE + '/init-guide', { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1200)
-    const loginForm = await page.locator('.login-form .field-input').first().isVisible().catch(() => false)
-    h.record(s, 'InitGuide 页渲染', loginForm ? 'pass' : 'warn')
-    await h.shot(page, 'init-guide')
-  } catch (e) {
-    h.record(s, 'InitGuide 页渲染', 'fail', e.message)
-  }
 }
 
 async function run(page) {

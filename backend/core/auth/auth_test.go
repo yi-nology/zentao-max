@@ -18,10 +18,9 @@ func newTestManager() *Manager {
 	return NewManager("admin", "secret123", "test-secret")
 }
 
-// firstStart 可变的首次启动标志，模拟全新部署
-func setupRouter(m *Manager, firstStart *bool) *server.Hertz {
+func setupRouter(m *Manager) *server.Hertz {
 	h := server.New(server.WithHostPorts("localhost:0"))
-	h.Use(m.Middleware(func() bool { return firstStart != nil && *firstStart }))
+	h.Use(m.Middleware())
 	h.GET("/api/products", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(200, map[string]interface{}{"code": 200})
 	})
@@ -29,12 +28,6 @@ func setupRouter(m *Manager, firstStart *bool) *server.Hertz {
 		c.JSON(200, map[string]interface{}{"code": 200})
 	})
 	h.DELETE("/api/logs", func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(200, map[string]interface{}{"code": 200})
-	})
-	h.POST("/api/init/login", func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(200, map[string]interface{}{"code": 200})
-	})
-	h.POST("/api/init/zentaosid", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(200, map[string]interface{}{"code": 200})
 	})
 	m.RegisterRoutes(h.Group("/api"))
@@ -79,14 +72,14 @@ func TestLoginAndToken(t *testing.T) {
 }
 
 func TestMiddleware_AnonymousReadAllowed(t *testing.T) {
-	h := setupRouter(newTestManager(), nil)
+	h := setupRouter(newTestManager())
 
 	w := ut.PerformRequest(h.Engine, http.MethodGet, "/api/products", nil)
 	assert.DeepEqual(t, http.StatusOK, w.Result().StatusCode())
 }
 
 func TestMiddleware_AnonymousWriteBlocked(t *testing.T) {
-	h := setupRouter(newTestManager(), nil)
+	h := setupRouter(newTestManager())
 
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/api/scheduler/tasks"},
@@ -102,7 +95,7 @@ func TestMiddleware_AnonymousWriteBlocked(t *testing.T) {
 }
 
 func TestMiddleware_LoginThenWriteAllowed(t *testing.T) {
-	h := setupRouter(newTestManager(), nil)
+	h := setupRouter(newTestManager())
 
 	w := doLogin(t, h, "admin", "secret123")
 	assert.DeepEqual(t, http.StatusOK, w.Result().StatusCode())
@@ -124,26 +117,9 @@ func TestMiddleware_LoginThenWriteAllowed(t *testing.T) {
 	assert.DeepEqual(t, http.StatusUnauthorized, w.Result().StatusCode())
 }
 
-func TestMiddleware_FirstBootInitAnonymous(t *testing.T) {
-	m := newTestManager()
-	firstStart := true
-	h := setupRouter(m, &firstStart)
-
-	for _, path := range []string{"/api/init/login", "/api/init/zentaosid"} {
-		w := ut.PerformRequest(h.Engine, http.MethodPost, path, nil)
-		assert.DeepEqual(t, http.StatusOK, w.Result().StatusCode())
-
-		// 初始化完成后，同样的写配置必须登录
-		firstStart = false
-		w = ut.PerformRequest(h.Engine, http.MethodPost, path, nil)
-		assert.DeepEqual(t, http.StatusUnauthorized, w.Result().StatusCode())
-		firstStart = true
-	}
-}
-
 func TestLoginWrongPasswordAndBruteForceGuard(t *testing.T) {
 	m := newTestManager()
-	h := setupRouter(m, nil)
+	h := setupRouter(m)
 
 	w := doLogin(t, h, "admin", "wrong")
 	assert.DeepEqual(t, http.StatusUnauthorized, w.Result().StatusCode())

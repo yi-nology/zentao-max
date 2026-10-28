@@ -69,8 +69,8 @@ func NewSessionClient(server, account, password, realm string, cacheDBPrefix str
 		p.Start()
 		c.pool = p
 	}
-	// 会话模式：不再启动时异步登录（避免与用户的 /api/init/login 手动登录并发冲突，
-	// 也避免账号被 SSO 锁定时反复重试加速锁定）。改为懒加载：首次数据请求时
+	// 会话模式：不再启动时异步登录（避免账号被 SSO 锁定时反复重试加速锁定）。
+	// 改为懒加载：首次数据请求时
 	// 由 ensureLoggedIn 触发登录。connected 状态在登录成功后才置 true。
 	go c.startSessionKeepalive()
 	return c
@@ -152,10 +152,10 @@ func (c *Client) GetServer() string {
 
 // SetZentaoSID 注入浏览器 zentaosid 到 cookie jar，跳过 login 流程。
 //
-// 用法：用户在浏览器 DevTools 复制 zentaosid cookie，粘贴到 init-guide 页面 →
-// 后端 InitHandler 持久化到 ~/.zentao-max/zentaosid.json → server 启动时
-// wire.go 读这个文件 → 调 SetZentaoSID → 后续 request 直接用 zentaosid 调禅道，
-// 不再触发 zentao client 的 login()，从而不消耗受限实例 SSO "密码尝试次数太多" 配额。
+// 用法：把浏览器登录拿到的 zentaosid cookie 写入 ~/.zentao-max/zentaosid.json →
+// server 启动时 wire.go 读这个文件 → 调 SetZentaoSID → 后续 request 直接用
+// zentaosid 调禅道，不再触发 zentao client 的 login()，从而不消耗受限实例
+// SSO "密码尝试次数太多" 配额。
 //
 // 行为：
 //   - 成功：cookie jar 注入 zentaosid，sessionExpiry = now + sidExpiryTTL（2 小时）

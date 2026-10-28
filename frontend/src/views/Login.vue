@@ -103,7 +103,6 @@
         <a href="javascript:void(0)" class="back-link" @click="toggleMode">
           {{ mode === 'sso' ? '使用本地管理员账号登录 →' : '使用统一认证（SSO）登录 →' }}
         </a>
-        <router-link to="/init-guide" class="back-link readonly-link">禅道连接配置（重新初始化）→</router-link>
         <router-link to="/" class="back-link readonly-link">暂不登录，继续浏览 →</router-link>
       </div>
     </div>

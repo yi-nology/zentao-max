@@ -104,14 +104,6 @@ func GetAccountInfo(ctx context.Context, c *app.RequestContext) {
 	initHandler.GetAccountInfo(ctx, c)
 }
 
-func ImportZentaoSID(ctx context.Context, c *app.RequestContext) {
-	initHandler.ImportZentaoSID(ctx, c)
-}
-
-func DeleteZentaoSID(ctx context.Context, c *app.RequestContext) {
-	initHandler.DeleteZentaoSID(ctx, c)
-}
-
 // ─── Scheduler routes ───
 
 func ListSchedulerTasks(ctx context.Context, c *app.RequestContext) {

@@ -13,10 +13,10 @@ import (
 //
 // 存储位置：~/.zentao-max/zentaosid.json（明文，因为只是 cookie 不是密码）。
 //
-// 用途：用户浏览器登录 your-zentao-server.com 拿到 zentaosid cookie，复制到 init-guide
-// 页面 → 后端 InitHandler 写这个文件 → server 启动时 wire.go 读这个文件
-// 调 Client.SetZentaoSID 注入 → 后续所有禅道请求直接用这个 zentaosid，不再
-// 触发 server 端 login()，从而不消耗受限实例 SSO "密码尝试次数太多" 配额。
+// 用途：把浏览器登录 your-zentao-server.com 拿到的 zentaosid cookie 写入这个
+// 文件 → server 启动时 wire.go 读这个文件调 Client.SetZentaoSID 注入 →
+// 后续所有禅道请求直接用这个 zentaosid，不再触发 server 端 login()，从而
+// 不消耗受限实例 SSO "密码尝试次数太多" 配额。
 type ZentaoSIDFile struct {
 	ZentaoSID string    `json:"zentaosid"`
 	UpdatedAt time.Time `json:"updatedAt"`

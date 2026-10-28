@@ -16,11 +16,14 @@ type MCPServer struct {
 	taskService      *service.TaskService
 	userService      *service.UserService
 	timelogService   *service.TimelogService
+	// client 直连句柄：写工具（record_effort 等）需要 service 未覆盖的客户端能力
+	client *myzentao.Client
 }
 
 // NewMCPServer 创建 MCP 服务实例.
 func NewMCPServer(client *myzentao.Client) *MCPServer {
 	return &MCPServer{
+		client:           client,
 		productService:   service.NewProductService(client),
 		projectService:   service.NewProjectService(client),
 		executionService: service.NewExecutionService(client),
@@ -33,7 +36,7 @@ func NewMCPServer(client *myzentao.Client) *MCPServer {
 }
 
 // NewMCPServerFromServices 从已有的 service 实例创建 MCP 服务.
-func NewMCPServerFromServices(
+func NewMCPServerFromServices(client *myzentao.Client,
 	productService *service.ProductService,
 	projectService *service.ProjectService,
 	executionService *service.ExecutionService,
@@ -44,7 +47,7 @@ func NewMCPServerFromServices(
 	timelogService *service.TimelogService,
 ) *MCPServer {
 	return &MCPServer{
-		productService:   productService,
+		client:           client,
 		projectService:   projectService,
 		executionService: executionService,
 		bugService:       bugService,
@@ -76,6 +79,12 @@ func (s *MCPServer) HandleAction(action string, params map[string]interface{}) (
 		return s.handleGetUsers(params)
 	case "get_timelog":
 		return s.handleGetTimelog(params)
+	case "record_effort":
+		return s.handleRecordEffort(params)
+	case "add_bug_comment":
+		return s.handleAddBugComment(params)
+	case "transition_bug":
+		return s.handleTransitionBug(params)
 	default:
 		return nil, &ActionError{Action: action, Message: "unknown action"}
 	}
@@ -97,7 +106,8 @@ func IsWriteAction(action string) bool {
 	switch action {
 	case "create_product", "create_project", "create_bug", "create_story", "create_task",
 		"update_product", "update_project", "update_bug", "update_story", "update_task",
-		"delete_product", "delete_project", "delete_bug", "delete_story", "delete_task":
+		"delete_product", "delete_project", "delete_bug", "delete_story", "delete_task",
+		"record_effort", "add_bug_comment", "transition_bug":
 		return true
 	default:
 		return false

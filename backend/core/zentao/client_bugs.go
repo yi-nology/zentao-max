@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"fmt"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
@@ -92,4 +93,19 @@ func (c *Client) GetAllBugsContext(ctx context.Context, productID int) ([]zentao
 // GetAllBugsByProjectContext 获取项目全部 Bug（支持 context 取消）
 func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) ([]zentaosdk.Bug, error) {
 	return c.getAllBugsByProjectSession(ctx, projectID)
+}
+
+// GetBugByID 按 Bug ID 拉取详情（/bug-view-{id}.json，外层 {status,data} 双层包裹，
+// data 是转义 JSON 字符串需二次解析，inner.bug 为 Bug 实体）。用于写操作后回读快照。
+func (c *Client) GetBugByID(ctx context.Context, bugID int) (*zentaosdk.Bug, error) {
+	var resp struct {
+		Bug zentaosdk.Bug `json:"bug"`
+	}
+	if err := c.doSessionJSON(ctx, "GetBugByID", fmt.Sprintf("/bug-view-%d.json", bugID), &resp); err != nil {
+		return nil, err
+	}
+	if resp.Bug.ID == 0 {
+		return nil, fmt.Errorf("Bug %d 不存在或无权限查看", bugID)
+	}
+	return &resp.Bug, nil
 }

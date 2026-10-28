@@ -145,9 +145,64 @@ var Tools = []Tool{
 			},
 		},
 	},
+	{
+		Name:        "record_effort",
+		Description: "写禅道日志：为指定任务记录一条工时（挂任务）。consumed 必须大于 0；left 为该任务剩余工时的绝对值。写后建议回查工时日历核对",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"taskId":   {Type: "number", Description: "任务 ID（必填）"},
+				"consumed": {Type: "number", Description: "消耗工时（小时，必填，>0）"},
+				"left":     {Type: "number", Description: "任务剩余工时（小时，必填，绝对值）"},
+				"work":     {Type: "string", Description: "工作内容（必填）"},
+				"date":     {Type: "string", Description: "日期 YYYY-MM-DD（可选，默认今天；不能是未来日期）"},
+			},
+			Required: []string{"taskId", "consumed", "left", "work"},
+		},
+	},
+	{
+		Name:        "add_bug_comment",
+		Description: "给禅道 Bug 添加备注（走 bug-edit 全量通道，自动带原值）。success 不代表落库，建议回查",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"bugId":   {Type: "number", Description: "Bug ID（必填）"},
+				"comment": {Type: "string", Description: "备注内容（必填）"},
+			},
+			Required: []string{"bugId", "comment"},
+		},
+	},
+	{
+		Name:        "transition_bug",
+		Description: "Bug 状态流转：confirm/resolve/close/activate/assign。resolve 必填 resolution 与 resolvedBuild；assign 必填 assignedTo",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"bugId":         {Type: "number", Description: "Bug ID（必填）"},
+				"action":        {Type: "string", Description: "流转动作（必填）", Enum: []string{"confirm", "resolve", "close", "activate", "assign"}},
+				"resolution":    {Type: "string", Description: "解决方案（resolve 必填）", Enum: []string{"fixed", "bydesign", "duplicate", "notrepro", "postponed", "willnotfix", "external"}},
+				"resolvedBuild": {Type: "string", Description: "解决版本（resolve 建议填写）"},
+				"assignedTo":    {Type: "string", Description: "指派给（assign 必填 / activate 可选）"},
+				"comment":       {Type: "string", Description: "备注（可选）"},
+			},
+			Required: []string{"bugId", "action"},
+		},
+	},
 }
 
 // GetToolByName 根据名称获取工具定义.
+// 写工具集合：只读模式（mcp.read_only）下这些工具会被拦截。
+var writeTools = map[string]bool{
+	"record_effort":   true,
+	"add_bug_comment": true,
+	"transition_bug":  true,
+}
+
+// IsWriteTool 查询工具是否为写操作。
+func IsWriteTool(name string) bool {
+	return writeTools[name]
+}
+
 func GetToolByName(name string) *Tool {
 	for _, t := range Tools {
 		if t.Name == name {

@@ -66,11 +66,28 @@ func (t *StdioTransport) listen(ctx context.Context) {
 		default:
 		}
 
-		var request map[string]interface{}
-		if err := decoder.Decode(&request); err != nil {
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
 			if err == io.EOF {
 				break
 			}
+			t.sendError(encoder, fmt.Sprintf("Invalid request: %v", err))
+			continue
+		}
+
+		// 标准 MCP JSON-RPC 2.0（Claude Desktop / Cursor / Claude Code 等）
+		if IsJSONRPCRequest(raw) {
+			resp, _, _ := t.server.HandleJSONRPC(raw, func(action string) (bool, string) {
+				return checkAccessStdio(action, nil)
+			})
+			if resp != nil {
+				t.send(encoder, resp)
+			}
+			continue
+		}
+
+		var request map[string]interface{}
+		if err := json.Unmarshal(raw, &request); err != nil {
 			t.sendError(encoder, fmt.Sprintf("Invalid request: %v", err))
 			continue
 		}

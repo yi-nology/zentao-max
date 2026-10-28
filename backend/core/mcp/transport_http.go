@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -142,6 +143,44 @@ func checkAccess(c *app.RequestContext, action string) bool {
 }
 
 func (t *HTTPTransport) HandleAction(ctx context.Context, c *app.RequestContext) {
+	// 标准 MCP JSON-RPC 2.0 分流（Claude Desktop / Cursor / Claude Code 等标准客户端）
+	if body, err := c.Body(); err == nil && len(body) > 0 && json.Valid(body) {
+		trimmed := strings.TrimSpace(string(body))
+		if strings.HasPrefix(trimmed, "[") {
+			c.JSON(http.StatusBadRequest, JSONRPCResponse{
+				JSONRPC: "2.0",
+				ID:      nil,
+				Error:   &RPCError{Code: codeInvalidRequest, Message: "JSON-RPC batching is not supported (removed in MCP 2025-06-18)"},
+			})
+			return
+		}
+		if IsJSONRPCRequest(body) {
+			var probe struct {
+				Method string                 `json:"method"`
+				Params map[string]interface{} `json:"params"`
+			}
+			_ = json.Unmarshal(body, &probe)
+			checkAction := probe.Method
+			if checkAction == "tools/call" {
+				checkAction, _ = probe.Params["name"].(string)
+			}
+			if checkAccess(c, checkAction) {
+				return
+			}
+			resp, _, jerr := t.server.HandleJSONRPC(body, nil)
+			if jerr != nil {
+				c.JSON(http.StatusBadRequest, MCPResponse{Status: "error", Message: jerr.Error()})
+				return
+			}
+			if resp != nil {
+				c.JSON(http.StatusOK, resp)
+			} else {
+				c.Status(http.StatusAccepted)
+			}
+			return
+		}
+	}
+
 	var req MCPRequest
 	if err := c.BindAndValidate(&req); err != nil {
 		c.JSON(http.StatusBadRequest, MCPResponse{

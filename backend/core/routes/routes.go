@@ -66,6 +66,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	registerAuthRoutes(hertzServer, authManager)
 
 	mcpServer := mcp.NewMCPServerFromServices(
+		zentaoClient,
 		registry.GetProductService(),
 		registry.GetProjectService(),
 		registry.GetExecutionService(),

@@ -164,6 +164,11 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 	return chainFilter, nil
 }
 
+// RecordEffort 为任务记录一条工时日志（MCP record_effort 工具与任务详情共用）。
+func (s *TaskService) RecordEffort(taskID int, date string, consumed, left float64, work string) error {
+	return s.client.RecordEffort(taskID, date, consumed, left, work)
+}
+
 // convertToVO 将zentao.Task转换为vo.TaskVO
 func (s *TaskService) convertToVO(tasks []zentaosdk.Task) []vo.TaskVO {
 	if len(tasks) == 0 {

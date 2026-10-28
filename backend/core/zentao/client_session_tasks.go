@@ -164,3 +164,28 @@ func (c *Client) ListMyTasks(ctx context.Context, status string) ([]zentaosdk.Ta
 	}
 	return out, nil
 }
+
+// GetMyWorkTasks 拉当前登录用户被指派的任务（/my-work-task.json，tasks 为数组形状）。
+//
+// 与 ListMyTasks（/my-task-{status}.json，biz8.x 实测返回空）不同，
+// my-work-task 是禅道首页"待处理→任务"的数据源，实测可用。
+// 走 uncached：path 无数字段，cache scope 与其它 tasks 查询相同，入缓存会互相污染。
+func (c *Client) GetMyWorkTasks(ctx context.Context) ([]zentaosdk.Task, error) {
+	if c.session == nil {
+		return nil, fmt.Errorf("会话客户端未初始化")
+	}
+	var resp struct {
+		Tasks []sessionTask `json:"tasks"`
+	}
+	if err := c.doSessionJSONUncached(ctx, "GetMyWorkTasks", "/my-work-task.json", &resp); err != nil {
+		return nil, err
+	}
+	out := make([]zentaosdk.Task, 0, len(resp.Tasks))
+	for _, t := range resp.Tasks {
+		if t.Deleted == "1" {
+			continue
+		}
+		out = append(out, t.toSDK())
+	}
+	return out, nil
+}

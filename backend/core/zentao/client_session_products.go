@@ -58,31 +58,54 @@ func (p sessionProduct) toSDK() zentaosdk.Product {
 }
 
 // getProductsSession 会话模式获取产品列表。
-// /product-all.json 单页即返回全部产品（实测受限实例 ~445 个产品，无翻页）。
-// 若有翻页则按 pager.pageTotal 循环。
+// 翻页段格式取自产品页真实 pager 链接（此前"保守猜测"的 /product-all-{page}.json
+// 会把页码解析成 browseType，每页都返回第 1 页内容导致整表重复）：
+//
+//	/product-all-{browseType}-{orderBy}-{programID}-{recTotal}-{recPerPage}-{pageID}.json
 func (c *Client) getProductsSession(ctx context.Context) ([]zentaosdk.Product, error) {
 	var out []zentaosdk.Product
+	seen := make(map[int]struct{})
 	page := 1
+	recTotal := 0
+	const recPerPage = 20
 	for {
 		var path string
 		if page == 1 {
 			path = "/product-all.json"
 		} else {
-			// product-all 翻页段格式（保守）：后缀页码。
-			path = fmt.Sprintf("/product-all-%d.json", page)
+			path = fmt.Sprintf("/product-all-noclosed-program_asc-0-%d-%d-%d.json", recTotal, recPerPage, page)
 		}
 		var resp sessionProductAllResp
-		if err := c.doSessionJSON(ctx, "GetProducts", path, &resp); err != nil {
+		// 第 2+ 页绕过缓存：各页 scope 相同，入缓存会命中第 1 页（见 doSessionJSONUncached）
+		if page > 1 {
+			if err := c.doSessionJSONUncached(ctx, "GetProducts", path, &resp); err != nil {
+				return out, err
+			}
+		} else if err := c.doSessionJSON(ctx, "GetProducts", path, &resp); err != nil {
 			return out, err
 		}
+		if recTotal == 0 && resp.Pager != nil {
+			recTotal = pagerInt(resp.Pager.RecTotal)
+		}
+		dupBefore := len(out)
 		for _, p := range resp.ProductStats {
+			if _, ok := seen[p.ID]; ok {
+				continue
+			}
+			seen[p.ID] = struct{}{}
 			out = append(out, p.toSDK())
 		}
-		// product-all 通常无翻页（单页返回全部），recPerPage 缺失即认为完整。
+		// 翻页未推进（同一页内容重复返回）或已到末页即收口，防死循环
+		if len(out) == dupBefore && page > 1 {
+			return out, nil
+		}
 		if resp.Pager == nil || page >= pagerInt(resp.Pager.PageTotal) || len(resp.ProductStats) == 0 {
 			return out, nil
 		}
 		page++
+		if page > 500 {
+			return out, fmt.Errorf("product 翻页超过 500 页")
+		}
 	}
 }
 
@@ -214,7 +237,12 @@ func (c *Client) getAllProjectsRaw(ctx context.Context) ([]sessionProject, error
 			path = fmt.Sprintf("/project-browse-0-all-0-order_asc-%d-%d-%d.json", recTotal, recPerPage, page)
 		}
 		var resp sessionProjectBrowseResp
-		if err := c.doSessionJSON(ctx, "GetAllProjects", path, &resp); err != nil {
+		// 第 2+ 页绕过缓存：各页 scope 相同，入缓存会命中第 1 页（见 doSessionJSONUncached）
+		if page > 1 {
+			if err := c.doSessionJSONUncached(ctx, "GetAllProjects", path, &resp); err != nil {
+				return out, err
+			}
+		} else if err := c.doSessionJSON(ctx, "GetAllProjects", path, &resp); err != nil {
 			return out, err
 		}
 		if recTotal == 0 && resp.Pager != nil {
@@ -323,7 +351,12 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 			path = fmt.Sprintf("/execution-all-all-0--%d-%d-%d.json", recTotal, recPerPage, page)
 		}
 		var resp sessionExecutionAllResp
-		if err := c.doSessionJSON(ctx, "GetExecutions", path, &resp); err != nil {
+		// 第 2+ 页绕过缓存：各页 scope 相同，入缓存会命中第 1 页（见 doSessionJSONUncached）
+		if page > 1 {
+			if err := c.doSessionJSONUncached(ctx, "GetExecutions", path, &resp); err != nil {
+				return out, err
+			}
+		} else if err := c.doSessionJSON(ctx, "GetExecutions", path, &resp); err != nil {
 			return out, err
 		}
 		src := resp.ExecutionStats

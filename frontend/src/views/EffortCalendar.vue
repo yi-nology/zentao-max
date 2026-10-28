@@ -375,8 +375,14 @@ function onTaskSelectChange(row: BatchFormItem, v: string) {
 }
 
 async function loadTaskOptions() {
-  // 拉当前用户（selectedUser 优先,否则用 result.userName）assigned 的未完成任务
-  const user = selectedUser.value || result.value?.userName || ''
+  // 拉当前查看用户的待办任务。selectedUser 是账号；未显式选择时日历接口返回的
+  // userName 是中文姓名（如"张三"），必须经 users 列表反查成账号再筛选
+  let user = selectedUser.value
+  if (!user) {
+    const name = result.value?.userName || ''
+    const hit = userOptions.value.find((u) => u.value === name || u.label.startsWith(`${name} (`))
+    user = hit?.value || ''
+  }
   if (!user) {
     taskOptions.value = []
     return

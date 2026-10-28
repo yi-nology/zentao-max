@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
@@ -106,6 +107,13 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 				return nil, err
 			}
 		}
+	} else if query.AssignedTo != "" && query.AssignedTo == s.client.GetAccount() {
+		// 查"我的任务"：/my-work-task.json 直达当前用户，不遍历全执行。
+		// （大实例上千执行的全遍历 20s+ 仍取不全，池降级后返回空表。）
+		allTasks, err = s.client.GetMyWorkTasks(context.Background())
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		// productId 缺省或 0：直接全 execution 收集（dashboard 同款）
 		allTasks, err = s.fetchAllTasksAcrossExecutions()
@@ -117,22 +125,32 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 	// 使用链式过滤器进行筛选
 	chainFilter := utils.NewChainFilter(allTasks)
 
-	// 按指派人筛选
+	// 按指派人筛选：AssignedTo 形状因数据源而异——token 模式是 UserRef，
+	// session 模式是纯账号字符串（实测），v1/部分端点是 {account:...} map
 	if query.AssignedTo != "" {
 		chainFilter = chainFilter.Filter(func(item zentaosdk.Task) bool {
-			return func() string {
-				if ref, ok := item.AssignedTo.(zentaosdk.UserRef); ok {
-					return ref.Account
+			switch v := item.AssignedTo.(type) {
+			case zentaosdk.UserRef:
+				return v.Account == query.AssignedTo
+			case string:
+				return v == query.AssignedTo
+			case map[string]interface{}:
+				if acc, ok := v["account"].(string); ok {
+					return acc == query.AssignedTo
 				}
-				return ""
-			}() == query.AssignedTo
+			}
+			return false
 		})
 	}
 
-	// 按状态筛选
+	// 按状态筛选：支持逗号分隔多状态（前端如 "wait,doing"）
 	if query.Status != "" {
+		statusSet := make(map[string]bool)
+		for _, s := range strings.Split(query.Status, ",") {
+			statusSet[strings.TrimSpace(s)] = true
+		}
 		chainFilter = chainFilter.Filter(func(item zentaosdk.Task) bool {
-			return item.Status == query.Status
+			return statusSet[item.Status]
 		})
 	}
 

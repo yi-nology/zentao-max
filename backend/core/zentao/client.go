@@ -475,6 +475,30 @@ func (c *Client) serveFromStaleCache(
 	return ErrPoolBusy
 }
 
+// doSessionJSONUncached 与 doSessionJSON 相同，但绕过 SessionCache（仍走 pool 限流）。
+//
+// 用于分页实体的第 2+ 页：product-all / project-browse / execution-all 的各页 path
+// 经 extractScopeFromPath 都得到相同 scope（首个数字段是 0 或固定值），若入缓存，
+// 第 2+ 页会命中第 1 页的 30 分钟缓存，返回整页重复数据。第 1 页保持缓存（热路径），
+// 续页直接回源。
+func (c *Client) doSessionJSONUncached(ctx context.Context, operation, path string, out interface{}) error {
+	if c.session == nil {
+		return fmt.Errorf("会话客户端未初始化")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if c.pool != nil {
+		return c.pool.SubmitRead(ctx, operation,
+			func(ctx context.Context) error {
+				return c.doSessionJSONWithRetry(ctx, operation, path, out)
+			},
+			nil, // 没有 cache 就不接 fallback
+		)
+	}
+	return c.doSessionJSONWithRetry(ctx, operation, path, out)
+}
+
 // doSessionJSONWithRetry 是 doSessionJSON 去掉 cache/pool 包装的纯直连版。
 // 鉴权失败时重新登录后重试一次。
 func (c *Client) doSessionJSONWithRetry(ctx context.Context, operation, path string, out interface{}) error {

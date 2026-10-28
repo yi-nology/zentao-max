@@ -381,6 +381,19 @@ export const getAccountInfo = (): Promise<ApiResponse<AccountInfo>> => {
   return api.get('/init/account')
 }
 
+// 禅道连接配置表单载荷。realm: 'kydc'（受限实例 SSO 会话模式）| 'local'（Token 模式，
+// 后端归一化为空串）。密码仅用于登录验证 + 加密落盘，任何接口都不回传。
+export interface ZentaoConfigPayload {
+  domain: string
+  account: string
+  password: string
+  realm: string
+}
+
+export const updateZentaoConfig = (payload: ZentaoConfigPayload): Promise<ApiResponse<AccountInfo>> => {
+  return api.post('/v1/zentao-config', payload)
+}
+
 export const search = (params: {
   keyword: string
   productId?: number

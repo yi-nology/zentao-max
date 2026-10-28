@@ -191,6 +191,11 @@ func _getaccountinfoMw() []app.HandlerFunc {
 	return nil
 }
 
+func _updatezentaoconfigMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
 func _personalMw() []app.HandlerFunc {
 	// your code...
 	return nil

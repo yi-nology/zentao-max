@@ -52,6 +52,7 @@ func Register(r *server.Hertz) {
 			_v1.GET("/stories", append(_getstoriesMw(), zentao.GetStories)...)
 			_v1.GET("/tasks", append(_gettasksMw(), zentao.GetTasks)...)
 			_v1.GET("/users", append(_getusersMw(), zentao.GetUsers)...)
+			_v1.POST("/zentao-config", append(_updatezentaoconfigMw(), zentao.UpdateZentaoConfig)...)
 			_users := _v1.Group("/users", _usersMw()...)
 			_users.GET("/all", append(_getusersallMw(), zentao.GetUsersAll)...)
 			_users.GET("/current", append(_getcurrentuserMw(), zentao.GetCurrentUser)...)

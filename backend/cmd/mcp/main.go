@@ -24,15 +24,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/yi-nology/zentao-max/backend/core/config"
-	"github.com/yi-nology/zentao-max/backend/core/initialization"
-	"github.com/yi-nology/zentao-max/backend/core/logger"
-	"github.com/yi-nology/zentao-max/backend/core/mcp"
-	"github.com/yi-nology/zentao-max/backend/core/metrics"
-	"github.com/yi-nology/zentao-max/backend/core/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/config"
+	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+	"github.com/yi-nology/zentao-max/backend/internal/mcp"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/metrics"
 
 	oekitconfig "github.com/oekit/core/config"
-	)
+)
 
 func main() {
 	// 解析命令行参数

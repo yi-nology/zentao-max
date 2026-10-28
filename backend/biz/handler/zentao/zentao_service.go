@@ -5,7 +5,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	coreerrors "github.com/yi-nology/zentao-max/backend/core/errors"
+	coreerrors "github.com/yi-nology/zentao-max/backend/pkg/errors"
 )
 
 // ─── API v1 routes ───
@@ -98,6 +98,10 @@ func Search(ctx context.Context, c *app.RequestContext) {
 
 func GetAccountInfo(ctx context.Context, c *app.RequestContext) {
 	initHandler.GetAccountInfo(ctx, c)
+}
+
+func UpdateZentaoConfig(ctx context.Context, c *app.RequestContext) {
+	initHandler.UpdateZentaoConfig(ctx, c)
 }
 
 // ─── Scheduler routes ───

@@ -9,10 +9,10 @@ import (
 	"github.com/oekit/bootstrap"
 	"github.com/oekit/core/lifecycle"
 
-	"github.com/yi-nology/zentao-max/backend/core/app"
-	"github.com/yi-nology/zentao-max/backend/core/config"
-	"github.com/yi-nology/zentao-max/backend/core/logger"
-	"github.com/yi-nology/zentao-max/backend/core/metrics"
+	"github.com/yi-nology/zentao-max/backend/internal/svc"
+	"github.com/yi-nology/zentao-max/backend/internal/config"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/metrics"
 
 	oekitconfig "github.com/oekit/core/config"
 )
@@ -58,7 +58,7 @@ func main() {
 	)
 
 	// 创建应用配置
-	appConfig := &app.AppConfig{
+	appConfig := &svc.AppConfig{
 		Type:           cfg.Server.Type,
 		Port:           cfg.Server.Port,
 		AuthDBPath:     cfg.Auth.DBPath,
@@ -70,7 +70,7 @@ func main() {
 	}
 
 	// 使用依赖注入初始化应用
-	application, err := app.InitializeHTTPApp(appConfig)
+	application, err := svc.InitializeHTTPApp(appConfig)
 	if err != nil {
 		logger.Fatal("Failed to initialize application", "error", err)
 	}

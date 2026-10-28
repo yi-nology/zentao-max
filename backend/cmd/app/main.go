@@ -11,11 +11,11 @@ import (
 	"github.com/oekit/bootstrap"
 	"github.com/oekit/core/lifecycle"
 
-	"github.com/yi-nology/zentao-max/backend/core/app"
-	"github.com/yi-nology/zentao-max/backend/core/config"
-	"github.com/yi-nology/zentao-max/backend/core/initialization"
-	"github.com/yi-nology/zentao-max/backend/core/logger"
-	"github.com/yi-nology/zentao-max/backend/core/metrics"
+	"github.com/yi-nology/zentao-max/backend/internal/config"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+	"github.com/yi-nology/zentao-max/backend/internal/svc"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/metrics"
 )
 
 var (
@@ -63,7 +63,7 @@ func main() {
 	resolvedAuthDBPath := initialization.ResolveAuthDBPath(authDBPath)
 	log.Printf("Auth DB path: %s", resolvedAuthDBPath)
 
-	appConfig := &app.AppConfig{
+	appConfig := &svc.AppConfig{
 		Type:           "http",
 		Port:           os.Getenv("PORT"),
 		AuthDBPath:     resolvedAuthDBPath,
@@ -75,12 +75,12 @@ func main() {
 		StaticFS:       getFileSystem(),
 	}
 
-	application, err := app.InitializeHTTPApp(appConfig)
+	application, err := svc.InitializeHTTPApp(appConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
 
-	httpApp, ok := application.(*app.HTTPApp)
+	httpApp, ok := application.(*svc.HTTPApp)
 	if !ok {
 		log.Fatalf("Expected HTTPApp, got %T", application)
 	}

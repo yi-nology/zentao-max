@@ -39,6 +39,47 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">连接配置</h3>
+      <div class="settings-card">
+        <div class="config-hint">
+          填写禅道基础域名与账号密码，先验证连接再加密保存，保存后立即生效（无需重启）。
+          公网部署时可直接在此切换连接目标，无需登录服务器改配置文件。修改需要平台管理员登录。
+        </div>
+        <div class="config-form">
+          <div class="form-item">
+            <label class="form-label">基础域名</label>
+            <el-input v-model="configForm.domain" placeholder="https://zentao.example.com" clearable />
+          </div>
+          <div class="form-item">
+            <label class="form-label">账号</label>
+            <el-input v-model="configForm.account" placeholder="禅道登录账号" clearable />
+          </div>
+          <div class="form-item">
+            <label class="form-label">密码</label>
+            <el-input
+              v-model="configForm.password"
+              type="password"
+              show-password
+              placeholder="必填；不回显已保存的密码"
+            />
+          </div>
+          <div class="form-item">
+            <label class="form-label">认证域</label>
+            <el-select v-model="configForm.realm" style="width: 100%">
+              <el-option label="kydc（受限实例 SSO 会话模式）" value="kydc" />
+              <el-option label="local（Token 模式 REST API）" value="local" />
+            </el-select>
+          </div>
+          <div class="form-actions">
+            <el-button type="primary" size="small" :loading="configSaving" @click="saveZentaoConfig">
+              保存并检测
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">显示设置</h3>
       <div class="settings-card">
         <div class="info-row">
@@ -112,8 +153,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { getAccountInfo } from '@/api/zentao'
+import { computed, reactive, ref, onMounted } from 'vue'
+import { getAccountInfo, updateZentaoConfig } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
@@ -188,6 +229,7 @@ const fetchAccountInfo = async () => {
     const res = await getAccountInfo()
     if (res.code === 200 && res.data) {
       accountInfo.value = res.data
+      prefillConfigForm(res.data)
     }
   } catch { /* ignore */ }
 
@@ -225,6 +267,45 @@ const fetchCacheStatus = async () => {
     cacheStatus.value = null
   } finally {
     cacheLoading.value = false
+  }
+}
+
+// ─── 连接配置表单 ───
+
+const configForm = reactive({
+  domain: '',
+  account: '',
+  password: '',
+  realm: 'kydc'
+})
+const configSaving = ref(false)
+
+// 以当前连接预填（密码不回显）；已填过的字段不覆盖，避免打断用户输入
+const prefillConfigForm = (info: AccountInfo) => {
+  if (!configForm.domain) configForm.domain = info.domain || ''
+  if (!configForm.account) configForm.account = info.account || ''
+  configForm.realm = info.realm || 'local'
+}
+
+const saveZentaoConfig = async () => {
+  if (!configForm.domain || !configForm.account || !configForm.password) {
+    ElMessage.warning('基础域名、账号、密码均必填')
+    return
+  }
+  configSaving.value = true
+  try {
+    const res = await updateZentaoConfig({ ...configForm })
+    if (res.code === 200) {
+      ElMessage.success(res.message || '连接成功，配置已保存')
+      configForm.password = ''
+      fetchAccountInfo()
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch {
+    // api.ts 拦截器已展示后端错误（401 会引导跳登录页）
+  } finally {
+    configSaving.value = false
   }
 }
 
@@ -351,5 +432,35 @@ onMounted(() => {
   word-break: break-all;
   max-width: 60%;
   text-align: right;
+}
+
+.config-hint {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  line-height: 1.6;
+  margin-bottom: var(--space-md);
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

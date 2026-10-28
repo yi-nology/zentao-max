@@ -19,14 +19,20 @@ main.go + app.go          → Wails v3 entrypoint
 backend/
   cmd/server/main.go      → HTTP server entrypoint (config-driven)
   cmd/app/main.go         → Embedded app entrypoint (static files baked in via ldflags)
-  core/
-    app/                  → Application interface, Wire DI
-    event/                → In-process event bus (pub/sub)
-    handlers/             → HTTP handlers (cache.go / logs.go)
-    service/              → Business logic (cache_service / dashboard_service)
-    storage/              → SQLite offline cache (modernc.org/sqlite, pure Go)
+  cmd/mcp/main.go         → MCP stdio entrypoint（AI 工具子进程）
+  internal/               → 私有业务代码（对齐 octopus 布局）
+    svc/                  → ServiceContext 装配 + Wire DI（原 core/app）
+    config/               → oekit core/config 加载（默认值→yaml→env 覆盖）
+    handlers/             → HTTP handlers（biz 生成层的实现目标）
+    routes/               → 中间件栈与路由注册
+    middleware/           → 访问指标（oekit accesslog/recovery/hmw 接管其余）
+    service/              → Business logic（cache_service / dashboard_service）
+    repository/sqlite/    → SQLite offline cache（modernc.org/sqlite, pure Go）
+    infra/zentao/         → 禅道 client/SDK（session 模式 + 熔断 + 池化）
+    auth/ initialization/ mcp/ models/ dto/ vo/ event/ version/
+  pkg/                    → 可复用基础库
     logger/               → oekit logx（slog 后端）+ ring_buffer
-    metrics/              → Prometheus + cache hit rate
+    errors/ constants/ metrics/ utils/
 frontend/
   src/                    → Vue 3 + Element Plus + Chart.js
     composables/          → useTableColumns / useTheme / useDesktopNotification / useExternalLink
@@ -74,7 +80,7 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 
 ## Key Conventions & Gotchas
 
-- **Wire DI**: `backend/core/app/wire.go` 定义注入；改 providers 后 `wire ./backend/core/app/`
+- **Wire DI**: `backend/internal/svc/wire.go` 定义注入；改 providers 后 `wire ./backend/internal/svc/`
 - **Frontend env switching**: 构建脚本 `cp .env.wails .env`，`.env` gitignored
 - **Config priority**: AppConfig > database stored config > env vars (`ZENTAO_MAX_` prefix)
 - **Default HTTP port**: `12345`
@@ -96,7 +102,7 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 
 ## Platform Auth (平台访问控制, 自 zentao-mini 同步)
 
-`backend/core/auth`：匿名只读（GET/HEAD/OPTIONS 放行），登录管理员读写。
+`backend/internal/auth`：匿名只读（GET/HEAD/OPTIONS 放行），登录管理员读写。
 
 - **SSO 登录（默认入口）**：`/api/auth/sso/send-code` + `/api/auth/sso/login`——麒麟统一认证
   （sso.example.com）用户名+密码+短信验证码：密码用登录页硬编码 RSA 公钥加密（PKCS#1 v1.5），
@@ -157,13 +163,13 @@ biz8.x 全量更新语义、跳板机隧道）。
 | **Session 模式** | `/user-login.html` PHP 会话 | `*.json` 端点（zentaosid cookie） | 禁用 REST API 的禅道实例（如受限实例 your-zentao-server.com） |
 
 **配置方式**：
-- 禅道连接凭据存于 auth.db。实际路径由 `initialization.ResolveAuthDBPath` 统一解析（`backend/core/initialization/auth_path.go`），优先级：显式配置（`auth.db_path` / 入口 ldflags 变量）→ 环境变量 `ZENTAO_AUTH_DB_PATH` → 已存在候选（`./data/auth.db` 规范位置 → `./auth.db` 历史 → `~/.zentao-max/auth.db` 最早）→ 都没有则首次写入落 `./data/auth.db`。HTTP 模式（`cd backend && go run cmd/app/main.go`）实际为 `backend/data/auth.db`。`AuthConfig.Realm` 非空（如 `"kydc"`）→ Session 模式
+- 禅道连接凭据存于 auth.db。实际路径由 `initialization.ResolveAuthDBPath` 统一解析（`backend/internal/initialization/auth_path.go`），优先级：显式配置（`auth.db_path` / 入口 ldflags 变量）→ 环境变量 `ZENTAO_AUTH_DB_PATH` → 已存在候选（`./data/auth.db` 规范位置 → `./auth.db` 历史 → `~/.zentao-max/auth.db` 最早）→ 都没有则首次写入落 `./data/auth.db`。HTTP 模式（`cd backend && go run cmd/app/main.go`）实际为 `backend/data/auth.db`。`AuthConfig.Realm` 非空（如 `"kydc"`）→ Session 模式
 - ⚠️ auth.db 的加密密钥未设置 `ZENTAO_ENCRYPTION_KEY` 时按机器信息派生；若解密失败（日志 `failed to decrypt auth config: invalid character ...`）会导致启动后禅道连接全空（报"禅道服务器地址为空"，所有禅道接口 50002 秒失败）——重新生成 auth.db（同机器密钥加密或显式 `ZENTAO_ENCRYPTION_KEY`，可用 `initialization.InitService.StoreAuthConfigFromStruct`）即可恢复，生产环境应固定 `ZENTAO_ENCRYPTION_KEY`
 - init-guide 界面已删除，auth.db 为外部提供文件（无写入端点）；路径解析日志见启动输出 `Auth DB path: ...`
 - 前端登录表单选择认证域：`kydc`（受限实例 SSO，密码明文）/ `local`（禅道本地，md5 混淆）
 - 环境变量：`ZENTAO_MAX_REALM` / `ZENTAO_REALM`
 
-**实现关键文件**（`backend/core/zentao/`）：
+**实现关键文件**（`backend/internal/infra/zentao/`）：
 - `client_auth_mode.go` — `AuthMode` / `RealmKySSO` 常量
 - `client_session.go` — `SessionTransport`（登录、cookie jar、双层 JSON 解包、re-login 重试）
 - `client_session_*.go` — 各实体的 `.json → SDK` 映射（bugs/stories/tasks/products/projects/executions/users/builds/efforts/cases/plans/programs/releases/testtasks）
@@ -210,7 +216,7 @@ Session 模式（cookie 鉴权、禁用 REST API 的禅道实例，如受限实�
 单端点拉取成本高（200ms~2s），且受限实例 SSO 限流严格（30s 登录限频 + 高频并发
 触发反爬）。client 层引入两个组件解决：
 
-### SessionCache（`backend/core/zentao/session_cache.go`）
+### SessionCache（`backend/internal/infra/zentao/session_cache.go`）
 
 二级 cache，所有 key 带 `(server, account, realm)` 命名空间：
 
@@ -235,7 +241,7 @@ per `(entityType, productID)`；这个在 client 层（原始端点响应），p
 `(entityType, productID)` 复合，把 scope 编进 productID 会冲突，编进
 entityType 又会让所有 scope 共享一行 → 语义错。
 
-### SessionWorkerPool（`backend/core/zentao/session_pool.go`）
+### SessionWorkerPool（`backend/internal/infra/zentao/session_pool.go`）
 
 请求调度中心，`doSessionJSON / doSessionPost` 必经之路：
 
@@ -261,7 +267,7 @@ entityType 又会让所有 scope 共享一行 → 语义错。
 - prometheus metrics 注入：SessionCache / SessionWorkerPool 已留 `SetMetricsCallbacks`
   注入点但尚未在 metrics 包实现具体 adapter。`Client.AttachMetrics`
   也已存在接口签名，需要 `metrics.SessionMetricsAdapter` 实现。
-  详见 backend/core/metrics/metrics.go 后续 patch。
+  详见 backend/pkg/metrics/metrics.go 后续 patch。
 
 ## Known Issues / Migration Notes
 

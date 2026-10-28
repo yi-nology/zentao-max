@@ -156,7 +156,8 @@ biz8.x 全量更新语义、跳板机隧道）。
 | **Session 模式** | `/user-login.html` PHP 会话 | `*.json` 端点（zentaosid cookie） | 禁用 REST API 的禅道实例（如受限实例 your-zentao-server.com） |
 
 **配置方式**：
-- `~/.zentao-max/auth.db` 里 `AuthConfig.Realm` 非空（如 `"kydc"`）→ Session 模式
+- 禅道连接凭据存于 **进程工作目录下的 `auth.db`**（HTTP 模式实际为 `backend/auth.db`，`auth.db_path` 默认 `./auth.db`——非 `~/.zentao-max/`）。`AuthConfig.Realm` 非空（如 `"kydc"`）→ Session 模式
+- ⚠️ auth.db 的加密密钥未设置 `ZENTAO_ENCRYPTION_KEY` 时按机器信息派生；若解密失败（日志 `failed to decrypt auth config`）会导致重启后禅道连接全空（报"禅道服务器地址为空"）——删除 auth.db 重新初始化即可恢复，生产环境应固定 `ZENTAO_ENCRYPTION_KEY`
 - 前端登录表单选择认证域：`kydc`（受限实例 SSO，密码明文）/ `local`（禅道本地，md5 混淆）
 - 环境变量：`ZENTAO_MAX_REALM` / `ZENTAO_REALM`
 

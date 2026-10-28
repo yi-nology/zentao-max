@@ -3,6 +3,7 @@ package zentao
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -37,20 +38,69 @@ func joinInts(ids []int) string {
 
 // ---- Bug create/update/delete ----
 
+// CreateBug 会话模式创建 Bug。
+//
+// 实测（biz8.x 受限实例）：POST /bug-create.json 会被静默丢弃（返回页面但不落库），
+// 必须提交到完整表单页 URL /bug-create-{productID}-moduleID=0.html，且
+// openedBuild[] 需为数组名形式、值为 build ID 或 trunk（可经
+// /build-ajaxGetProductBuilds-{productID}-openedBuild--0.html 获取）。
+// 麒麟实例还有定制必填字段 txjg[]（体系结构，"all"=所有）与
+// Evaluationanalysis（是否评价分析，页面默认 2），缺一被服务端静默弹回表单。
+// 成功判定：响应 HTML 含"保存成功"或跳转 bug-view；弹回表单页视为失败。
 func (c *Client) CreateBug(productID int, req zentaosdk.BugCreateRequest) (*zentaosdk.Bug, error) {
 
+	// 实测服务端校验：『所属项目』不能为空——选执行时禅道前端会自动联动项目，
+	// API 直发必须自己带上。按 executionID 反查所属 project。
+	if req.Project == 0 && req.Execution != 0 {
+		if execs, err := c.getAllExecutionsSession(context.Background()); err == nil {
+			for _, e := range execs {
+				if e.ID == req.Execution && e.Project != 0 {
+					req.Project = e.Project
+					break
+				}
+			}
+		}
+	}
+
 	form := bugCreateForm(productID, req)
-	if err := c.doSessionPost(context.Background(), "CreateBug", "/bug-create.json", form); err != nil {
+	path := fmt.Sprintf("/bug-create-%d-moduleID=0.html", productID)
+	body, err := c.doSessionPostWithBody(context.Background(), "CreateBug", path, form)
+	if err != nil {
+		return nil, err
+	}
+	if err := judgeBugCreateResponse(body); err != nil {
 		return nil, err
 	}
 	return &zentaosdk.Bug{}, nil
+}
+
+// judgeBugCreateResponse 判定 bug-create 的 HTML 响应。
+// 判定顺序很关键：表单回显页的 JS 里也含 bug-view 字样，必须先判失败特征。
+func judgeBugCreateResponse(body []byte) error {
+	s := string(body)
+	// 弹回表单页（服务端校验拒绝的 HTML 形态）
+	if strings.Contains(s, `id="submit"`) && strings.Contains(s, "bug-create") {
+		return fmt.Errorf("Bug 创建被实例校验拒绝（弹回表单页）：请检查影响版本/所属模块/执行/项目等必填字段，或该产品存在定制必填项")
+	}
+	// 成功：保存成功提示，或跳转到 bug-view
+	if strings.Contains(s, "保存成功") {
+		return nil
+	}
+	if regexp.MustCompile(`(?i)(location|href)\s*[=:'" ]+[^;'"]*bug-view-\d+`).MatchString(s) {
+		return nil
+	}
+	// 未知形态：HTTP 200 已过，按成功（与既有其它写端点行为一致）
+	return nil
 }
 
 func bugCreateForm(productID int, req zentaosdk.BugCreateRequest) neturl.Values {
 	form := neturl.Values{}
 	form.Set("product", strconv.Itoa(productID))
 	form.Set("title", req.Title)
-	form.Set("openedBuild", strings.Join(req.OpenedBuild, ","))
+	// openedBuild[] 为数组名形式（禅道表单按多选接收），值为 build ID 或 trunk
+	for _, b := range req.OpenedBuild {
+		form.Add("openedBuild[]", b)
+	}
 	form.Set("assignedTo", req.AssignedTo)
 	form.Set("type", req.Type)
 	form.Set("severity", strconv.Itoa(req.Severity))
@@ -59,14 +109,19 @@ func bugCreateForm(productID int, req zentaosdk.BugCreateRequest) neturl.Values 
 	form.Set("os", req.OS)
 	form.Set("browser", req.Browser)
 	form.Set("hardware", req.Hardware)
-	if req.Module != 0 {
-		form.Set("module", strconv.Itoa(req.Module))
-	}
-	if req.Execution != 0 {
-		form.Set("execution", strconv.Itoa(req.Execution))
-	}
+	// module/execution 为表单必填（0=根模块/无执行也必须出现）
+	form.Set("module", strconv.Itoa(req.Module))
+	form.Set("execution", strconv.Itoa(req.Execution))
 	if req.Project != 0 {
 		form.Set("project", strconv.Itoa(req.Project))
+	}
+	// 麒麟受限实例（biz8.x）定制必填：体系结构多选（"all"=所有）与评价分析标记。
+	// 标准禅道会忽略未知字段，不影响通用性。
+	if form.Get("txjg[]") == "" {
+		form.Set("txjg[]", "all")
+	}
+	if form.Get("Evaluationanalysis") == "" {
+		form.Set("Evaluationanalysis", "2")
 	}
 	return form
 }

@@ -542,26 +542,33 @@ func IsSessionAuthError(err error) bool {
 // 成功返回 nil；失败返回包含后端 message 的错误。
 // 与 DoJSON 不同：写端点的响应外层就是直接的 JSON 对象（不是 {status,data,md5} 包裹）。
 func (s *SessionTransport) PostForm(ctx context.Context, path string, form neturl.Values) error {
+	_, err := s.PostFormWithBody(ctx, path, form)
+	return err
+}
+
+// PostFormWithBody 与 PostForm 相同，但返回原始响应体供调用方做业务结果判定。
+// 判定规则见 PostFormWithBody 内部注释；HTML 响应不再一律视为成功。
+func (s *SessionTransport) PostFormWithBody(ctx context.Context, path string, form neturl.Values) ([]byte, error) {
 	if err := s.ensureLoggedIn(); err != nil {
-		return err
+		return nil, err
 	}
 	fullURL := s.server + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("写请求失败 (%s): %w", path, err)
+		return nil, fmt.Errorf("写请求失败 (%s): %w", path, err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("写操作失败 HTTP %d: %s (path=%s)", resp.StatusCode, truncate(string(body), 200), path)
+		return body, fmt.Errorf("写操作失败 HTTP %d: %s (path=%s)", resp.StatusCode, truncate(string(body), 200), path)
 	}
 
 	// 解析 {result, message?, ...}
@@ -571,22 +578,25 @@ func (s *SessionTransport) PostForm(ctx context.Context, path string, form netur
 		Locate  string `json:"locate"`
 	}
 	if err := json.Unmarshal(body, &writeResp); err != nil {
-		// 某些写端点返回 HTML 重定向（非 JSON），按成功处理（HTTP 200 即可）。
-		return nil
+		// HTML 响应：写端点常见两种形态——
+		//   成功：跳转脚本或"保存成功"提示（如 /bug-create-{id}-moduleID=0.html 创建成功）；
+		//   失败：弹回表单页（表单校验被服务端拒绝），此前一律按成功处理导致静默失败。
+		// 这里不做硬判定，把 body 交调用方按端点语义判定。
+		return body, nil
 	}
 	// 未认证：定位到登录页。
 	if lower := strings.ToLower(writeResp.Locate); strings.Contains(lower, "user-login") {
 		s.sessionExpiry.Store(0)
-		return fmt.Errorf("%w (locate=%s)", errSessionReloginRequired, writeResp.Locate)
+		return body, fmt.Errorf("%w (locate=%s)", errSessionReloginRequired, writeResp.Locate)
 	}
 	if writeResp.Result == "success" || writeResp.Result == "saved" || writeResp.Result == "" {
-		return nil
+		return body, nil
 	}
 	msg := writeResp.Message
 	if msg == "" {
 		msg = truncate(string(body), 200)
 	}
-	return fmt.Errorf("写操作失败: %s", msg)
+	return body, fmt.Errorf("写操作失败: %s", msg)
 }
 
 // IsSessionAccessDenied 判断错误是否为权限拒绝（不可重试）。

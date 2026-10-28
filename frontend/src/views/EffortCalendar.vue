@@ -454,11 +454,8 @@ function parseObjectNo(v: unknown, typeHint: string): { objectType: string; id: 
   return null
 }
 
-/** 从日历 entry 的 url 提取对象（task-view-123.html → task_123） */
-function objectIdFromEntry(e: EffortCalendarEntry): string {
-  const m = (e.url || '').match(/(task|bug|story)-view-(\d+)/)
-  return m ? `${m[1]}_${m[2]}` : ''
-}
+// 台账去重键：日期|工作内容|消耗（日历 entry.url 是 effort-view 不含对象 ID，
+// 与 zt.py 台账语义一致按"内容+日期+消耗"判重）
 
 const HEADER_HINTS = ['日期', '类型', '对象号', '工作内容', '消耗', '剩余', '测试包版本']
 
@@ -500,8 +497,7 @@ async function onImportFile(ev: Event): Promise<void> {
     // 台账式去重：日历已有 同日 + 同对象 + 同消耗 的记录视为已提交
     const existing = new Set<string>()
     for (const e of result.value?.entries ?? []) {
-      const obj = objectIdFromEntry(e)
-      if (obj) existing.add(`${e.start}|${obj}|${e.consumed}`)
+      existing.add(`${e.start}|${String(e.title || '').trim()}|${e.consumed}`)
     }
     let skippedAlreadySubmitted = 0
 
@@ -527,7 +523,7 @@ async function onImportFile(ev: Event): Promise<void> {
       }
 
       // 台账去重（禅道侧已有）与文件内去重
-      const key = `${dateStr}|${parsed.objectType}|${consumed}`
+      const key = `${dateStr}|${work}|${consumed}`
       if (existing.has(key)) { skippedAlreadySubmitted++; continue }
       if (fileSeen.has(key)) { skippedDupInFile++; continue }
       fileSeen.add(key)

@@ -567,28 +567,70 @@ func (c *Client) doSessionPost(ctx context.Context, operation, path string, form
 	return err
 }
 
-// doSessionPostWithRetry 是 doSessionPost 去掉 cache/pool 包装的纯直连版。
-func (c *Client) doSessionPostWithRetry(ctx context.Context, operation, path string, form neturl.Values) error {
+// doSessionPostWithBody 与 doSessionPost 相同（pool 写串行 + 写后失效），
+// 但返回响应体供调用方做业务结果穿透判定（HTML 响应不再默认成功）。
+func (c *Client) doSessionPostWithBody(ctx context.Context, operation, path string, form neturl.Values) ([]byte, error) {
+	if c.session == nil {
+		return nil, fmt.Errorf("会话客户端未初始化")
+	}
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	var body []byte
+	doWrite := func(ctx context.Context) error {
+		b, err := c.doSessionPostWithRetryWithBody(ctx, operation, path, form)
+		body = b
 		return err
 	}
-	err := c.session.PostForm(ctx, path, form)
+
+	var err error
+	if c.pool != nil {
+		err = c.pool.SubmitWrite(ctx, operation, func(ctx context.Context) error {
+			if werr := doWrite(ctx); werr != nil {
+				return werr
+			}
+			if c.cache != nil {
+				if entity, ok := writeOpToEntity[operation]; ok {
+					_ = c.cache.InvalidateEntity(ctx, entity)
+				}
+			}
+			return nil
+		})
+	} else {
+		err = doWrite(ctx)
+		if err == nil && c.cache != nil {
+			if entity, ok := writeOpToEntity[operation]; ok {
+				_ = c.cache.InvalidateEntity(ctx, entity)
+			}
+		}
+	}
+	return body, err
+}
+
+// doSessionPostWithRetryWithBody 是 doSessionPostWithRetry 的带响应体版本。
+func (c *Client) doSessionPostWithRetryWithBody(ctx context.Context, operation, path string, form neturl.Values) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	body, err := c.session.PostFormWithBody(ctx, path, form)
 	if err == nil || !IsSessionAuthError(err) {
-		return err
+		return body, err
 	}
 	logger.Warn("Zentao session expired on write, re-login and retry",
 		zap.String("operation", operation),
 		zap.String("path", path),
-		zap.Error(err),
 	)
-	c.session.invalidateForRelogin()
-	if loginErr := c.session.ensureLoggedIn(); loginErr != nil {
-		return fmt.Errorf("%s失败，重新登录失败: %w，原始错误: %v", operation, loginErr, err)
+	if err := c.session.ensureLoggedIn(); err != nil {
+		return body, fmt.Errorf("写操作失败，重新登录失败: %w，原始错误: %v", err, err)
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return c.session.PostForm(ctx, path, form)
+	return c.session.PostFormWithBody(ctx, path, form)
+}
+
+// doSessionPostWithRetry 是 doSessionPost 去掉 cache/pool 包装的纯直连版。
+func (c *Client) doSessionPostWithRetry(ctx context.Context, operation, path string, form neturl.Values) error {
+	_, err := c.doSessionPostWithRetryWithBody(ctx, operation, path, form)
+	return err
 }
 
 // writeOpToEntity 把写 op 名映射到 cache entity。

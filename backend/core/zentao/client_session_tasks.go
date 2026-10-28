@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
@@ -13,11 +14,11 @@ import (
 // 内层 tasks 是 map[id]task，按 execution 取。单页即全部（受限实例 exec 4 有 97 条）。
 
 type sessionExecutionTaskResp struct {
-	Title       string                 `json:"title"`
-	ExecutionID int                    `json:"executionID"`
-	Tasks       map[string]sessionTask `json:"tasks"`
-	HasTasks    bool                   `json:"hasTasks"`
-	Pager       *sessionPager          `json:"pager"`
+	Title       string         `json:"title"`
+	ExecutionID int            `json:"executionID"`
+	Tasks       sessionTaskMap `json:"tasks"`
+	HasTasks    bool           `json:"hasTasks"`
+	Pager       *sessionPager  `json:"pager"`
 }
 
 type sessionTask struct {
@@ -188,4 +189,17 @@ func (c *Client) GetMyWorkTasks(ctx context.Context) ([]zentaosdk.Task, error) {
 		out = append(out, t.toSDK())
 	}
 	return out, nil
+}
+
+// sessionTaskMap 兼容 tasks 的 map/array 两种返回形状
+// （部分执行的 /execution-task-{id}.json 返回数组而非 map，实测）。
+type sessionTaskMap map[string]sessionTask
+
+func (m *sessionTaskMap) UnmarshalJSON(data []byte) error {
+	var arr []json.RawMessage
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*m = sessionTaskMap{}
+		return nil
+	}
+	return json.Unmarshal(data, (*map[string]sessionTask)(m))
 }

@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
@@ -14,10 +15,23 @@ import (
 // 实际可用的是 product-browse-{pid}-story。响应里 stories 是 map[id]story。
 
 type sessionProductStoryResp struct {
-	Title          string                  `json:"title"`
-	Stories        map[string]sessionStory `json:"stories"`
-	StoryStages    interface{}             `json:"storyStages"`
-	IsProjectStory interface{}             `json:"isProjectStory"`
+	Title          string          `json:"title"`
+	Stories        sessionStoryMap `json:"stories"`
+	StoryStages    interface{}     `json:"storyStages"`
+	IsProjectStory interface{}     `json:"isProjectStory"`
+}
+
+// sessionStoryMap 兼容 stories 的 map/array 两种返回形状
+// （部分执行的 /execution-story-{id}.json 返回数组而非 map，实测）。
+type sessionStoryMap map[string]sessionStory
+
+func (m *sessionStoryMap) UnmarshalJSON(data []byte) error {
+	var arr []json.RawMessage
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*m = sessionStoryMap{}
+		return nil
+	}
+	return json.Unmarshal(data, (*map[string]sessionStory)(m))
 }
 
 type sessionStory struct {

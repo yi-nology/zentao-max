@@ -114,7 +114,24 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 			results[idx] = item
 		}(i, check)
 	}
-	wg.Wait()
+	// 检查限时：story/task 等在大实例上会全量遍历执行（数千个），
+	// 无超时会拖死整个 healthz（前端心跳页长期转圈）。
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	const checkTimeout = 20 * time.Second
+	select {
+	case <-done:
+	case <-time.After(checkTimeout):
+		for idx := range results {
+			if results[idx].Name == "" && results[idx].Status == "" {
+				results[idx] = CheckItem{
+					Name:    checks[idx].name,
+					Status:  "fail",
+					Message: "检测超时（数据量大，请稍后重试）",
+				}
+			}
+		}
+	}
 
 	resp.Checks = results
 
@@ -145,7 +162,17 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 
 func (h *HealthHandler) checkZentao() CheckItem {
 	start := time.Now()
+	// connected 标志由后台 ticker 异步同步，可能滞后于真实连通性
+	// （会话每请求自动重登）。心跳以实时探测为准：能拉到当前用户即视为连接。
 	if !h.zentaoClient.IsConnected() {
+		if user, err := h.zentaoClient.GetCurrentUser(); err == nil && user != nil && user.ID > 0 {
+			h.zentaoClient.MarkConnected()
+			return CheckItem{
+				Status:    "ok",
+				Message:   "已连接 " + h.zentaoClient.GetServer() + " (账号: " + user.Account + ")",
+				LatencyMs: time.Since(start).Milliseconds(),
+			}
+		}
 		return CheckItem{
 			Status:    "fail",
 			Message:   "未连接到禅道服务器，请检查配置",

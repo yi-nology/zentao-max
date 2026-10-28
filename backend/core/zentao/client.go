@@ -193,6 +193,12 @@ func (c *Client) IsConnected() bool {
 	return c.connected.Load()
 }
 
+// MarkConnected 手动把 connected 标志置 true。
+// 供心跳探测等实时验证连通性的路径回写标志（后台 ticker 周期同步可能滞后）。
+func (c *Client) MarkConnected() {
+	c.connected.Store(true)
+}
+
 // GetAccount 获取当前登录用户的账号
 func (c *Client) GetAccount() string {
 	return c.account

@@ -25,7 +25,9 @@ const config: UserConfig = {
         changeOrigin: true,
         secure: false
       },
-      '/health': {
+      // 精确匹配 /health（后端健康检查 JSON）；前缀写法会把前端路由
+      // /health-check（心跳检测页）也代理到后端导致 404 白屏
+      '^/health$': {
         target: 'http://localhost:12345',
         changeOrigin: true,
         secure: false

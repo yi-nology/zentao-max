@@ -83,9 +83,11 @@ func (m *Manager) signToken(expiry time.Time) string {
 // signTokenWithUser 签发带登录者身份的令牌：exp[.username] 分段。
 // username 为空时保持旧格式（exp.signature），兼容测试与旧会话。
 func (m *Manager) signTokenWithUser(username string, expiry time.Time) string {
+	// 分隔符用 ":"（cookie-value 合法字符，浏览器不会百分号编码；
+	// 曾用 "|"，Chrome 会把值里的 | 编码为 %7C 回传，导致 Verify 解析失败）
 	payload := strconv.FormatInt(expiry.Unix(), 10)
 	if username != "" {
-		payload += "|" + username
+		payload += ":" + username
 	}
 	return payload + "." + hex.EncodeToString(m.mac(payload))
 }
@@ -108,14 +110,25 @@ func (m *Manager) VerifyUsername(token string) (string, bool) {
 }
 
 func (m *Manager) verifyToken(token string) (string, bool) {
+	// 浏览器可能把 cookie 值中的分隔符百分号编码（: → %3A；历史 | → %7C），校验前归一化。
+	// 签名覆盖原始字节，归一化只影响解析，不弱化校验。
+	for _, enc := range []string{"%3A", "%7c", "%7C"} {
+		if strings.Contains(token, enc) {
+			sep := ":"
+			if enc == "%7c" || enc == "%7C" {
+				sep = ":"
+			}
+			token = strings.ReplaceAll(token, enc, sep)
+		}
+	}
 	payload, sig, ok := strings.Cut(token, ".")
 	if !ok {
 		return "", false
 	}
-	// payload 形如 "exp" 或 "exp|username"
+	// payload 形如 "exp" 或 "exp:username"
 	expPart := payload
 	user := ""
-	if exp, usr, has := strings.Cut(payload, "|"); has {
+	if exp, usr, has := strings.Cut(payload, ":"); has {
 		expPart = exp
 		user = usr
 	}

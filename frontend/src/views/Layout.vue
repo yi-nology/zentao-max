@@ -20,6 +20,15 @@
         </router-link>
       </nav>
       <div class="sidebar-footer">
+        <div class="sidebar-auth">
+          <template v-if="authStatus.authenticated">
+            <span class="sidebar-auth-user" :title="'已登录：' + authStatus.username">{{ authStatus.username }}</span>
+            <button class="sidebar-auth-btn" :disabled="loggingOut" @click="handleLogout">
+              {{ loggingOut ? '退出中' : '退出' }}
+            </button>
+          </template>
+          <router-link v-else class="sidebar-auth-btn" to="/login">登录</router-link>
+        </div>
         <span class="version-info">v{{ appVersion }}</span>
         <span>©2024-2026 <a href="https://murphyyi.com" target="_blank" rel="noopener noreferrer">murphyyi.com</a></span>
       </div>
@@ -28,18 +37,7 @@
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
         <div class="header-actions">
-          <div class="auth-area">
-            <template v-if="authStatus.authenticated">
-              <span class="auth-user">{{ authStatus.username }}</span>
-              <button class="auth-btn" :disabled="loggingOut" @click="handleLogout">
-                {{ loggingOut ? '退出中...' : '退出' }}
-              </button>
-            </template>
-            <template v-else>
-              <router-link class="auth-btn" to="/login">登录</router-link>
-            </template>
-          </div>
-          <!-- 禅道账号信息仅在平台登录后显示：匿名只读态下与"登录"按钮并存易误读为已登录 -->
+          <!-- 禅道账号信息仅在平台登录后显示：匿名只读态下易误读为已登录 -->
           <div class="account-info" v-if="authStatus.authenticated && accountInfo">
             <span class="account-status-dot" :class="accountInfo.connected ? 'connected' : 'disconnected'"></span>
             <span class="account-text">{{ accountInfo.account }}</span>
@@ -590,35 +588,54 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   gap: 8px;
 }
 
-/* 登录者用户名：安静文本展示，不做徽章 */
+/* 登录者用户名：安静文本展示，不做徽章（仅头部禅道账号区旁不用；登录态展示移至侧边栏底部） */
 .auth-user {
   font-size: 12px;
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
-.auth-btn {
+.sidebar-auth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 8px;
+  margin-bottom: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-auth-user {
+  font-size: 12px;
+  color: var(--color-text-on-dark, #e2e8f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.sidebar-auth-btn {
   font-size: 12px;
   line-height: 1;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-card);
-  color: var(--color-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--color-text-on-dark, #e2e8f0);
   white-space: nowrap;
-  flex-shrink: 0;
   cursor: pointer;
   text-decoration: none;
+  opacity: 0.8;
   transition: all 0.15s;
 }
 
-.auth-btn:hover {
-  color: var(--color-primary, #4f6ef7);
-  border-color: var(--color-primary, #4f6ef7);
+.sidebar-auth-btn:hover {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
-.auth-btn:disabled {
-  opacity: 0.6;
+.sidebar-auth-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 

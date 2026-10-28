@@ -309,7 +309,8 @@ export interface BatchEffortResult {
 }
 
 export const batchCreateEffort = (payload: BatchEffortPayload): Promise<ApiResponse<BatchEffortResult>> => {
-  return api.post('/efforts/batch', payload)
+  // 注意：后端注册在 /api/v1 前缀（routes.go apiV1 组），baseURL 已是 /api
+  return api.post('/v1/efforts/batch', payload)
 }
 
 // === Daily note（"这天我干了什么"） ===

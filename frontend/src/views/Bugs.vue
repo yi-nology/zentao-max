@@ -241,6 +241,7 @@
           <el-button size="small" @click="handleBugAction('activate', currentBug.id)">激活</el-button>
           <el-button size="small" @click="handleBugAction('assign', currentBug.id)">指派</el-button>
           <el-button size="small" type="primary" @click="openBugEditDialog(currentBug)">编辑 / 质量字段</el-button>
+          <el-button size="small" type="success" @click="openBugEffortDialog(currentBug)">记录工时</el-button>
         </div>
       </div>
     </el-dialog>
@@ -276,6 +277,28 @@
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="editSubmitting" @click="submitBugEdit">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Bug 记录工时（走批量工时端点，objectType=bug_xxx） -->
+    <el-dialog v-model="effortDialogVisible" title="记录工时" width="480px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item label="日期">
+          <el-date-picker v-model="effortForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="工作内容">
+          <el-input v-model="effortForm.work" type="textarea" :rows="2" placeholder="做了什么（将写入禅道日志）" />
+        </el-form-item>
+        <el-form-item label="消耗(h)">
+          <el-input-number v-model="effortForm.consumed" :min="0.5" :max="24" :step="0.5" :precision="1" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <div class="edit-warn">
+        工时提交后可在「工时日历」回查；部分实例的工时同步外部系统后不可改删，请确认内容后再提交。
+      </div>
+      <template #footer>
+        <el-button @click="effortDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="effortSubmitting" @click="submitBugEffort">提交</el-button>
       </template>
     </el-dialog>
 
@@ -319,7 +342,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug, batchCreateEffort } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
@@ -711,6 +734,61 @@ const editForm = reactive<{
   resolvedBuild: '',
   comment: ''
 })
+
+// ----- Bug 记录工时（批量工时端点，objectType=bug_xxx）-----
+const effortDialogVisible = ref(false)
+const effortSubmitting = ref(false)
+const effortBugId = ref(0)
+const effortForm = reactive<{ date: string; work: string; consumed: number }>({
+  date: new Date().toISOString().slice(0, 10),
+  work: '',
+  consumed: 0.5
+})
+
+const openBugEffortDialog = (bug: Bug): void => {
+  if (!bug.execution) {
+    ElMessage.warning('该 Bug 未关联执行，无法记录工时（受限实例要求工时必须挂执行）')
+    return
+  }
+  effortBugId.value = bug.id
+  effortForm.date = new Date().toISOString().slice(0, 10)
+  // 工作内容预填 Bug 标题，日报可读
+  effortForm.work = String(bug.title || '')
+  effortForm.consumed = 0.5
+  detailDialogVisible.value = false
+  effortDialogVisible.value = true
+}
+
+const submitBugEffort = async (): Promise<void> => {
+  if (!effortForm.date || !effortForm.work.trim() || effortForm.consumed <= 0) {
+    ElMessage.error('日期、工作内容、消耗（>0）都不能为空')
+    return
+  }
+  effortSubmitting.value = true
+  try {
+    const res = await batchCreateEffort({
+      date: effortForm.date,
+      items: [{
+        work: effortForm.work.trim(),
+        objectType: `bug_${effortBugId.value}`,
+        execution: currentBug.value?.execution || 0,
+        consumed: effortForm.consumed,
+        left: 0
+      }]
+    })
+    if (res.code === 200 && res.data && res.data.created > 0) {
+      ElMessage.success(`工时已记录（${effortForm.date} ${effortForm.consumed}h），可在工时日历回查`)
+      effortDialogVisible.value = false
+    } else {
+      ElMessage.error(res.message || '提交失败')
+    }
+  } catch (err) {
+    const anyErr = err as { response?: { data?: { message?: string } } }
+    ElMessage.error(anyErr?.response?.data?.message || '提交失败')
+  } finally {
+    effortSubmitting.value = false
+  }
+}
 
 const openBugEditDialog = (bug: Bug): void => {
   editBugId.value = bug.id

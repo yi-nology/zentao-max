@@ -3,6 +3,8 @@ package zentao
 import (
 	"context"
 	"fmt"
+
+	"go.uber.org/zap"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	neturl "net/url"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/core/logger"
 )
 
 // 本文件补齐 SDK 的剩余写操作（Phase2c 扩展）。
@@ -68,6 +71,9 @@ func (c *Client) CreateBug(productID int, req zentaosdk.BugCreateRequest) (*zent
 	if err != nil {
 		return nil, err
 	}
+	// TODO(test): 临时诊断，验证后删除
+	logger.Warn("[DIAG] CreateBug response", zap.Int("len", len(body)),
+		zap.String("head", truncate(string(body), 200)))
 	if err := judgeBugCreateResponse(body); err != nil {
 		return nil, err
 	}

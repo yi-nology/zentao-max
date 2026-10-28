@@ -367,16 +367,6 @@ export const getDashboard = (
   return api.get('/dashboard', { params })
 }
 
-export interface InitStatusData {
-  isFirstStart: boolean
-  hasConfig: boolean
-  message: string
-}
-
-export const getInitStatus = (): Promise<ApiResponse<InitStatusData>> => {
-  return api.get('/init/status')
-}
-
 export interface AccountInfo {
   domain: string
   account: string

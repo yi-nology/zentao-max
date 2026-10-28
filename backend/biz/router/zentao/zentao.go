@@ -58,7 +58,6 @@ func Register(r *server.Hertz) {
 			{
 				_init := _v1.Group("/init", _initMw()...)
 				_init.GET("/account", append(_getaccountinfoMw(), zentao.GetAccountInfo)...)
-				_init.GET("/status", append(_getinitstatusMw(), zentao.GetInitStatus)...)
 			}
 			{
 				_personal := _v1.Group("/personal", _personalMw()...)

@@ -96,10 +96,6 @@ func Search(ctx context.Context, c *app.RequestContext) {
 
 // ─── Init routes ───
 
-func GetInitStatus(ctx context.Context, c *app.RequestContext) {
-	initHandler.GetInitStatus(ctx, c)
-}
-
 func GetAccountInfo(ctx context.Context, c *app.RequestContext) {
 	initHandler.GetAccountInfo(ctx, c)
 }

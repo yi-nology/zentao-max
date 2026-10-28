@@ -86,12 +86,6 @@ const routes: AppRoute[] = [
     ]
   },
   {
-    path: '/init-status',
-    name: 'InitStatus',
-    component: () => import('../views/InitStatus.vue'),
-    meta: { title: '初始化状态' }
-  },
-  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/Login.vue'),

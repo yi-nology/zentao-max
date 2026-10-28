@@ -148,15 +148,13 @@ func RateLimitMiddlewareWithConfig(requestsPerMinute, blockDurationMinutes int) 
 func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 	limiter := NewRateLimiter(config)
 
-	// 不计入限流的路径：健康检查、指标、初始化状态、版本号。
-	// 这些是基础设施端点，限流它们会导致监控/心跳把服务本身"打死"，
-	// 也会让前端路由守卫（getInitStatus）在正常浏览时被误伤。
+	// 不计入限流的路径：健康检查、指标、版本号。
+	// 这些是基础设施端点，限流它们会导致监控/心跳把服务本身"打死"。
 	exemptPaths := map[string]bool{
-		"/health":          true,
-		"/api/healthz":     true,
-		"/metrics":         true,
-		"/api/init/status": true,
-		"/api/version":     true,
+		"/health":      true,
+		"/api/healthz": true,
+		"/metrics":     true,
+		"/api/version": true,
 	}
 
 	log.Printf("[RATE_LIMIT] Rate limiter initialized: %d requests/minute, block duration: %v",

@@ -35,7 +35,7 @@ function recordIssue(where, desc) {
 }
 
 // 共享会话：全测试只开一个 browser/context/page，只 openApp 一次，
-// 避免反复触发路由守卫的 getInitStatus（后端有限流）。
+// 避免重复登录/限流。
 // 同时通过 route 节流，把 /api 请求速率限制在限流阈值之下（旧后端默认 60/分钟）。
 let _shared = null
 async function sharedSession() {
@@ -100,10 +100,10 @@ async function ensureProduct(page, productId = '200') {
 // 不真正关闭，仅用于兼容旧的 try/finally（共享会话需保留到最后）
 async function keepAlive() {}
 
-// 打开应用首页并等待路由守卫 getInitStatus 完成、Layout 渲染
+// 打开应用首页并等待 Layout 渲染
 async function openApp(page) {
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 30000 })
-  // 路由守卫会调 /api/init/status，等侧边栏出现即表示已进入主界面
+  // 等侧边栏出现即表示已进入主界面
   await page.waitForSelector('.nav-menu', { timeout: 20000 })
   return page
 }

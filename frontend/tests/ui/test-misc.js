@@ -231,26 +231,11 @@ async function testSettings(page) {
   await h.shot(page, 'settings')
 }
 
-async function testInitPages(page) {
-  const s = h.suite('Init 初始化页')
-  // InitStatus
-  try {
-    await page.goto(h.BASE + '/init-status', { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1500)
-    const card = await page.locator('.status-card').first().isVisible().catch(() => false)
-    h.record(s, 'InitStatus 页渲染', card ? 'pass' : 'warn')
-    await h.shot(page, 'init-status')
-  } catch (e) {
-    h.record(s, 'InitStatus 页渲染', 'fail', e.message)
-  }
-}
-
 async function run(page) {
   await testScheduler(page)
   await testHealthCheck(page)
   await testMCPGuide(page)
   await testSettings(page)
-  await testInitPages(page)
 }
 
 module.exports = run

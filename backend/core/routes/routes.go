@@ -184,7 +184,6 @@ func registerMCPAdminRoutes(r *server.Hertz) {
 func registerBackwardCompatRoutes(r *server.Hertz, registry *handlers.HandlerRegistry) {
 	api := r.Group("/api")
 
-	api.GET("/init/status", bizhandler.GetInitStatus)
 	api.GET("/init/account", bizhandler.GetAccountInfo)
 
 	registerDomainRoutes(api)

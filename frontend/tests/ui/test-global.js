@@ -18,7 +18,7 @@ async function run(page) {
       { label: '任务查询', path: '/tasks' },
       { label: '工时统计', path: '/timelog' },
       { label: '定时任务', path: '/scheduler' },
-      { label: '心跳检测', path: '/health' },
+      { label: '心跳检测', path: '/health-check' },
       { label: 'MCP 对接', path: '/mcp-guide' },
       { label: '设置', path: '/settings' },
       { label: '仪表盘', path: '/dashboard' },

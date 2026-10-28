@@ -32,6 +32,14 @@ jobs:
             goarch: amd64
             artifact_suffix: linux-amd64
 
+          # 原生 arm64 runner（public repo 免费）：GTK/WebKit 装原生 arm64 库，
+          # wails3 检测 host ARCH=arm64 走 build:native，无需交叉编译/Docker
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            artifact_suffix: linux-arm64
+
           - name: windows-amd64
             os: windows-latest
             goos: windows

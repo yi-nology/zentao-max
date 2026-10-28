@@ -9,9 +9,9 @@ if [ ! -d "frontend/dist" ]; then
 fi
 
 # 创建后端静态资源目录
-mkdir -p backend/cmd/app/static
+mkdir -p backend/static
 
 # 复制前端构建后的静态资源
-cp -r frontend/dist/* backend/cmd/app/static/
+cp -r frontend/dist/* backend/static/
 
-echo "Static files copied to backend/cmd/app/static/"
+echo "Static files copied to backend/static/"

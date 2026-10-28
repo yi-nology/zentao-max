@@ -19,75 +19,48 @@ backend-install:
 	@cd backend && go mod tidy
 
 backend-run:
-	@echo "Running backend server..."
-	@cd backend && go run cmd/server/main.go
+	@echo "Running backend (static: embedded or -static <dir>)..."
+	@cd backend && go run .
 
 backend-build:
-	@echo "Building backend server..."
-	@cd backend && go build -o server cmd/server/main.go
+	@echo "Building backend single binary..."
+	@cd backend && go build -o zentao-max .
 
-backend-app-run:
-	@echo "Running backend app (with frontend static files)..."
-	@cd backend && go run cmd/app/main.go
 
-backend-app-build:
-	@echo "Building backend app (with frontend static files)..."
-	@cd backend && go build -o app cmd/app/main.go
 
-# Wails 相关命令 (v3)
-# v3 使用 Taskfile 作为主构建系统，这里通过 wails3 task 调用
-WAILS_TAGS ?=
-wails-build:
-	@echo "Building Wails v3 application..."
-	@wails3 task build
 
-wails-run:
-	@echo "Running Wails v3 application in dev mode..."
-	@wails3 task dev
 
-wails-generate:
-	@echo "Regenerating Wails v3 bindings..."
-	@wails3 generate bindings -d frontend/bindings
-
-# 组合命令
-install:
-	@echo "Installing all dependencies..."
-	@make frontend-install
-	@go mod tidy
-
-# 开发模式命令 - 不进行编译
+# 开发模式（前端 vite dev 代理 /api，后端 -static 磁盘或 embedded）
 run:
-	@echo "Running application in development mode..."
-	@make wails-run
+	@echo "Running backend in development mode..."
+	@cd backend && go run .
 
-# 版本构建命令 - 只有打版本时才进行编译
+# 发布构建：前端构建 + 单二进制
 release:
 	@echo "Building release version..."
 	@make frontend-build
-	@make wails-build
+	@cd backend && go build -trimpath -ldflags "-s -w" -o zentao-max .
 	@echo "Release build completed"
 
 build:
 	@echo "Building all components..."
 	@make frontend-build
-	@make wails-build
+	@cd backend && go build -o zentao-max .
 
 # 清理命令
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf frontend/dist
-	@rm -rf build
+	@rm -rf frontend/dist backend/static
 
 # 状态命令
 status:
 	@echo "Project status:"
 	@echo "- Frontend: $(shell ls -la frontend/ | grep package.json | wc -l) package.json found"
-	@echo "- Backend: $(shell ls -la backend/cmd/server/ | grep main.go | wc -l) main.go found"
-	@echo "- Wails: $(shell ls -la | grep wails.json | wc -l) wails.json found"
+	@echo "- Backend entry: backend/main.go"
 
 # 帮助命令
 help:
-	@echo "Chandao Mini Makefile"
+	@echo "zentao-max Makefile"
 	@echo ""
 	@echo "Frontend commands:"
 	@echo "  make frontend-install   - Install frontend dependencies"
@@ -96,22 +69,10 @@ help:
 	@echo ""
 	@echo "Backend commands:"
 	@echo "  make backend-install    - Install backend dependencies"
-	@echo "  make backend-run        - Run backend server"
-	@echo "  make backend-build      - Build backend server"
-	@echo "  make backend-app-run    - Run backend app (with frontend static files)"
-	@echo "  make backend-app-build  - Build backend app (with frontend static files)"
-	@echo ""
-	@echo "Wails commands:"
-	@echo "  make wails-build        - Build Wails application"
-	@echo "  make wails-run          - Run Wails application"
+	@echo "  make backend-run        - Run backend (embedded static by default)"
+	@echo "  make backend-build      - Build backend single binary"
 	@echo ""
 	@echo "Combined commands:"
 	@echo "  make install            - Install all dependencies"
-	@echo "  make run                - Run application in development mode (no compilation)"
+	@echo "  make run                - Run backend in development mode"
 	@echo "  make build              - Build all components"
-	@echo "  make release            - Build release version (only for versioning)"
-	@echo ""
-	@echo "Other commands:"
-	@echo "  make clean              - Clean build artifacts"
-	@echo "  make status             - Check project status"
-	@echo "  make help               - Show this help"

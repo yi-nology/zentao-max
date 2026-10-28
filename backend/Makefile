@@ -7,7 +7,7 @@ all: build
 
 # 构建项目
 build:
-	go build -o server ./cmd/server
+	go build -o zentao-max .
 
 # 构建 MCP stdio 独立入口（供 AI 工具作为子进程启动）
 build-mcp:

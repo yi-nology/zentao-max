@@ -17,9 +17,9 @@ main.go + app.go          → Wails v3 entrypoint
                              - GlobalShortcut (CmdOrCtrl+Shift+Z 唤起)
                              - EventBus subscription → app.Event.Emit
 backend/
-  cmd/server/main.go      → HTTP server entrypoint (config-driven)
-  cmd/app/main.go         → Embedded app entrypoint (static files baked in via ldflags)
-  cmd/mcp/main.go         → MCP stdio entrypoint（AI 工具子进程）
+  main.go                 → 唯一服务入口（-config/-env/-static；默认嵌入静态，
+                            -static <dir> 磁盘伺服，对齐 octopus 根 main 布局）
+  cmd/mcp/main.go         → MCP stdio 独立入口（AI 工具子进程二进制）
   internal/               → 私有业务代码（对齐 octopus 布局）
     svc/                  → ServiceContext 装配 + Wire DI（原 core/app）
     config/               → oekit core/config 加载（默认值→yaml→env 覆盖）
@@ -43,9 +43,9 @@ Taskfile.yml              → v3 主构建入口
 docs/grafana/             → Grafana dashboard JSON
 ```
 
-Three runtime modes:
-- **HTTP server**: `cd backend && go run cmd/server/main.go`
-- **Embedded app**: `cd backend && go run cmd/app/main.go`
+运行形态由 `-static` 决定（单入口 `cd backend && go run .`）：
+- 默认 embedded：前端产物嵌入单二进制（CI 构建 `go build ./backend`）
+- `-static <dir>`：磁盘伺服前端（本地联调）
 
 ## Commands
 

@@ -95,7 +95,7 @@ jobs:
           mkdir -p bin
           # 纯 Go（hertz + modernc sqlite），CGO_ENABLED=0 交叉编译
           # 产出单 binary：HTTP server + 嵌入式前端（web 应用模式）
-          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"             -o "bin/zentao-max${{ matrix.goos == 'windows' && '.exe' || '' }}"             ./backend/cmd/app
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"             -o "bin/zentao-max${{ matrix.goos == 'windows' && '.exe' || '' }}"             ./backend
 
       - name: List build outputs
         shell: bash

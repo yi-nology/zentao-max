@@ -29,7 +29,12 @@ var globalLogger logx.Logger
 // Init 初始化全局 logger。
 func Init(cfg *config.LogConfig) error {
 	var out io.Writer = os.Stdout
-	if cfg.OutputPath != "" && cfg.OutputPath != "stdout" {
+	switch cfg.OutputPath {
+	case "", "stdout":
+		// 默认标准输出
+	case "stderr":
+		out = os.Stderr
+	default:
 		if f, err := os.OpenFile(cfg.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			out = f
 		}

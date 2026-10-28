@@ -10,7 +10,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
+	hertzcontribslog "github.com/hertz-contrib/logger/slog"
+	"github.com/oekit/concurrency/async"
 	"github.com/oekit/logx"
+	"github.com/oekit/tracing/traceid"
 
 	"github.com/yi-nology/zentao-max/backend/core/config"
 )
@@ -21,12 +25,6 @@ import (
 // - trace_id 通过 logx.SetTraceExtractor 注入，Ctx* 方法与 WithCtx 自动携带。
 
 var globalLogger logx.Logger
-
-type ContextKey string
-
-const (
-	TraceIDKey ContextKey = "trace_id"
-)
 
 // Init 初始化全局 logger。
 func Init(cfg *config.LogConfig) error {
@@ -53,17 +51,23 @@ func Init(cfg *config.LogConfig) error {
 		logx.WithHandler(&fanoutHandler{hs: []slog.Handler{fmtHandler, ringHandler{}}}),
 	)
 
-	// 向 logx 注册 trace_id 提取器：WithCtx/Ctx* 路径自动携带 trace_id
-	logx.SetTraceExtractor(extractTraceID)
+	// 向 logx 注册 trace_id 提取器：WithCtx/Ctx* 路径自动携带 trace_id。
+	// trace_id 由 oekit hmw.Middleware 经 traceid.ContextWith 注入标准 context
+	logx.SetTraceExtractor(traceid.FromContext)
+
+	// async.GoSafe 的 panic 统一进 logx（业务 goroutine panic 不再走 std log）
+	async.SetPanicHandler(func(msg string, stack []byte) {
+		GetLogger().Error("goroutine panic recovered", "panic", msg, "stack", string(stack))
+	})
+
+	// hertz 内部日志（路由注册 [Debug] HERTZ、hlog.SystemLogger）桥接到 slog，
+	// 统一走结构化输出，不再以 hlog 默认文本格式旁路
+	hlog.SetLogger(hertzcontribslog.NewLogger(
+		hertzcontribslog.WithOutput(os.Stdout),
+		hertzcontribslog.WithHandlerOptions(&slog.HandlerOptions{Level: slogLevel(cfg.Level)}),
+	))
 
 	return nil
-}
-
-func extractTraceID(ctx context.Context) string {
-	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
-		return traceID
-	}
-	return ""
 }
 
 func slogLevel(level string) slog.Level {
@@ -157,20 +161,6 @@ var syncOnce sync.Once
 func Sync() error {
 	syncOnce.Do(func() {})
 	return nil
-}
-
-// WithTraceID 返回携带 trace_id 的子 logger。
-func WithTraceID(traceID string) logx.Logger {
-	return GetLogger().WithAttrs(logx.Attr{Key: "trace_id", Value: traceID})
-}
-
-// WithContext 从 ctx 提取 trace_id 构建子 logger；无 trace_id 时返回全局实例。
-func WithContext(ctx context.Context) logx.Logger {
-	traceID, ok := ctx.Value(TraceIDKey).(string)
-	if !ok || traceID == "" {
-		return GetLogger()
-	}
-	return WithTraceID(traceID)
 }
 
 func Debug(msg string, kv ...any) { GetLogger().Debug(msg, kv...) }

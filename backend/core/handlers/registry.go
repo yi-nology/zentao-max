@@ -156,7 +156,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		registry.dashboardService.SetCacheService(registry.cacheService)
 	}
 
-	registry.initHandler = NewInitHandler(initService, client)
+	registry.initHandler = NewInitHandler(initService, client, registry.cacheService)
 
 	registry.healthHandler = NewHealthHandler(
 		client,

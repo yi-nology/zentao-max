@@ -1,8 +1,10 @@
 package utils
 
 import (
-	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
+	"github.com/oekit/pkg/slicex"
+
 	"github.com/yi-nology/zentao-max/backend/core/models"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // Converter 数据转换器接口
@@ -26,15 +28,8 @@ func ConvertSlice[S any, T any](sources []S, converter Converter[S, T]) []T {
 
 // ConvertSliceFunc 使用函数进行批量转换
 func ConvertSliceFunc[S any, T any](sources []S, converterFunc func(S) T) []T {
-	if len(sources) == 0 {
-		return []T{}
-	}
-
-	result := make([]T, 0, len(sources))
-	for _, source := range sources {
-		result = append(result, converterFunc(source))
-	}
-	return result
+	// 实现委托 oekit/pkg/slicex，保持项目 API 稳定
+	return slicex.Map(sources, converterFunc)
 }
 
 // BugConverter Bug转换器

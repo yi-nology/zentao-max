@@ -2,31 +2,23 @@ package middleware
 
 import (
 	"context"
-	"runtime/debug"
 	"time"
 
-	"github.com/yi-nology/zentao-max/backend/core/errors"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/metrics"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/google/uuid"
-	)
+	"github.com/oekit/middleware/hmw"
+)
 
-func TraceIDMiddleware() app.HandlerFunc {
-	return func(ctx context.Context, c *app.RequestContext) {
-		traceID := string(c.GetHeader("X-Trace-ID"))
-		if traceID == "" {
-			traceID = uuid.New().String()
-		}
-
-		c.Set(string(logger.TraceIDKey), traceID)
-
-		c.Header("X-Trace-ID", traceID)
-
-		c.Next(ctx)
-	}
-}
+// trace_id 与 panic 防护由 oekit/middleware 提供（routes.go 注册）：
+//   - hmw.Middleware()：trace_id 生成/透传（X-Trace-Id，12 位 hex）+ 客户端
+//     ID 白名单校验，同步注入 RequestContext 与标准 context（logx 经
+//     traceid.FromContext 提取，Ctx* 日志自动携带）
+//   - mw.RecoveryMiddleware()：panic 捕获 + logx 记录堆栈，响应格式经
+//     WithRecoveryErrorHandler 定制为项目 errors.Response 结构
+//
+// 本包只保留访问日志与指标两个中间件。
 
 func LoggerMiddleware() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
@@ -38,8 +30,6 @@ func LoggerMiddleware() app.HandlerFunc {
 
 		latency := time.Since(start)
 		statusCode := c.Response.StatusCode()
-		traceID, _ := c.Get(string(logger.TraceIDKey))
-		traceIDStr, _ := traceID.(string)
 
 		kv := []any{
 			"method", method,
@@ -47,7 +37,7 @@ func LoggerMiddleware() app.HandlerFunc {
 			"status", statusCode,
 			"latency", latency,
 			"client_ip", c.ClientIP(),
-			"trace_id", traceIDStr,
+			"trace_id", hmw.FromRequestContext(c),
 		}
 
 		if statusCode >= 500 {
@@ -62,31 +52,4 @@ func LoggerMiddleware() app.HandlerFunc {
 
 func MetricsMiddleware() app.HandlerFunc {
 	return metrics.Middleware()
-}
-
-func RecoveryMiddleware() app.HandlerFunc {
-	return func(ctx context.Context, c *app.RequestContext) {
-		defer func() {
-			if err := recover(); err != nil {
-				traceID, _ := c.Get(string(logger.TraceIDKey))
-				traceIDStr, _ := traceID.(string)
-
-				logger.Error("Panic recovered",
-					"error", err,
-					"trace_id", traceIDStr,
-					"method", string(c.Request.Method()),
-					"path", string(c.Request.URI().Path()),
-					"stack", string(debug.Stack()),
-				)
-
-				c.AbortWithStatusJSON(500, errors.Response{
-					Code:    errors.CodeInternalError,
-					Message: "服务器内部错误",
-					Data:    nil,
-				})
-			}
-		}()
-
-		c.Next(ctx)
-	}
 }

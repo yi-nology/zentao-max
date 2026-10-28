@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"github.com/oekit/pkg/slicex"
+
 	"slices"
 	"strings"
 )
@@ -10,17 +12,8 @@ type FilterFunc[T any] func(item T) bool
 
 // Filter 过滤切片
 func Filter[T any](slice []T, filterFunc FilterFunc[T]) []T {
-	if len(slice) == 0 {
-		return []T{}
-	}
-
-	result := make([]T, 0)
-	for _, item := range slice {
-		if filterFunc(item) {
-			result = append(result, item)
-		}
-	}
-	return result
+	// 实现委托 oekit/pkg/slicex，保持项目 API 稳定
+	return slicex.Filter(slice, filterFunc)
 }
 
 // FilterByDateRange 按日期范围过滤

@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oekit/concurrency/async"
+
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-max/backend/core/dto"
@@ -107,12 +109,13 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 	results := make([]CheckItem, len(checks))
 	for i, check := range checks {
 		wg.Add(1)
-		go func(idx int, c checkFn) {
+		// Go 1.22+ 循环变量语义，闭包捕获 i/check 安全
+		async.GoSafe(func() {
 			defer wg.Done()
-			item := c.fn()
-			item.Name = c.name
-			results[idx] = item
-		}(i, check)
+			item := check.fn()
+			item.Name = check.name
+			results[i] = item
+		})
 	}
 	// 检查限时：story/task 等在大实例上会全量遍历执行（数千个），
 	// 无超时会拖死整个 healthz（前端心跳页长期转圈）。

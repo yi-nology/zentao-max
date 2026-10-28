@@ -10,8 +10,10 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/routes"
 
+	"github.com/oekit/concurrency/async"
+
 	"github.com/cloudwego/hertz/pkg/app/server"
-	)
+)
 
 type HTTPApp struct {
 	config    *AppConfig
@@ -61,18 +63,21 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 	)
 
 	// Run 阻塞在 accept loop，不监听信号——优雅关停由入口层的
-	// bootstrap 编排（App.AddResource → HTTPApp.Stop → hertz.Shutdown）
-	go func() {
+	// bootstrap 编排（App.AddResource → HTTPApp.Stop → hertz.Shutdown）。
+	// RunSafe 收编 Run 的 panic（如端口占用），启动失败即进程退出，
+	// 避免服务未起而进程假活的静默故障（与旧 Spin 出错退出语义一致）。
+	async.GoSafe(func() {
 		logger.Info("HTTP server starting",
 			"name", a.Name(),
 			"port", port,
 			"zentao_server", a.config.ZentaoServer,
 		)
 
-		if err := a.hertz.Run(); err != nil {
-			logger.Error("HTTP server exited with error", "error", err)
+		var runner async.Runner
+		if err := runner.RunSafeErr(func() error { return a.hertz.Run() }); err != nil {
+			logger.Fatal("HTTP server failed to start", "error", err)
 		}
-	}()
+	})
 
 	return nil
 }

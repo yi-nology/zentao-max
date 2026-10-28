@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oekit/concurrency/async"
+
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
-	)
+)
 
 // DefaultCacheTTL 默认缓存有效期（5 分钟）
 const DefaultCacheTTL = 5 * time.Minute
@@ -69,15 +71,8 @@ func (s *CacheService) GetOrLoad(
 		// 回源成功，写缓存（异步避免阻塞）。
 		// 关键：ctx 用调用方传入的 + 5s 超时（不是 Background），store 已 Close 时
 		// 错误能及时返回 + 5s 内必退出，避免 goroutine 永久 hang。
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Error("cache async write panicked",
-						"entityType", entityType,
-						"productID", productID,
-						"panic", r)
-				}
-			}()
+		// GoSafe：panic 收编 + 统一 panic 日志，替代原手写 recover 块
+		async.GoSafe(func() {
 			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := s.store.Set(writeCtx, entityType, productID, freshData, ttl); err != nil {
@@ -86,7 +81,7 @@ func (s *CacheService) GetOrLoad(
 					"productID", productID,
 					"error", err)
 			}
-		}()
+		})
 		return &CacheResult{
 			Data:      freshData,
 			FromCache: false,

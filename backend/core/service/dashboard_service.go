@@ -8,12 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oekit/concurrency/async"
+
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
-	)
+)
 
 // DashboardService 仪表盘服务
 type DashboardService struct {
@@ -253,7 +255,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 	defer cancel()
 
 	wg.Add(3)
-	go func() {
+	async.GoSafe(func() {
 		defer wg.Done()
 		select {
 		case <-bgCtx.Done():
@@ -265,8 +267,8 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		if err != nil {
 			logger.Error("Failed to fetch bugs for dashboard", "error", err)
 		}
-	}()
-	go func() {
+	})
+	async.GoSafe(func() {
 		defer wg.Done()
 		select {
 		case <-bgCtx.Done():
@@ -278,8 +280,8 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		if err != nil {
 			logger.Error("Failed to fetch stories for dashboard", "error", err)
 		}
-	}()
-	go func() {
+	})
+	async.GoSafe(func() {
 		defer wg.Done()
 		select {
 		case <-bgCtx.Done():
@@ -291,7 +293,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		if err != nil {
 			logger.Error("Failed to fetch executions for dashboard", "error", err)
 		}
-	}()
+	})
 	wg.Wait()
 
 	// 检查 context 是否已取消
@@ -433,14 +435,14 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 	)
 
 	wg.Add(2)
-	go func() {
+	async.GoSafe(func() {
 		defer wg.Done()
 		bugs, _ = s.client.GetAllBugsByProjectContext(ctx, projectID)
-	}()
-	go func() {
+	})
+	async.GoSafe(func() {
 		defer wg.Done()
 		tasks = collectTasksByProjectContext(ctx, s.client, projectID)
-	}()
+	})
 	wg.Wait()
 
 	select {
@@ -667,15 +669,16 @@ func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs 
 		default:
 		}
 		wg.Add(1)
-		go func(execID int) {
+		// Go 1.22+ 循环变量语义，闭包捕获 ec 安全
+		async.GoSafe(func() {
 			defer wg.Done()
-			tasks, err := client.GetTasksContext(ctx, execID, 1, 200)
+			tasks, err := client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
 			if err == nil && tasks != nil {
 				mu.Lock()
 				all = append(all, tasks...)
 				mu.Unlock()
 			}
-		}(ec.Exec.ID)
+		})
 	}
 	wg.Wait()
 	return all

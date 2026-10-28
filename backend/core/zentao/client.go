@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/oekit/concurrency/async"
+
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 
 	)
@@ -71,7 +73,8 @@ func NewSessionClient(server, account, password, realm string, cacheDBPrefix str
 	// 会话模式：不再启动时异步登录（避免账号被 SSO 锁定时反复重试加速锁定）。
 	// 改为懒加载：首次数据请求时
 	// 由 ensureLoggedIn 触发登录。connected 状态在登录成功后才置 true。
-	go c.startSessionKeepalive()
+	// GoSafe：keepalive 长驻 goroutine panic 时收编 + 日志，不会静默死亡
+	async.GoSafe(c.startSessionKeepalive)
 	return c
 }
 

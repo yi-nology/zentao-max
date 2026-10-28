@@ -10,7 +10,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/route"
-	
+	"github.com/oekit/middleware"
+	"github.com/oekit/middleware/hmw"
+
 	bizhandler "github.com/yi-nology/zentao-max/backend/biz/handler/zentao"
 	bizrouter "github.com/yi-nology/zentao-max/backend/biz/router"
 	"github.com/yi-nology/zentao-max/backend/core/auth"
@@ -45,8 +47,16 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	if cfg.Auth.SSO.Enabled {
 		authManager.SetSSO(auth.NewSSOClient(cfg.Auth.SSO.BaseURL))
 	}
-	hertzServer.Use(middleware.RecoveryMiddleware())
-	hertzServer.Use(middleware.TraceIDMiddleware())
+	// panic 防护与 trace_id 由 oekit/middleware 提供；Recovery 的响应体保持
+	// 项目 errors.Response 结构（前端按 code/message/data 解析）
+	hertzServer.Use(mw.RecoveryMiddleware(mw.WithRecoveryErrorHandler(func(c *app.RequestContext, _ any, _ string) {
+		c.JSON(500, errors.Response{
+			Code:    errors.CodeInternalError,
+			Message: "服务器内部错误",
+			Data:    nil,
+		})
+	})))
+	hertzServer.Use(hmw.Middleware()...)
 	hertzServer.Use(middleware.LoggerMiddleware())
 	hertzServer.Use(middleware.MetricsMiddleware())
 	// 限流参数来自配置文件的 rate_limit 段（未配置时回退内置默认 600/分钟）

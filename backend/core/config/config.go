@@ -73,12 +73,22 @@ type AuthConfig struct {
 	DBPath string `mapstructure:"db_path"`
 	// 平台访问控制：匿名=只读，登录管理员=读写
 	Admin AuthAdminConfig `mapstructure:"admin"`
+	// SSO 麒麟统一认证登录（用户名+密码+短信验证码）
+	SSO SSOAuthConfig `mapstructure:"sso"`
 }
 
 // AuthAdminConfig 平台管理员账号（用于登录后获得读写权限）
 type AuthAdminConfig struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
+}
+
+// SSOAuthConfig SSO 登录配置.
+type SSOAuthConfig struct {
+	// 是否启用 SSO 登录入口（启用后 /api/auth/sso/* 可用，登录页默认展示 SSO 表单）
+	Enabled bool `mapstructure:"enabled"`
+	// SSO 服务地址（麒麟统一认证平台）
+	BaseURL string `mapstructure:"base_url"`
 }
 
 // SecurityConfig 安全配置.
@@ -132,6 +142,7 @@ func Init(configPath string, envPrefix string) error {
 		"server.type", "server.port", "server.read_timeout", "server.write_timeout", "server.shutdown_timeout",
 		"zentao.server", "zentao.account", "zentao.password", "zentao.token_refresh_interval", "zentao.request_timeout",
 		"auth.db_path", "auth.config_path", "auth.admin.username", "auth.admin.password",
+		"auth.sso.enabled", "auth.sso.base_url",
 		"log.level", "log.format", "log.enable_caller", "log.enable_stacktrace",
 		"rate_limit.requests_per_minute", "rate_limit.block_duration_minutes",
 		"mcp.enabled", "mcp.transport", "mcp.token", "mcp.read_only", "mcp.actions",
@@ -196,6 +207,9 @@ func setDefaults(v *viper.Viper) {
 	// 平台管理员账号默认 admin/admin（匿名只读，登录后读写）
 	v.SetDefault("auth.admin.username", "admin")
 	v.SetDefault("auth.admin.password", "admin")
+	// SSO 登录（麒麟统一认证）默认启用
+	v.SetDefault("auth.sso.enabled", true)
+	v.SetDefault("auth.sso.base_url", "https://sso.example.com")
 
 	// 日志配置
 	v.SetDefault("log.level", "info")

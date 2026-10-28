@@ -42,6 +42,10 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		cfg.Auth.Admin.Password,
 		auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey),
 	)
+	// SSO 登录（麒麟统一认证，用户名+密码+短信验证码）
+	if cfg.Auth.SSO.Enabled {
+		authManager.SetSSO(auth.NewSSOClient(cfg.Auth.SSO.BaseURL))
+	}
 	isFirstStart := func() bool {
 		first, err := initService.IsFirstStart()
 		return err == nil && first

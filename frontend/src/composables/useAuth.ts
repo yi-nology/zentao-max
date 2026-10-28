@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { getAuthStatus, login as loginApi, logout as logoutApi } from '@/api/auth'
+import { getAuthStatus, login as loginApi, logout as logoutApi, ssoLogin as ssoLoginApi, sendSsoCode as sendSsoCodeApi } from '@/api/auth'
 import type { AuthStatusData } from '@/api/auth'
 
 // 全局认证状态：anonymous=只读，admin=读写。
@@ -28,6 +28,23 @@ async function login(username: string, password: string): Promise<void> {
   }
 }
 
+/** 触发 SSO 短信验证码发送，返回脱敏手机号 */
+async function sendSsoCode(username: string, password: string): Promise<string> {
+  const res = await sendSsoCodeApi(username, password)
+  if (res.code === 200 && res.data) {
+    return res.data.mobile
+  }
+  throw new Error(res.message || '验证码发送失败')
+}
+
+/** SSO 短信验证码登录（麒麟统一认证），成功置管理员态 */
+async function ssoLogin(username: string, password: string, code: string): Promise<void> {
+  const res = await ssoLoginApi(username, password, code)
+  if (res.code === 200 && res.data) {
+    authStatus.value = { authenticated: true, role: 'admin', username: res.data.username }
+  }
+}
+
 async function logout(): Promise<void> {
   try {
     await logoutApi()
@@ -37,5 +54,5 @@ async function logout(): Promise<void> {
 }
 
 export function useAuth() {
-  return { authStatus, loaded, refreshAuthStatus, login, logout }
+  return { authStatus, loaded, refreshAuthStatus, login, ssoLogin, sendSsoCode, logout }
 }

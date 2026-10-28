@@ -30,13 +30,12 @@
         <div class="header-actions">
           <div class="auth-area">
             <template v-if="authStatus.authenticated">
-              <span class="auth-badge admin">管理员 · {{ authStatus.username }}</span>
+              <span class="auth-user">{{ authStatus.username }}</span>
               <button class="auth-btn" :disabled="loggingOut" @click="handleLogout">
                 {{ loggingOut ? '退出中...' : '退出' }}
               </button>
             </template>
             <template v-else>
-              <span class="auth-badge readonly" title="写操作（定时任务、Bug/任务流转、清空日志/缓存等）需要管理员登录">只读模式</span>
               <router-link class="auth-btn" to="/login">登录</router-link>
             </template>
           </div>
@@ -591,24 +590,11 @@ provide<GlobalSelection>('globalSelection', globalSelection)
   gap: 8px;
 }
 
-.auth-badge {
+/* 登录者用户名：安静文本展示，不做徽章 */
+.auth-user {
   font-size: 12px;
-  line-height: 1;
-  padding: 5px 10px;
-  border-radius: 999px;
+  color: var(--color-text-secondary);
   white-space: nowrap;
-}
-
-.auth-badge.readonly {
-  color: #b8860b;
-  background: rgba(255, 193, 7, 0.12);
-  border: 1px solid rgba(255, 193, 7, 0.35);
-}
-
-.auth-badge.admin {
-  color: #2e7d32;
-  background: rgba(76, 175, 80, 0.12);
-  border: 1px solid rgba(76, 175, 80, 0.35);
 }
 
 .auth-btn {

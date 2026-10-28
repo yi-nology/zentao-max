@@ -99,11 +99,26 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 
 `backend/core/auth`：匿名只读（GET/HEAD/OPTIONS 放行），登录管理员读写。
 
-- **凭据**: `auth.admin.username/password`（默认 admin/admin；env `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。
-- **会话**: HMAC 签名无状态 token（exp.signature），HttpOnly Cookie `zentao_max_session` + `Authorization: Bearer` 双通道；`SecretFromEncryptionKey(cfg.Security.EncryptionKey)` 派生签名密钥，重启后会话不失效。登录失败防爆破（10 次/分钟/IP）。
-- **豁免**: `/mcp*`（MCP 有独立 token/只读控制）；`/api/scheduler/preview`（纯读）；首次启动时 `/api/init/login`、`/api/v1/init/login`、`/api/init/zentaosid` 匿名放行（否则全新部署死锁），初始化完成后同样需要管理员。
-- **前端**: `/login` 页（`views/Login.vue` + `useAuth`）；Layout 头部只读/管理员徽章；`api.ts` 对 401 分流——含"管理员登录"字样跳 `/login?redirect=...`，其余（禅道配置失效）跳 `/init-guide`。
-- **注意**: 初始化完成后再走 `/init-guide` 重新配置禅道连接也需要先登录管理员。限流为配置驱动（`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。
+- **SSO 登录（默认入口）**：`/api/auth/sso/send-code` + `/api/auth/sso/login`——麒麟统一认证
+  （sso.example.com）用户名+密码+短信验证码：密码用登录页硬编码 RSA 公钥加密（PKCS#1 v1.5），
+  POST /mobiles 拿脱敏手机号 → /verifyCode 触发短信 → /sso/doLogin 验证码登录（移植自
+  freedom/ky-work-mcp 的实测实现）。成功后签发平台会话令牌（与本地登录同一会话体系）。
+  配置：`auth.sso.enabled`（默认 true）+ `auth.sso.base_url`。
+- **本地管理员（备用入口）**：`auth.admin.username/password`（默认 admin/admin，env
+  `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。登录页底部链接切换两种方式。
+- **会话**: HMAC 无状态 token，格式 `exp[.username]分段签名`——令牌内记录登录者身份
+  （SSO 账号或本地管理员名），`/api/auth/status` 返回该身份；Cookie `zentao_max_session`
+  + `Authorization: Bearer` 双通道；`SecretFromEncryptionKey` 派生签名密钥，重启后有效。
+  登录失败防爆破（10 次/分钟/IP，SSO 两步共用计数）。
+- **豁免**: `/mcp*`（MCP 有独立 token/只读控制）；`/api/auth/*`（登录/登出/SSO 两步）；
+  `/api/scheduler/preview`（纯读）；首次启动时 `/api/init/login`、`/api/v1/init/login`、
+  `/api/init/zentaosid` 匿名放行（否则全新部署死锁），初始化完成后同样需要登录。
+- **前端**: `/login` 页默认 SSO 表单（账号/密码/验证码+60s 倒计时重发），底部可切本地管理员；
+  头部不展示模式徽章——登录后只显示用户名+退出，未登录只显示登录链接（模式守卫由
+  后端 401 层承担）；`api.ts` 对 401 分流——`/auth/*` 自身 401 表单自展示，含"管理员登录"
+  字样跳 `/login?redirect=...`，其余（禅道配置失效）跳 `/init-guide`。
+- **注意**: 初始化完成后再走 `/init-guide` 重新配置禅道连接也需要先登录。限流为配置驱动
+  （`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。
 
 ## Skills (Agent 技能包, `skills/`)
 

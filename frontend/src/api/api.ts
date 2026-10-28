@@ -45,7 +45,7 @@ api.interceptors.response.use(
     if (status === 401) {
       // 登录/登出接口自身的 401（密码错误等）由调用方（登录表单）展示，不触发跳转
       const reqUrl: string = error.config?.url || ''
-      if (reqUrl.includes('/auth/login') || reqUrl.includes('/auth/logout')) {
+      if (reqUrl.includes('/auth/login') || reqUrl.includes('/auth/logout') || reqUrl.includes('/auth/sso/')) {
         return Promise.reject(error)
       }
       // 平台认证 401（后端 auth 中间件的提示语含"管理员登录"）→ 跳登录页，登录后回到当前页；

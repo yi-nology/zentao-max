@@ -29,22 +29,12 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	var bugs []zentaosdk.Bug
 	var err error
 
-	// 如果有产品ID，按产品查询
+	// 如果有产品ID，按产品查询。
+	// 列表与统计卡同口径：统一走全量（含 closed）后内存过滤+分页。
+	// 此前默认分支走 GetBugs（禅道默认 browseType 部分集合），导致
+	// 列表"共 100 条"与统计分段卡（全量 1000）对不上。
 	if query.ProductID != 0 {
-		// 版本/类型/状态/指派人过滤需要获取所有bug（含closed），在内存中过滤
-		// 注意：closed 状态的 bug 不会被禅道默认接口返回，
-		// 必须用 status=all 全量获取（含 closed）后在内存过滤
-		if query.AssignedTo != "" || query.Version != "" || query.Type != "" || query.Status != "" {
-			// 全量已含 closed / resolved（browseType=all），无需额外过滤
-			bugs, err = s.client.GetAllBugs(query.ProductID)
-		} else if query.ProjectID != 0 {
-			// 如果只有项目ID，使用GetBugsByProject
-			bugs, err = s.client.GetBugsByProject(query.ProductID, query.ProjectID, 1, 1000)
-		} else {
-			// 获取产品的所有Bug
-			bugs, err = s.client.GetBugs(query.ProductID, 1, 1000)
-		}
-
+		bugs, err = s.client.GetAllBugs(query.ProductID)
 		if err != nil {
 			return nil, err
 		}
@@ -59,8 +49,8 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	// 获取总数
 	total := chainFilter.Count()
 
-	// 执行分页
-	pagedBugs := chainFilter.Paginate(query.Page, query.PageSize).Result()
+	// 与禅道网页列表一致：默认按 ID 降序（最新在前），再分页
+	pagedBugs := chainFilter.Sort(func(a, b zentaosdk.Bug) bool { return a.ID > b.ID }).Paginate(query.Page, query.PageSize).Result()
 
 	list := s.convertToVO(pagedBugs)
 

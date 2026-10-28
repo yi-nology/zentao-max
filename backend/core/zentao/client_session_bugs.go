@@ -115,7 +115,15 @@ func (c *Client) fetchBugsPageSession(ctx context.Context, productID, page int, 
 	path := fmt.Sprintf("/bug-browse-%d-0-%s-0--%d-%d-%d.json",
 		productID, browseType, recTotal, sessionBugRecPerPage, page)
 	var resp sessionBugBrowseResp
-	if err := c.doSessionJSON(ctx, "GetBugs", path, &resp); err != nil {
+	// 第 2+ 页绕过缓存：各页 path 的 cache scope 相同（首个数字段=productID），
+	// 入缓存会让续页命中第 1 页返回重复数据（见 doSessionJSONUncached）
+	var err error
+	if page > 1 {
+		err = c.doSessionJSONUncached(ctx, "GetBugs", path, &resp)
+	} else {
+		err = c.doSessionJSON(ctx, "GetBugs", path, &resp)
+	}
+	if err != nil {
 		return nil, nil, err
 	}
 	bugs := make([]zentaosdk.Bug, 0, len(resp.Bugs))

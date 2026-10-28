@@ -15,9 +15,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/oekit/concurrency/breaker"
+
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 
-		"golang.org/x/net/publicsuffix"
+	"golang.org/x/net/publicsuffix"
 )
 
 // sessionTTL 会话被认为有效的最长时间，超过后强制重新登录。
@@ -52,6 +54,10 @@ type SessionTransport struct {
 	httpClient *http.Client
 	cookieJar  http.CookieJar
 
+	// breaker 禅道请求熔断：连续网络级失败后快速拒绝，避免实例宕机/断网时
+	// 每个请求都等满超时（业务错误——服务器可达但返回 4xx——不计失败）
+	breaker breaker.Breaker
+
 	// sessionExpiry 缓存的有效期（unix 纳秒）。0 表示未登录。
 	sessionExpiry atomic.Int64
 	refreshing    atomic.Bool
@@ -59,6 +65,9 @@ type SessionTransport struct {
 
 	// lastLoginAttempt 防止短时间内重复触发登录请求。
 	lastLoginAttempt atomic.Int64
+
+	// lastBreakerLog 熔断拒绝日志节流（open 期间每请求都拒，5s 一条足够观测）
+	lastBreakerLog atomic.Int64
 }
 
 // NewSessionTransport 构造会话传输层。server 应已规范化（带 scheme、无尾斜杠）。
@@ -87,6 +96,10 @@ func NewSessionTransport(server, account, password, realm string) *SessionTransp
 		realm:      realm,
 		httpClient: hc,
 		cookieJar:  jar,
+		breaker: breaker.NewBreaker("zentao-session",
+			breaker.WithConsecutiveFailures(5),
+			breaker.WithCooldown(30*time.Second),
+		),
 	}
 }
 
@@ -301,7 +314,7 @@ func (s *SessionTransport) login() error {
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	req.Header.Set("Referer", server+"/user-login.html")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.httpDo(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("登录请求失败: %w", err)
 	}
@@ -449,6 +462,42 @@ func unmarshalUseNumber(data []byte, v interface{}) error {
 	return dec.Decode(v)
 }
 
+// httpDo 统一的 HTTP 出口：熔断接入点。分类规则——
+//   - httpClient.Do 网络错误（连接拒绝/DNS/超时）→ 熔断失败样本；
+//   - 拿到响应（哪怕非 200，如禅道 4xx 业务错误）→ 服务器可达，不算失败。
+//
+// 熔断打开期间的请求被快速拒绝（ErrCircuitOpen），包装为可识别的中文错误，
+// 避免实例宕机时每个请求都等满 HTTP 超时。
+func (s *SessionTransport) httpDo(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var resp *http.Response
+	err := s.breaker.DoWithAcceptable(ctx, func() error {
+		r, err := s.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		resp = r
+		return nil
+	}, func(err error) bool {
+		// 执行函数已成功拿到响应（resp 非 nil）即视为服务器可达
+		return resp != nil
+	})
+	if err != nil {
+		if errors.Is(err, breaker.ErrCircuitOpen) {
+			now := time.Now().UnixMilli()
+			if last := s.lastBreakerLog.Load(); now-last > 5000 {
+				s.lastBreakerLog.CompareAndSwap(last, now)
+				logger.Warn("禅道请求被熔断拒绝（实例连续失败，冷却中）")
+			}
+			return nil, fmt.Errorf("禅道服务暂不可用（连续请求失败，已熔断保护，约 30 秒后自动恢复）: %w", err)
+		}
+		return nil, err
+	}
+	return resp, nil
+}
+
 // httpGetPlain 执行 GET 请求但不带 X-Requested-With 头。
 // 仅供登录流程的 GET /user-login.html 使用——禅道会根据该头是否存在返回不同的
 // 响应（HTML 页 vs AJAX 响应），只有不带该头的请求才会正常种 zentaosid cookie。
@@ -457,7 +506,7 @@ func (s *SessionTransport) httpGetPlain(ctx context.Context, fullURL string) ([]
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.httpDo(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +533,7 @@ func (s *SessionTransport) httpGet(ctx context.Context, fullURL string, extraHea
 			req.Header.Add(k, v)
 		}
 	}
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.httpDo(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +608,7 @@ func (s *SessionTransport) PostFormWithBody(ctx context.Context, path string, fo
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.httpDo(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("写请求失败 (%s): %w", path, err)
 	}

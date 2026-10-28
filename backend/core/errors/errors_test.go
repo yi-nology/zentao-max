@@ -209,8 +209,8 @@ func TestExternalError(t *testing.T) {
 	if appErr.Code != CodeExternalError {
 		t.Errorf("期望 Code=%d, 实际 Code=%d", CodeExternalError, appErr.Code)
 	}
-	if appErr.Message != "禅道服务调用失败" {
-		t.Errorf("期望 Message='禅道服务调用失败', 实际 Message=%s", appErr.Message)
+	if appErr.Message != "禅道服务调用失败: 连接超时" {
+		t.Errorf("期望 Message='禅道服务调用失败: 连接超时', 实际 Message=%s", appErr.Message)
 	}
 }
 

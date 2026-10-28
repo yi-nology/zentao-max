@@ -137,9 +137,11 @@ func NewInternalError(message string, err error) *AppError {
 	return Wrap(CodeInternalError, message, err)
 }
 
-// ExternalError 创建外部服务错误
+// ExternalError 创建外部服务错误。message 附带原始错误摘要——
+// 上游错误（如禅道熔断保护、登录失败）的状态信息对前端可见，不再被
+// 统一文案吞掉。
 func ExternalError(service string, err error) *AppError {
-	return Wrap(CodeExternalError, fmt.Sprintf("%s服务调用失败", service), err)
+	return Wrap(CodeExternalError, fmt.Sprintf("%s服务调用失败: %v", service, err), err)
 }
 
 // DatabaseError 创建数据库错误

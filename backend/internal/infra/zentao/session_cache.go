@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oekit/concurrency/singleflight"
 	_ "modernc.org/sqlite"
-	"golang.org/x/sync/singleflight"
 )
 
 // sessionEntity 是 SessionCache 暴露给业务层的实体标识。
@@ -161,7 +161,7 @@ func (c *l1Cache) ClearNamespace(ns string) int {
 type SessionCache struct {
 	db *sql.DB // 可为 nil：纯 L1 + 内存 loader（适合单测 / 嵌入式）
 	l1 *l1Cache
-	sf singleflight.Group
+	sf singleflight.Flight[*CacheResult]
 
 	// 命名空间
 	server  string
@@ -338,16 +338,10 @@ func (c *SessionCache) GetOrLoad(ctx context.Context, entity sessionEntity, scop
 		}
 	}
 
-	// 2. singleflight：同 key 只触发一次 loader
-	sfKey := key.String()
-	v, err, _ := c.sf.Do(sfKey, func() (interface{}, error) {
+	// 2. singleflight：同 key 只触发一次 loader（oekit 泛型 Flight，ctx 取消感知）
+	return c.sf.Do(ctx, key.String(), func(ctx context.Context) (*CacheResult, error) {
 		return c.doLoad(ctx, entity, key, loader)
 	})
-	if err != nil {
-		return nil, err
-	}
-	res := v.(*CacheResult)
-	return res, nil
 }
 
 func (c *SessionCache) doLoad(ctx context.Context, entity sessionEntity, key sessionCacheKey, loader Loader) (*CacheResult, error) {

@@ -3,14 +3,14 @@ package zentao
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-"fmt"
 	"testing"
 	"time"
 
-	"golang.org/x/sync/singleflight"
+	"github.com/oekit/concurrency/singleflight"
 )
 
 // newTestSessionCache 构造一个 L1-only 的 SessionCache（无 L2），scope 唯一避免跨测试串。
@@ -135,7 +135,7 @@ func TestSessionCache_BasicGetOrLoad_L2(t *testing.T) {
 
 	// 清 L1，下次应走 L2
 	c.l1.ClearNamespace(c.ns)
-	c.sf = singleflight.Group{}
+	c.sf = singleflight.Flight[*CacheResult]{}
 
 	if _, err := c.GetOrLoad(context.Background(), sessionEntityUsers, "", loader); err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ func TestSessionCache_DifferentScopesIsolated(t *testing.T) {
 
 	// 清 L1，从 L2 重读应拿回各自 scope 的数据
 	c.l1.ClearNamespace(c.ns)
-	c.sf = singleflight.Group{}
+	c.sf = singleflight.Flight[*CacheResult]{}
 
 	for _, scope := range []string{"all", "byProduct:1", "byProduct:2"} {
 		res, err := c.GetOrLoad(context.Background(), sessionEntityBugs, scope, loader(scope))
@@ -196,7 +196,7 @@ func TestSessionCache_StaleFallback(t *testing.T) {
 	}
 	time.Sleep(1500 * time.Millisecond)
 	c.l1.ClearNamespace(c.ns) // 清 L1，确保走 loader 路径
-	c.sf = singleflight.Group{}
+	c.sf = singleflight.Flight[*CacheResult]{}
 
 	// loader 失败 — 必须回退到 L2 stale
 	res, err := c.GetOrLoad(context.Background(), sessionEntityBugs, "all", func(ctx context.Context) ([]byte, error) {
@@ -244,7 +244,7 @@ func TestSessionCache_StaleFallback_NetworkError_StillServed(t *testing.T) {
 	}
 	time.Sleep(1500 * time.Millisecond)
 	c.l1.ClearNamespace(c.ns)
-	c.sf = singleflight.Group{}
+	c.sf = singleflight.Flight[*CacheResult]{}
 
 	// loader 返网络错(非 fatal session err)→ 必须走 stale fallback
 	res, err := c.GetOrLoad(context.Background(), sessionEntityBugs, "scope", func(ctx context.Context) ([]byte, error) {
@@ -287,7 +287,7 @@ func TestSessionCache_StaleFallback_FatalSessionError_Skipped(t *testing.T) {
 	}
 	time.Sleep(1500 * time.Millisecond)
 	c.l1.ClearNamespace(c.ns)
-	c.sf = singleflight.Group{}
+	c.sf = singleflight.Flight[*CacheResult]{}
 
 	// 模拟 client.go safeLoader 的 wrap：原 err 加上 errDoNotServeStale sentinel
 	wrappedFatal := fmt.Errorf("%w: %w", errDoNotServeStale, errSessionReloginRequired)
@@ -320,7 +320,7 @@ func TestSessionCache_StaleFallback_FatalSessionError_Skipped(t *testing.T) {
 	}
 	time.Sleep(1500 * time.Millisecond)
 	c2.l1.ClearNamespace(c2.ns)
-	c2.sf = singleflight.Group{}
+	c2.sf = singleflight.Flight[*CacheResult]{}
 
 	res2, err := c2.GetOrLoad(context.Background(), sessionEntityBugs, "scope", func(ctx context.Context) ([]byte, error) {
 		return nil, errSessionAccessDenied

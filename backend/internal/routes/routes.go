@@ -18,15 +18,15 @@ import (
 	bizrouter "github.com/yi-nology/zentao-max/backend/biz/router"
 	"github.com/yi-nology/zentao-max/backend/internal/auth"
 	"github.com/yi-nology/zentao-max/backend/internal/config"
-	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 	"github.com/yi-nology/zentao-max/backend/internal/handlers"
-	"github.com/yi-nology/zentao-max/backend/internal/initialization"
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
-	"github.com/yi-nology/zentao-max/backend/internal/mcp"
-	"github.com/yi-nology/zentao-max/backend/pkg/metrics"
-	"github.com/yi-nology/zentao-max/backend/internal/middleware"
-	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+	"github.com/yi-nology/zentao-max/backend/internal/mcp"
+	"github.com/yi-nology/zentao-max/backend/internal/middleware"
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/metrics"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.Client) *server.Hertz {
@@ -154,7 +154,13 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 			if ct := getContentType(getExt(filePath)); ct != "" {
 				c.Header("Content-Type", ct)
 			}
-			c.Header("Cache-Control", "public, max-age=3600")
+			// 缓存策略：assets/* 文件名带内容 hash → immutable 一年（发版换 hash
+			// 自然失效）；index.html/SPA fallback → no-cache（每次协商，发版即生效）
+			if strings.HasPrefix(filePath, "/assets/") {
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				c.Header("Cache-Control", "no-cache")
+			}
 			c.SetStatusCode(200)
 			_, _ = c.Write(data)
 		})

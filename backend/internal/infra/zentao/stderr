@@ -1,0 +1,7 @@
+time=2026-10-29T05:32:02.216+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=u realm=kydc
+time=2026-10-29T05:32:02.219+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=u realm=kydc
+time=2026-10-29T05:32:08.336+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=user realm=local
+time=2026-10-29T05:32:08.339+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=u realm=local
+time=2026-10-29T05:32:08.543+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=u realm=local
+time=2026-10-29T05:32:08.548+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=user1 realm=local
+time=2026-10-29T05:32:08.549+08:00 level=INFO msg="Zentao session login successful" service=zentao-max caller=logger.go:167 account=user2 realm=local

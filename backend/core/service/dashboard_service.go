@@ -13,8 +13,7 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
-	"go.uber.org/zap"
-)
+	)
 
 // DashboardService 仪表盘服务
 type DashboardService struct {
@@ -264,7 +263,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		var err error
 		bugs, err = s.client.GetAllBugsContext(bgCtx, productID)
 		if err != nil {
-			logger.Error("Failed to fetch bugs for dashboard", zap.Error(err))
+			logger.Error("Failed to fetch bugs for dashboard", "error", err)
 		}
 	}()
 	go func() {
@@ -277,7 +276,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		var err error
 		stories, err = s.client.GetAllStoriesContext(bgCtx, productID)
 		if err != nil {
-			logger.Error("Failed to fetch stories for dashboard", zap.Error(err))
+			logger.Error("Failed to fetch stories for dashboard", "error", err)
 		}
 	}()
 	go func() {
@@ -290,7 +289,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		var err error
 		execCtxs, err = s.client.GetExecutionsByProductContext(bgCtx, productID)
 		if err != nil {
-			logger.Error("Failed to fetch executions for dashboard", zap.Error(err))
+			logger.Error("Failed to fetch executions for dashboard", "error", err)
 		}
 	}()
 	wg.Wait()

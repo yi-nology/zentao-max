@@ -17,8 +17,7 @@ import (
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 
-	"go.uber.org/zap"
-	"golang.org/x/net/publicsuffix"
+		"golang.org/x/net/publicsuffix"
 )
 
 // sessionTTL 会话被认为有效的最长时间，超过后强制重新登录。
@@ -70,7 +69,7 @@ func NewSessionTransport(server, account, password, realm string) *SessionTransp
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		// cookiejar.New 仅在 options 非法时返回错误，这里不会发生。
-		logger.Error("Failed to create cookie jar, falling back to in-memory", zap.Error(err))
+		logger.Error("Failed to create cookie jar, falling back to in-memory", "error", err)
 		jar, _ = cookiejar.New(nil)
 	}
 	hc := &http.Client{
@@ -337,8 +336,8 @@ func (s *SessionTransport) login() error {
 
 	s.sessionExpiry.Store(time.Now().Add(sessionTTL).UnixNano())
 	logger.Info("Zentao session login successful",
-		zap.String("account", account),
-		zap.String("realm", realm),
+		"account", account,
+		"realm", realm,
 	)
 	return nil
 }

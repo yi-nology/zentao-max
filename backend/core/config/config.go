@@ -2,230 +2,225 @@ package config
 
 import (
 	"fmt"
-	"strings"
+	"os"
 	"time"
 
-	"github.com/spf13/viper"
+	oekitconfig "github.com/oekit/core/config"
 )
 
 // Config 应用配置结构.
+// 加载顺序：DefaultConfig() → config.yaml（LoadFile）→ 环境变量覆盖（ApplyEnvOverlay）。
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Zentao    ZentaoConfig    `mapstructure:"zentao"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Security  SecurityConfig  `mapstructure:"security"`
-	Log       LogConfig       `mapstructure:"log"`
-	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
-	MCP       MCPConfig       `mapstructure:"mcp"`
+	Server    ServerConfig    `yaml:"server"`
+	Zentao    ZentaoConfig    `yaml:"zentao"`
+	Auth      AuthConfig      `yaml:"auth"`
+	Security  SecurityConfig  `yaml:"security"`
+	Log       LogConfig       `yaml:"log"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	MCP       MCPConfig       `yaml:"mcp"`
 }
 
 // MCPConfig MCP 子系统配置
 // 控制传输模式、运行时开关、Token 鉴权、只读模式与 action 白名单.
 type MCPConfig struct {
 	// 是否启用 MCP 服务（运行时可通过 /api/v1/mcp/config 热重载）
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// 传输模式: "http" | "stdio" | "both"
 	// 由启动入口决定，运行时不可改
-	Transport string `mapstructure:"transport"`
+	Transport string `yaml:"transport"`
 	// 鉴权 Token，为空表示不鉴权（运行时热重载，仅存哈希）
-	Token string `mapstructure:"token"`
+	Token string `yaml:"token"`
 	// 只读模式，禁止写操作（当前 MCP 全为查询接口，为未来扩展预留）
-	ReadOnly bool `mapstructure:"read_only"`
+	ReadOnly bool `yaml:"read_only"`
 	// action 白名单，为空表示允许全部；非空仅允许列表内的 action
-	Actions []string `mapstructure:"actions"`
+	Actions []string `yaml:"actions"`
 }
 
 // ServerConfig 服务器配置.
 type ServerConfig struct {
 	// 应用类型: http
-	Type string `mapstructure:"type"`
+	Type string `yaml:"type"`
 	// HTTP服务器端口
-	Port string `mapstructure:"port"`
+	Port string `yaml:"port"`
 	// 静态资源路径（仅用于HTTP模式）
-	StaticPath string `mapstructure:"static_path"`
+	StaticPath string `yaml:"static_path"`
 	// 读超时时间（秒）
-	ReadTimeout int `mapstructure:"read_timeout"`
+	ReadTimeout int `yaml:"read_timeout"`
 	// 写超时时间（秒）
-	WriteTimeout int `mapstructure:"write_timeout"`
+	WriteTimeout int `yaml:"write_timeout"`
 	// 优雅关闭超时时间（秒）
-	ShutdownTimeout int `mapstructure:"shutdown_timeout"`
+	ShutdownTimeout int `yaml:"shutdown_timeout"`
 }
 
 // ZentaoConfig 禅道配置.
 type ZentaoConfig struct {
 	// 禅道服务器地址
-	Server string `mapstructure:"server"`
+	Server string `yaml:"server"`
 	// 禅道账号
-	Account string `mapstructure:"account"`
+	Account string `yaml:"account"`
 	// 禅道密码
-	Password string `mapstructure:"password"`
+	Password string `yaml:"password"`
 	// 认证域（kydc / local）
-	Realm string `mapstructure:"realm"`
+	Realm string `yaml:"realm"`
 	// 请求超时时间（秒）
-	RequestTimeout int `mapstructure:"request_timeout"`
+	RequestTimeout int `yaml:"request_timeout"`
 }
 
 // AuthConfig 认证配置.
 type AuthConfig struct {
 	// 认证配置文件路径
-	ConfigPath string `mapstructure:"config_path"`
+	ConfigPath string `yaml:"config_path"`
 	// 认证数据库路径
-	DBPath string `mapstructure:"db_path"`
+	DBPath string `yaml:"db_path"`
 	// 平台访问控制：匿名=只读，登录管理员=读写
-	Admin AuthAdminConfig `mapstructure:"admin"`
+	Admin AuthAdminConfig `yaml:"admin"`
 	// SSO 麒麟统一认证登录（用户名+密码+短信验证码）
-	SSO SSOAuthConfig `mapstructure:"sso"`
+	SSO SSOAuthConfig `yaml:"sso"`
 }
 
 // AuthAdminConfig 平台管理员账号（用于登录后获得读写权限）
 type AuthAdminConfig struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 // SSOAuthConfig SSO 登录配置.
 type SSOAuthConfig struct {
 	// 是否启用 SSO 登录入口（启用后 /api/auth/sso/* 可用，登录页默认展示 SSO 表单）
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// SSO 服务地址（麒麟统一认证平台）
-	BaseURL string `mapstructure:"base_url"`
+	BaseURL string `yaml:"base_url"`
 }
 
 // SecurityConfig 安全配置.
 type SecurityConfig struct {
 	// 加密密钥
-	EncryptionKey string `mapstructure:"encryption_key"`
+	EncryptionKey string `yaml:"encryption_key"`
 	// CORS允许的域名（多个域名用逗号分隔）
-	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	AllowedOrigins []string `yaml:"allowed_origins"`
 }
 
 // LogConfig 日志配置.
 type LogConfig struct {
 	// 日志级别: debug, info, warn, error
-	Level string `mapstructure:"level"`
+	Level string `yaml:"level"`
 	// 日志格式: json, console
-	Format string `mapstructure:"format"`
+	Format string `yaml:"format"`
 	// 日志输出路径（空表示标准输出）
-	OutputPath string `mapstructure:"output_path"`
+	OutputPath string `yaml:"output_path"`
 	// 是否启用调用者信息
-	EnableCaller bool `mapstructure:"enable_caller"`
+	EnableCaller bool `yaml:"enable_caller"`
 	// 是否启用堆栈跟踪
-	EnableStacktrace bool `mapstructure:"enable_stacktrace"`
+	EnableStacktrace bool `yaml:"enable_stacktrace"`
 }
 
 // RateLimitConfig 限流配置.
 type RateLimitConfig struct {
 	// 每分钟允许的请求数
-	RequestsPerMinute int `mapstructure:"requests_per_minute"`
+	RequestsPerMinute int `yaml:"requests_per_minute"`
 	// 超限后的封禁时长（分钟）
-	BlockDurationMinutes int `mapstructure:"block_duration_minutes"`
+	BlockDurationMinutes int `yaml:"block_duration_minutes"`
 }
 
 // 全局配置实例.
 var globalConfig *Config
 
+// DefaultConfig 返回带全部默认值的配置（原 viper setDefaults 的结构体化）.
+func DefaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Type:            "http",
+			Port:            "12345",
+			ReadTimeout:     120,
+			WriteTimeout:    120,
+			ShutdownTimeout: 30,
+		},
+		Zentao: ZentaoConfig{
+			RequestTimeout: 120,
+		},
+		Auth: AuthConfig{
+			// ConfigPath 默认 ./auth_config.enc
+			ConfigPath: "./auth_config.enc",
+			// DBPath 空 = 交由 initialization.ResolveAuthDBPath 统一解析
+			// （ZENTAO_AUTH_DB_PATH env → 已存在候选 → ./data/auth.db）
+			DBPath: "",
+			Admin: AuthAdminConfig{
+				// 平台管理员账号默认 admin/admin（匿名只读，登录后读写）
+				Username: "admin",
+				Password: "admin",
+			},
+			// SSO 登录（麒麟统一认证）默认启用
+			SSO: SSOAuthConfig{
+				Enabled: true,
+				BaseURL: "https://sso.example.com",
+			},
+		},
+		Log: LogConfig{
+			Level:            "info",
+			Format:           "console",
+			EnableCaller:     true,
+			EnableStacktrace: false,
+		},
+		RateLimit: RateLimitConfig{
+			// 默认 600 次/分钟——前端单页加载会并发请求多个接口，
+			// 60 次/分钟在正常使用下极易触发，触发后封禁 5 分钟会让应用完全不可用
+			RequestsPerMinute:    600,
+			BlockDurationMinutes: 1,
+		},
+		MCP: MCPConfig{
+			Enabled:   true,
+			Transport: "http",
+			ReadOnly:  false,
+		},
+	}
+}
+
+// configSearchPaths 未显式指定路径时按序查找的默认位置.
+var configSearchPaths = []string{"./config.yaml", "./backend/config.yaml", "./config/config.yaml"}
+
 // Init 初始化配置
-// configPath: 配置文件路径（可选）
-// envPrefix: 环境变量前缀.
+// configPath: 配置文件路径（可选，空则按默认位置查找；文件不存在时仅用默认值+环境变量）
+// envPrefix: 环境变量前缀（如 "ZENTAO_MAX"，派生规则 server.port → ZENTAO_MAX_SERVER_PORT）.
 func Init(configPath string, envPrefix string) error {
-	v := viper.New()
+	cfg := DefaultConfig()
 
-	// 设置默认值
-	setDefaults(v)
-
-	// 设置环境变量前缀
-	v.SetEnvPrefix(envPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-
-	envKeys := []string{
-		"server.type", "server.port", "server.read_timeout", "server.write_timeout", "server.shutdown_timeout",
-		"zentao.server", "zentao.account", "zentao.password", "zentao.token_refresh_interval", "zentao.request_timeout",
-		"auth.db_path", "auth.config_path", "auth.admin.username", "auth.admin.password",
-		"auth.sso.enabled", "auth.sso.base_url",
-		"log.level", "log.format", "log.enable_caller", "log.enable_stacktrace",
-		"rate_limit.requests_per_minute", "rate_limit.block_duration_minutes",
-		"mcp.enabled", "mcp.transport", "mcp.token", "mcp.read_only", "mcp.actions",
+	// 配置文件（存在才加载；加载失败直接报错，与旧 viper 语义一致——
+	// 只有"文件不存在"是允许的，文件存在但解析失败必须暴露）
+	paths := []string{configPath}
+	if configPath == "" {
+		paths = configSearchPaths
 	}
-	for _, key := range envKeys {
-		_ = v.BindEnv(key)
-	}
-
-	// 读取配置文件
-	if configPath != "" {
-		v.SetConfigFile(configPath)
-	} else {
-		// 尝试在多个位置查找配置文件
-		v.SetConfigName("config")
-		v.SetConfigType("yaml")
-		v.AddConfigPath(".")
-		v.AddConfigPath("./backend")
-		v.AddConfigPath("./config")
-	}
-
-	// 尝试读取配置文件（如果存在）
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		if err := oekitconfig.LoadFile(p, cfg); err != nil {
 			return fmt.Errorf("failed to read config file: %w", err)
 		}
-		// 配置文件不存在是允许的，将使用环境变量和默认值
+		break
 	}
 
-	// 解析配置
-	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return fmt.Errorf("failed to unmarshal config: %w", err)
+	// 环境变量覆盖（12-factor：env 优先于配置文件）
+	if envPrefix != "" {
+		if err := oekitconfig.ApplyEnvOverlay(cfg, oekitconfig.WithEnvNaming(oekitconfig.EnvNaming{
+			Prefix: envPrefix + "_",
+		})); err != nil {
+			return fmt.Errorf("failed to apply env overlay: %w", err)
+		}
 	}
 
 	// 验证配置
-	if err := validate(&cfg); err != nil {
+	if err := validate(cfg); err != nil {
 		// 验证失败时仍然设置配置，避免 Get() 返回 nil
-		globalConfig = &cfg
+		globalConfig = cfg
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
-	globalConfig = &cfg
+	globalConfig = cfg
 	return nil
-}
-
-// setDefaults 设置默认值.
-func setDefaults(v *viper.Viper) {
-	// 服务器配置
-	v.SetDefault("server.type", "http")
-	v.SetDefault("server.port", "12345")
-	v.SetDefault("server.read_timeout", 120)
-	v.SetDefault("server.write_timeout", 120)
-	v.SetDefault("server.shutdown_timeout", 30)
-
-	// 禅道配置
-	v.SetDefault("zentao.token_refresh_interval", 12)
-	v.SetDefault("zentao.request_timeout", 120)
-
-	// 认证配置
-	v.SetDefault("auth.config_path", "./auth_config.enc")
-	v.SetDefault("auth.db_path", "./auth.db")
-	// 平台管理员账号默认 admin/admin（匿名只读，登录后读写）
-	v.SetDefault("auth.admin.username", "admin")
-	v.SetDefault("auth.admin.password", "admin")
-	// SSO 登录（麒麟统一认证）默认启用
-	v.SetDefault("auth.sso.enabled", true)
-	v.SetDefault("auth.sso.base_url", "https://sso.example.com")
-
-	// 日志配置
-	v.SetDefault("log.level", "info")
-	v.SetDefault("log.format", "console")
-	v.SetDefault("log.enable_caller", true)
-	v.SetDefault("log.enable_stacktrace", false)
-
-	// 限流配置：默认 600 次/分钟——前端单页加载会并发请求多个接口，
-	// 60 次/分钟在正常使用下极易触发，触发后封禁 5 分钟会让应用完全不可用
-	v.SetDefault("rate_limit.requests_per_minute", 600)
-	v.SetDefault("rate_limit.block_duration_minutes", 1)
-
-	// MCP 配置
-	v.SetDefault("mcp.enabled", true)
-	v.SetDefault("mcp.transport", "http")
-	v.SetDefault("mcp.read_only", false)
 }
 
 // validate 验证配置.
@@ -287,11 +282,7 @@ func validate(cfg *Config) error {
 func Get() *Config {
 	if globalConfig == nil {
 		// 未初始化时返回带默认值的配置，避免 panic
-		v := viper.New()
-		setDefaults(v)
-		var cfg Config
-		_ = v.Unmarshal(&cfg)
-		return &cfg
+		return DefaultConfig()
 	}
 	return globalConfig
 }

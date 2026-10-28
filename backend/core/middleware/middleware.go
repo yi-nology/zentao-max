@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 
 	"github.com/yi-nology/zentao-max/backend/core/errors"
@@ -10,8 +11,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
-)
+	)
 
 func TraceIDMiddleware() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
@@ -41,21 +41,21 @@ func LoggerMiddleware() app.HandlerFunc {
 		traceID, _ := c.Get(string(logger.TraceIDKey))
 		traceIDStr, _ := traceID.(string)
 
-		fields := []zap.Field{
-			zap.String("method", method),
-			zap.String("path", path),
-			zap.Int("status", statusCode),
-			zap.Duration("latency", latency),
-			zap.String("client_ip", c.ClientIP()),
-			zap.String("trace_id", traceIDStr),
+		kv := []any{
+			"method", method,
+			"path", path,
+			"status", statusCode,
+			"latency", latency,
+			"client_ip", c.ClientIP(),
+			"trace_id", traceIDStr,
 		}
 
 		if statusCode >= 500 {
-			logger.Error("HTTP Request", fields...)
+			logger.Error("HTTP Request", kv...)
 		} else if statusCode >= 400 {
-			logger.Warn("HTTP Request", fields...)
+			logger.Warn("HTTP Request", kv...)
 		} else {
-			logger.Info("HTTP Request", fields...)
+			logger.Info("HTTP Request", kv...)
 		}
 	}
 }
@@ -72,11 +72,11 @@ func RecoveryMiddleware() app.HandlerFunc {
 				traceIDStr, _ := traceID.(string)
 
 				logger.Error("Panic recovered",
-					zap.Any("error", err),
-					zap.String("trace_id", traceIDStr),
-					zap.String("method", string(c.Request.Method())),
-					zap.String("path", string(c.Request.URI().Path())),
-					zap.Stack("stack"),
+					"error", err,
+					"trace_id", traceIDStr,
+					"method", string(c.Request.Method()),
+					"path", string(c.Request.URI().Path()),
+					"stack", string(debug.Stack()),
 				)
 
 				c.AbortWithStatusJSON(500, errors.Response{

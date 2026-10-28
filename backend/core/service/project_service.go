@@ -2,8 +2,7 @@ package service
 
 import (
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
-	"go.uber.org/zap"
-
+	
 	"github.com/yi-nology/zentao-max/backend/core/dto"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/vo"
@@ -106,8 +105,8 @@ func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.Exe
 			projectExecutions, err := s.client.GetExecutions(project.ID, query.Page, query.PageSize)
 			if err != nil {
 				logger.Error("Failed to fetch executions for project",
-					zap.Int("projectID", project.ID),
-					zap.Error(err))
+					"projectID", project.ID,
+					"error", err)
 				continue
 			}
 			executions = append(executions, projectExecutions...)

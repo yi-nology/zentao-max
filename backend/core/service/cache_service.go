@@ -8,8 +8,7 @@ import (
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
-	"go.uber.org/zap"
-)
+	)
 
 // DefaultCacheTTL 默认缓存有效期（5 分钟）
 const DefaultCacheTTL = 5 * time.Minute
@@ -52,9 +51,9 @@ func (s *CacheService) GetOrLoad(
 	cachedData, cachedAt, err := s.store.Get(ctx, entityType, productID)
 	if err != nil {
 		logger.Warn("cache read failed, will fall through to loader",
-			zap.String("entityType", entityType),
-			zap.Int("productID", productID),
-			zap.Error(err))
+			"entityType", entityType,
+			"productID", productID,
+			"error", err)
 	}
 	if cachedData != nil {
 		return &CacheResult{
@@ -74,18 +73,18 @@ func (s *CacheService) GetOrLoad(
 			defer func() {
 				if r := recover(); r != nil {
 					logger.Error("cache async write panicked",
-						zap.String("entityType", entityType),
-						zap.Int("productID", productID),
-						zap.Any("panic", r))
+						"entityType", entityType,
+						"productID", productID,
+						"panic", r)
 				}
 			}()
 			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := s.store.Set(writeCtx, entityType, productID, freshData, ttl); err != nil {
 				logger.Warn("cache write failed",
-					zap.String("entityType", entityType),
-					zap.Int("productID", productID),
-					zap.Error(err))
+					"entityType", entityType,
+					"productID", productID,
+					"error", err)
 			}
 		}()
 		return &CacheResult{
@@ -98,10 +97,10 @@ func (s *CacheService) GetOrLoad(
 	staleData, staleAt, staleErr := s.store.GetStale(ctx, entityType, productID)
 	if staleErr == nil && staleData != nil {
 		logger.Warn("loader failed, serving stale cache as fallback",
-			zap.String("entityType", entityType),
-			zap.Int("productID", productID),
-			zap.Time("cachedAt", staleAt),
-			zap.Error(loadErr))
+			"entityType", entityType,
+			"productID", productID,
+			"cachedAt", staleAt,
+			"error", loadErr)
 		return &CacheResult{
 			Data:      staleData,
 			FromCache: true,

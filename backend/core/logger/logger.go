@@ -2,17 +2,25 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"runtime/debug"
 	"strings"
+	"sync"
+
+	"github.com/oekit/logx"
 
 	"github.com/yi-nology/zentao-max/backend/core/config"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-var globalLogger *zap.Logger
-var sugarLogger *zap.SugaredLogger
+// 日志后端：oekit/logx（slog 结构化）。
+// - 格式化输出（console/json → stdout/文件）由 slog.TextHandler/JSONHandler 承担；
+// - 日志页消费的进程内环形缓冲由 ringHandler 承担，与格式化输出经 fanoutHandler 双写；
+// - trace_id 通过 logx.SetTraceExtractor 注入，Ctx* 方法与 WithCtx 自动携带。
+
+var globalLogger logx.Logger
 
 type ContextKey string
 
@@ -20,120 +28,144 @@ const (
 	TraceIDKey ContextKey = "trace_id"
 )
 
+// Init 初始化全局 logger。
 func Init(cfg *config.LogConfig) error {
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		FunctionKey:    zapcore.OmitKey,
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+	var out io.Writer = os.Stdout
+	if cfg.OutputPath != "" && cfg.OutputPath != "stdout" {
+		if f, err := os.OpenFile(cfg.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			out = f
+		}
 	}
 
-	var encoder zapcore.Encoder
+	opts := &slog.HandlerOptions{Level: slogLevel(cfg.Level)}
+	var fmtHandler slog.Handler
 	if cfg.Format == "json" {
-		encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
-		encoder = zapcore.NewJSONEncoder(encoderConfig)
+		fmtHandler = slog.NewJSONHandler(out, opts)
 	} else {
-		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+		fmtHandler = slog.NewTextHandler(out, opts)
 	}
 
-	level := getZapLevel(cfg.Level)
+	// caller 展示跟随配置（logx 侧在 emitToHandler 时捕获真实调用方）
+	_ = cfg.EnableCaller
 
-	core := zapcore.NewCore(
-		encoder,
-		getOutputWriter(cfg.OutputPath),
-		level,
+	globalLogger = logx.NewSlogLogger("zentao-max",
+		logx.WithLevel(logx.ParseLogLevelOr(cfg.Level, logx.LevelInfo)),
+		logx.WithHandler(&fanoutHandler{hs: []slog.Handler{fmtHandler, ringHandler{}}}),
 	)
 
-	options := []zap.Option{}
-	if cfg.EnableCaller {
-		options = append(options, zap.AddCaller())
-		options = append(options, zap.AddCallerSkip(1))
-	}
-	if cfg.EnableStacktrace {
-		options = append(options, zap.AddStacktrace(zapcore.ErrorLevel))
-	}
-
-	// 用 Hook 把每条日志同时追加到进程内环形缓冲（供日志页消费）
-	options = append(options, zap.Hooks(func(ent zapcore.Entry) error {
-		entry := &LogEntry{
-			Time:    ent.Time.Format("2006-01-02T15:04:05.000Z07:00"),
-			Level:   ent.Level.String(),
-			Message: ent.Message,
-			Caller:  ent.Caller.TrimmedPath(),
-		}
-		GetRingBuffer().Append(entry)
-		return nil
-	}))
-
-	globalLogger = zap.New(core, options...)
-	sugarLogger = globalLogger.Sugar()
+	// 向 logx 注册 trace_id 提取器：WithCtx/Ctx* 路径自动携带 trace_id
+	logx.SetTraceExtractor(extractTraceID)
 
 	return nil
 }
 
-func getZapLevel(level string) zapcore.Level {
+func extractTraceID(ctx context.Context) string {
+	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
+		return traceID
+	}
+	return ""
+}
+
+func slogLevel(level string) slog.Level {
 	switch strings.ToLower(level) {
 	case "debug":
-		return zapcore.DebugLevel
-	case "info":
-		return zapcore.InfoLevel
+		return slog.LevelDebug
 	case "warn":
-		return zapcore.WarnLevel
+		return slog.LevelWarn
 	case "error":
-		return zapcore.ErrorLevel
+		return slog.LevelError
 	default:
-		return zapcore.InfoLevel
+		return slog.LevelInfo
 	}
 }
 
-func getOutputWriter(outputPath string) zapcore.WriteSyncer {
-	if outputPath == "" || outputPath == "stdout" {
-		return zapcore.AddSync(os.Stdout)
-	}
+// fanoutHandler 一条日志同时交给多个 slog.Handler（格式化输出 + 环形缓冲）。
+type fanoutHandler struct{ hs []slog.Handler }
 
-	file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return zapcore.AddSync(os.Stdout)
+func (h *fanoutHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, sub := range h.hs {
+		if sub.Enabled(ctx, level) {
+			return true
+		}
 	}
-
-	return zapcore.AddSync(file)
+	return false
 }
 
-func GetLogger() *zap.Logger {
+func (h *fanoutHandler) Handle(ctx context.Context, r slog.Record) error {
+	for _, sub := range h.hs {
+		if err := sub.Handle(ctx, r.Clone()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *fanoutHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	subs := make([]slog.Handler, 0, len(h.hs))
+	for _, sub := range h.hs {
+		subs = append(subs, sub.WithAttrs(attrs))
+	}
+	return &fanoutHandler{hs: subs}
+}
+
+func (h *fanoutHandler) WithGroup(name string) slog.Handler {
+	subs := make([]slog.Handler, 0, len(h.hs))
+	for _, sub := range h.hs {
+		subs = append(subs, sub.WithGroup(name))
+	}
+	return &fanoutHandler{hs: subs}
+}
+
+// ringHandler 把 slog.Record 转成 LogEntry 追加到环形缓冲（供日志页 Query）。
+type ringHandler struct{}
+
+func (ringHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
+
+func (ringHandler) Handle(_ context.Context, r slog.Record) error {
+	entry := &LogEntry{
+		Time:    r.Time.Format("2006-01-02T15:04:05.000Z07:00"),
+		Level:   strings.ToLower(r.Level.String()),
+		Message: r.Message,
+	}
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "caller" {
+			entry.Caller = fmt.Sprint(a.Value.Resolve())
+			return false
+		}
+		return true
+	})
+	GetRingBuffer().Append(entry)
+	return nil
+}
+
+func (ringHandler) WithAttrs(_ []slog.Attr) slog.Handler { return ringHandler{} }
+
+func (ringHandler) WithGroup(_ string) slog.Handler { return ringHandler{} }
+
+// GetLogger 返回全局 logx.Logger，未初始化时 panic（与旧语义一致）。
+func GetLogger() logx.Logger {
 	if globalLogger == nil {
 		panic("logger not initialized, please call Init() first")
 	}
 	return globalLogger
 }
 
-func GetSugarLogger() *zap.SugaredLogger {
-	if sugarLogger == nil {
-		panic("logger not initialized, please call Init() first")
-	}
-	return sugarLogger
-}
+var syncOnce sync.Once
 
+// Sync 兼容旧调用点（defer logger.Sync()）。slog handler 直写无缓冲，
+// 文件句柄交给进程退出统一回收；保留幂等空实现以免调用点变更。
 func Sync() error {
-	if globalLogger != nil {
-		return globalLogger.Sync()
-	}
+	syncOnce.Do(func() {})
 	return nil
 }
 
-func WithTraceID(traceID string) *zap.Logger {
-	return GetLogger().With(zap.String("trace_id", traceID))
+// WithTraceID 返回携带 trace_id 的子 logger。
+func WithTraceID(traceID string) logx.Logger {
+	return GetLogger().WithAttrs(logx.Attr{Key: "trace_id", Value: traceID})
 }
 
-func WithContext(ctx context.Context) *zap.Logger {
+// WithContext 从 ctx 提取 trace_id 构建子 logger；无 trace_id 时返回全局实例。
+func WithContext(ctx context.Context) logx.Logger {
 	traceID, ok := ctx.Value(TraceIDKey).(string)
 	if !ok || traceID == "" {
 		return GetLogger()
@@ -141,52 +173,33 @@ func WithContext(ctx context.Context) *zap.Logger {
 	return WithTraceID(traceID)
 }
 
-func Debug(msg string, fields ...zap.Field) {
-	GetLogger().Debug(msg, fields...)
+func Debug(msg string, kv ...any) { GetLogger().Debug(msg, kv...) }
+func Info(msg string, kv ...any)  { GetLogger().Info(msg, kv...) }
+func Warn(msg string, kv ...any)  { GetLogger().Warn(msg, kv...) }
+func Error(msg string, kv ...any) { GetLogger().Error(msg, kv...) }
+
+// Fatal 记录 error 级日志后退出进程（logx 无 Fatal，保持原 zap.Fatal 语义）。
+func Fatal(msg string, kv ...any) {
+	GetLogger().Error(msg, kv...)
+	os.Exit(1)
 }
 
-func Info(msg string, fields ...zap.Field) {
-	GetLogger().Info(msg, fields...)
+func Debugf(format string, args ...any) { GetLogger().Debugf(format, args...) }
+func Infof(format string, args ...any)  { GetLogger().Infof(format, args...) }
+func Warnf(format string, args ...any)  { GetLogger().Warnf(format, args...) }
+func Errorf(format string, args ...any) { GetLogger().Errorf(format, args...) }
+
+func Fatalf(format string, args ...any) {
+	GetLogger().Errorf(format, args...)
+	os.Exit(1)
 }
 
-func Warn(msg string, fields ...zap.Field) {
-	GetLogger().Warn(msg, fields...)
+// LogError 记录 error 字段的错误日志。
+func LogError(msg string, err error, kv ...any) {
+	GetLogger().Error(msg, append(kv, "error", err)...)
 }
 
-func Error(msg string, fields ...zap.Field) {
-	GetLogger().Error(msg, fields...)
-}
-
-func Fatal(msg string, fields ...zap.Field) {
-	GetLogger().Fatal(msg, fields...)
-}
-
-func Debugf(template string, args ...interface{}) {
-	GetSugarLogger().Debugf(template, args...)
-}
-
-func Infof(template string, args ...interface{}) {
-	GetSugarLogger().Infof(template, args...)
-}
-
-func Warnf(template string, args ...interface{}) {
-	GetSugarLogger().Warnf(template, args...)
-}
-
-func Errorf(template string, args ...interface{}) {
-	GetSugarLogger().Errorf(template, args...)
-}
-
-func Fatalf(template string, args ...interface{}) {
-	GetSugarLogger().Fatalf(template, args...)
-}
-
-func LogError(msg string, err error, fields ...zap.Field) {
-	allFields := append(fields, zap.Error(err))
-	Error(msg, allFields...)
-}
-
-func LogPanic(msg string, fields ...zap.Field) {
-	fields = append(fields, zap.Stack("stack"))
-	Error(msg, fields...)
+// LogPanic 记录 panic 场景的错误日志（附调用栈）。
+func LogPanic(msg string, kv ...any) {
+	GetLogger().Error(msg, append(kv, "stack", string(debug.Stack()))...)
 }

@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.uber.org/zap"
-	"regexp"
+		"regexp"
 	"strconv"
 	"strings"
 
@@ -73,8 +72,8 @@ func (c *Client) CreateBug(productID int, req zentaosdk.BugCreateRequest) (*zent
 		return nil, err
 	}
 	// TODO(test): 临时诊断，验证后删除
-	logger.Warn("[DIAG] CreateBug response", zap.Int("len", len(body)),
-		zap.String("head", truncate(string(body), 200)))
+	logger.Warn("[DIAG] CreateBug response", "len", len(body),
+		"head", truncate(string(body), 200))
 	if err := judgeBugCreateResponse(body); err != nil {
 		return nil, err
 	}

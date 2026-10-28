@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/oekit/bootstrap"
+
 	"github.com/yi-nology/zentao-max/backend/core/app"
 	"github.com/yi-nology/zentao-max/backend/core/config"
+	"github.com/yi-nology/zentao-max/backend/core/initialization"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/metrics"
 )
@@ -19,7 +22,9 @@ var (
 	zentaoServer   = ""
 	zentaoAccount  = ""
 	zentaoPassword = ""
-	authDBPath     = "./data/auth.db"
+	// authDBPath 可由 ldflags 注入固定路径；默认空，由 initialization.ResolveAuthDBPath
+	// 统一解析（ZENTAO_AUTH_DB_PATH env → 已存在候选 → ./data/auth.db），见 auth_path.go。
+	authDBPath = ""
 )
 
 //go:embed static/*
@@ -48,10 +53,20 @@ func main() {
 		log.Fatalf("Failed to initialize metrics: %v", err)
 	}
 
+	// 预加载配置（HTTPApp.Start 内会再幂等 Init 一次）：
+	// bootstrap 的优雅关停超时需要 cfg.Server.ShutdownTimeout
+	if err := config.Init("", "ZENTAO_MAX"); err != nil {
+		log.Printf("Warning: failed to initialize config: %v", err)
+	}
+	cfg := config.Get()
+
+	resolvedAuthDBPath := initialization.ResolveAuthDBPath(authDBPath)
+	log.Printf("Auth DB path: %s", resolvedAuthDBPath)
+
 	appConfig := &app.AppConfig{
 		Type:           "http",
 		Port:           os.Getenv("PORT"),
-		AuthDBPath:     authDBPath,
+		AuthDBPath:     resolvedAuthDBPath,
 		EncryptionKey:  encryptionKey,
 		ZentaoServer:   zentaoServer,
 		ZentaoAccount:  zentaoAccount,
@@ -70,11 +85,27 @@ func main() {
 		log.Fatalf("Expected HTTPApp, got %T", application)
 	}
 
-	if err := httpApp.Start(context.Background()); err != nil {
-		log.Fatalf("Failed to start application: %v", err)
+	// 启动编排交给 oekit/bootstrap：等 SIGINT/SIGTERM → 执行注册的 closer
+	// （HTTPApp.Stop：停 scheduler → 关缓存 → hertz.Shutdown）→ 进程退出。
+	// 原实现 select{} 永久阻塞，优雅关停完全依赖 hertz.Spin 内置信号处理。
+	b, err := bootstrap.New(
+		bootstrap.WithServiceName("zentao-max"),
+		bootstrap.WithShutdownTimeout(cfg.Server.GetShutdownTimeout()),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create bootstrapper: %v", err)
 	}
 
-	log.Printf("Serving frontend from embedded static file system")
-
-	select {}
+	if err := b.Run(func(a *bootstrap.App) error {
+		if err := httpApp.Start(context.Background()); err != nil {
+			return err
+		}
+		log.Printf("Serving frontend from embedded static file system")
+		a.AddResource("http-app", httpApp.Stop)
+		// userFn 返回即触发关停（bootstrap 语义）：阻塞到收到 SIGINT/SIGTERM
+		<-a.Context().Done()
+		return nil
+	}); err != nil {
+		log.Fatalf("Application exited with error: %v", err)
+	}
 }

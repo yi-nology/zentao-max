@@ -10,8 +10,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/route"
-	"go.uber.org/zap"
-
+	
 	bizhandler "github.com/yi-nology/zentao-max/backend/biz/handler/zentao"
 	bizrouter "github.com/yi-nology/zentao-max/backend/biz/router"
 	"github.com/yi-nology/zentao-max/backend/core/auth"
@@ -125,7 +124,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 			data := make([]byte, stat.Size())
 			// io.ReadFull：单次 Read 不保证读满，截断会导致页面/资源静默损坏
 			if _, err := io.ReadFull(f, data); err != nil {
-				logger.Error("读取静态文件失败", zap.String("path", filePath), zap.Error(err))
+				logger.Error("读取静态文件失败", "path", filePath, "error", err)
 				c.SetStatusCode(500)
 				return
 			}

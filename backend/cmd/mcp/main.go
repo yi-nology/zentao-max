@@ -31,9 +31,8 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/metrics"
 	"github.com/yi-nology/zentao-max/backend/core/zentao"
 
-	"github.com/joho/godotenv"
-	"go.uber.org/zap"
-)
+	oekitconfig "github.com/oekit/core/config"
+	)
 
 func main() {
 	// 解析命令行参数
@@ -43,11 +42,10 @@ func main() {
 
 	// 加载 .env 文件（如果指定）
 	if *envFile != "" {
-		if err := godotenv.Load(*envFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load .env file: %v\n", err)
-		}
+		// LoadDotEnv 不覆盖已存在的进程环境变量
+		oekitconfig.LoadDotEnv(*envFile)
 	} else {
-		_ = godotenv.Load()
+		oekitconfig.LoadDotEnv()
 	}
 
 	// 初始化配置
@@ -66,15 +64,15 @@ func main() {
 
 	// 初始化性能监控
 	if err := metrics.Init(); err != nil {
-		logger.Fatal("Failed to initialize metrics", zap.Error(err))
+		logger.Fatal("Failed to initialize metrics", "error", err)
 	}
 
 	logger.Info("Starting MCP stdio server",
-		zap.String("configured_transport", cfg.MCP.Transport),
-		zap.String("actual_transport", "stdio"),
-		zap.Bool("enabled", cfg.MCP.Enabled),
-		zap.Bool("read_only", cfg.MCP.ReadOnly),
-		zap.Bool("token_set", cfg.MCP.Token != ""),
+		"configured_transport", cfg.MCP.Transport,
+		"actual_transport", "stdio",
+		"enabled", cfg.MCP.Enabled,
+		"read_only", cfg.MCP.ReadOnly,
+		"token_set", cfg.MCP.Token != "",
 	)
 
 	// 初始化 MCP 模式管理器（从配置加载）
@@ -84,7 +82,7 @@ func main() {
 	zentaoServer, zentaoAccount, zentaoPassword, zentaoRealm := resolveZentaoConfig(cfg)
 	if zentaoServer == "" {
 		logger.Warn("Zentao server not configured; stdio MCP will start but queries will fail until config is provided",
-			zap.String("hint", "set ZENTAO_SERVER/ACCOUNT/PASSWORD env vars, config.yaml, or upload via HTTP UI first"),
+			"hint", "set ZENTAO_SERVER/ACCOUNT/PASSWORD env vars, config.yaml, or upload via HTTP UI first",
 		)
 	}
 
@@ -104,7 +102,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-quit
-		logger.Info("Received signal, shutting down MCP stdio server", zap.String("signal", sig.String()))
+		logger.Info("Received signal, shutting down MCP stdio server", "signal", sig.String())
 		cancel()
 	}()
 
@@ -115,9 +113,9 @@ func main() {
 }
 
 // resolveZentaoConfig 解析禅道连接配置
-// 优先级：config 文件 / 环境变量（已由 viper 注入 cfg）→ auth.db 加密存储.
+// 优先级：config 文件 / 环境变量（已合并进 cfg）→ auth.db 加密存储.
 func resolveZentaoConfig(cfg *config.Config) (server, account, password, realm string) {
-	// viper 已合并 config 文件与环境变量到 cfg.Zentao
+	// Init 已按「默认值 → config.yaml → env 覆盖」合并到 cfg.Zentao
 	server = cfg.Zentao.Server
 	account = cfg.Zentao.Account
 	password = cfg.Zentao.Password

@@ -13,8 +13,7 @@ import (
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 
-	"go.uber.org/zap"
-)
+	)
 
 // Client 封装禅道会话模式客户端（PHP *.json 端点 + zentaosid cookie）。
 // 适用于标准禅道开源版/企业版以及禁用 REST API 的实例（如受限实例 your-zentao-server.com）。
@@ -516,9 +515,9 @@ func (c *Client) doSessionJSONWithRetry(ctx context.Context, operation, path str
 		return err
 	}
 	logger.Warn("Zentao session expired, re-login and retry",
-		zap.String("operation", operation),
-		zap.String("path", path),
-		zap.Error(err),
+		"operation", operation,
+		"path", path,
+		"error", err,
 	)
 	c.session.invalidateForRelogin()
 	if loginErr := c.session.ensureLoggedIn(); loginErr != nil {
@@ -624,8 +623,8 @@ func (c *Client) doSessionPostWithRetryWithBody(ctx context.Context, operation, 
 		return body, err
 	}
 	logger.Warn("Zentao session expired on write, re-login and retry",
-		zap.String("operation", operation),
-		zap.String("path", path),
+		"operation", operation,
+		"path", path,
 	)
 	if err := c.session.ensureLoggedIn(); err != nil {
 		return body, fmt.Errorf("写操作失败，重新登录失败: %w，原始错误: %v", err, err)

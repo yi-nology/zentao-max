@@ -43,14 +43,9 @@ type InitService struct {
 // NewInitService 创建初始化服务实例
 func NewInitService(dbPath, encryptionKey string) *InitService {
 	if dbPath == "" {
-		// 使用用户主目录作为存储位置，确保在打包应用中也能正确访问
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			dbPath = filepath.Join(homeDir, ".zentao-max", "auth.db")
-		} else {
-			// 如果无法获取用户主目录，使用当前目录
-			dbPath = "./auth.db"
-		}
+		// 无显式路径时按统一规则解析（env → 已存在候选 → 规范位置），
+		// 见 auth_path.go；打包应用遗留的 ~/.zentao-max 位置也在候选之列。
+		dbPath = ResolveAuthDBPath("")
 	}
 	if encryptionKey == "" {
 		encryptionKey = os.Getenv("ZENTAO_ENCRYPTION_KEY")

@@ -14,7 +14,7 @@ type LogEntry struct {
 }
 
 // LogRingBuffer 进程内的环形缓冲日志
-// 通过 zap 的 WriteSyncer hook 把日志原文写入，由内部解析器解析
+// 由 logger 包的 ringHandler（slog.Handler）在每条日志输出时同步追加
 type LogRingBuffer struct {
 	mu      sync.RWMutex
 	entries []*LogEntry

@@ -7,8 +7,7 @@ import (
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
-	"go.uber.org/zap"
-
+	
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/models"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -44,9 +43,9 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 	}
 
 	logger.Info("获取Bug列表",
-		zap.Int("productID", productID),
-		zap.Int("projectID", projectID),
-		zap.Int("bugCount", len(bugs)))
+		"productID", productID,
+		"projectID", projectID,
+		"bugCount", len(bugs))
 
 	if statusFilter == "" {
 		statusFilter = "active"
@@ -62,9 +61,9 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 	}
 
 	logger.Info("Bug过滤结果",
-		zap.String("statusFilter", statusFilter),
-		zap.Int("filteredCount", len(filtered)),
-		zap.Any("statusBreakdown", statusBreakdown))
+		"statusFilter", statusFilter,
+		"filteredCount", len(filtered),
+		"statusBreakdown", statusBreakdown)
 
 	assigneeMap := make(map[string]*models.AssigneeBugStats)
 	for _, b := range filtered {
@@ -470,10 +469,10 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 	}
 
 	logger.Info("获取Bug列表(超时分析)",
-		zap.Int("productID", productID),
-		zap.Int("projectID", projectID),
-		zap.Int("bugCount", len(bugs)),
-		zap.Int("agingDays", agingDays))
+		"productID", productID,
+		"projectID", projectID,
+		"bugCount", len(bugs),
+		"agingDays", agingDays)
 
 	if statusFilter == "" {
 		statusFilter = "active"

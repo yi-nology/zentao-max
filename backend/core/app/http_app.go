@@ -11,8 +11,7 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/routes"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"go.uber.org/zap"
-)
+	)
 
 type HTTPApp struct {
 	config    *AppConfig
@@ -61,14 +60,18 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 		a.config.StaticFS,
 	)
 
+	// Run 阻塞在 accept loop，不监听信号——优雅关停由入口层的
+	// bootstrap 编排（App.AddResource → HTTPApp.Stop → hertz.Shutdown）
 	go func() {
 		logger.Info("HTTP server starting",
-			zap.String("name", a.Name()),
-			zap.String("port", port),
-			zap.String("zentao_server", a.config.ZentaoServer),
+			"name", a.Name(),
+			"port", port,
+			"zentao_server", a.config.ZentaoServer,
 		)
 
-		a.hertz.Spin()
+		if err := a.hertz.Run(); err != nil {
+			logger.Error("HTTP server exited with error", "error", err)
+		}
 	}()
 
 	return nil
@@ -83,13 +86,13 @@ func (a *HTTPApp) Stop(ctx context.Context) error {
 	a.deps.Handlers.CloseCache()
 
 	if a.hertz != nil {
-		logger.Info("HTTP server shutting down", zap.String("name", a.Name()))
+		logger.Info("HTTP server shutting down", "name", a.Name())
 		if err := a.hertz.Shutdown(ctx); err != nil {
 			if err.Error() != "engine is not running" {
 				return fmt.Errorf("failed to shutdown server: %w", err)
 			}
 		}
-		logger.Info("HTTP server stopped", zap.String("name", a.Name()))
+		logger.Info("HTTP server stopped", "name", a.Name())
 	}
 
 	return nil

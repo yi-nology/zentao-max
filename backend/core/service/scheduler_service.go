@@ -14,8 +14,7 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/models"
 
-	"go.uber.org/zap"
-)
+	)
 
 type SchedulerService struct {
 	store    *initialization.ConfigStore
@@ -52,18 +51,18 @@ func (s *SchedulerService) Start() error {
 			enabledCount++
 			if err := s.registerTask(&tasks[i]); err != nil {
 				logger.Error("注册定时任务失败",
-					zap.String("taskID", tasks[i].ID),
-					zap.String("taskName", tasks[i].Name),
-					zap.String("cronExpr", tasks[i].CronExpr),
-					zap.Error(err))
+					"taskID", tasks[i].ID,
+					"taskName", tasks[i].Name,
+					"cronExpr", tasks[i].CronExpr,
+					"error", err)
 				s.saveRegisterErrorLog(&tasks[i], err)
 			}
 		}
 	}
 	s.cron.Start()
 	logger.Info("定时任务调度器已启动",
-		zap.Int("totalTasks", len(tasks)),
-		zap.Int("enabledTasks", enabledCount))
+		"totalTasks", len(tasks),
+		"enabledTasks", enabledCount)
 	return nil
 }
 
@@ -97,9 +96,9 @@ func (s *SchedulerService) registerTask(task *models.SchedulerTask) error {
 
 	s.entryMap[task.ID] = entryID
 	logger.Info("定时任务已注册",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.String("cronExpr", task.CronExpr))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"cronExpr", task.CronExpr)
 	return nil
 }
 
@@ -126,8 +125,8 @@ func (s *SchedulerService) saveRegisterErrorLog(task *models.SchedulerTask, err 
 	logEntry.FinishedAt = &now
 	if saveErr := s.store.SaveLog(logEntry); saveErr != nil {
 		logger.Error("保存注册失败日志出错",
-			zap.String("taskID", task.ID),
-			zap.Error(saveErr))
+			"taskID", task.ID,
+			"error", saveErr)
 	}
 }
 
@@ -163,15 +162,15 @@ func (s *SchedulerService) CreateTask(task *models.SchedulerTask) error {
 	}
 	if err := s.store.CreateTask(task); err != nil {
 		logger.Error("创建定时任务失败",
-			zap.String("taskName", task.Name),
-			zap.Error(err))
+			"taskName", task.Name,
+			"error", err)
 		return err
 	}
 	logger.Info("定时任务已创建",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.Bool("enabled", task.Enabled),
-		zap.String("cronExpr", task.CronExpr))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"enabled", task.Enabled,
+		"cronExpr", task.CronExpr)
 	if task.Enabled {
 		return s.registerTask(task)
 	}
@@ -202,16 +201,16 @@ func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
 	}
 	if err := s.store.UpdateTask(task); err != nil {
 		logger.Error("更新定时任务失败",
-			zap.String("taskID", task.ID),
-			zap.String("taskName", task.Name),
-			zap.Error(err))
+			"taskID", task.ID,
+			"taskName", task.Name,
+			"error", err)
 		return err
 	}
 	logger.Info("定时任务已更新",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.Bool("enabled", task.Enabled),
-		zap.String("cronExpr", task.CronExpr))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"enabled", task.Enabled,
+		"cronExpr", task.CronExpr)
 	s.unregisterTask(task.ID)
 	if task.Enabled {
 		return s.registerTask(task)
@@ -221,7 +220,7 @@ func (s *SchedulerService) UpdateTask(task *models.SchedulerTask) error {
 
 func (s *SchedulerService) DeleteTask(id string) error {
 	s.unregisterTask(id)
-	logger.Info("定时任务已删除", zap.String("taskID", id))
+	logger.Info("定时任务已删除", "taskID", id)
 	return s.store.DeleteTask(id)
 }
 
@@ -245,9 +244,9 @@ func (s *SchedulerService) ToggleTask(id string) (*models.SchedulerTask, error) 
 		}
 	}
 	logger.Info("定时任务状态已切换",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.Bool("enabled", task.Enabled))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"enabled", task.Enabled)
 	return task, nil
 }
 
@@ -260,8 +259,8 @@ func (s *SchedulerService) RunTaskNow(id string) (*models.TaskExecutionLog, erro
 		return nil, fmt.Errorf("任务不存在")
 	}
 	logger.Info("手动触发定时任务",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name))
+		"taskID", task.ID,
+		"taskName", task.Name)
 	return s.executeTask(task, true), nil
 }
 
@@ -281,14 +280,14 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 	}
 
 	logger.Info("开始执行定时任务",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.String("triggerType", triggerType),
-		zap.String("reportType", task.ReportType),
-		zap.Int("productID", task.ProductID),
-		zap.Int("projectID", task.ProjectID),
-		zap.String("projectName", task.ProjectName),
-		zap.String("statusFilter", task.StatusFilter))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"triggerType", triggerType,
+		"reportType", task.ReportType,
+		"productID", task.ProductID,
+		"projectID", task.ProjectID,
+		"projectName", task.ProjectName,
+		"statusFilter", task.StatusFilter)
 
 	reportType := task.ReportType
 	if reportType == "" {
@@ -349,10 +348,10 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		logEntry.FinishedAt = &now
 		_ = s.store.SaveLog(logEntry)
 		logger.Error("定时任务执行失败",
-			zap.String("taskID", task.ID),
-			zap.String("taskName", task.Name),
-			zap.String("triggerType", triggerType),
-			zap.Error(reportErr))
+			"taskID", task.ID,
+			"taskName", task.Name,
+			"triggerType", triggerType,
+			"error", reportErr)
 		return logEntry
 	}
 
@@ -388,14 +387,14 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 
 	_ = s.store.SaveLog(logEntry)
 	logger.Info("定时任务执行完成",
-		zap.String("taskID", task.ID),
-		zap.String("taskName", task.Name),
-		zap.String("triggerType", triggerType),
-		zap.String("reportType", reportType),
-		zap.String("status", logEntry.Status),
-		zap.Int("bugTotal", logEntry.BugTotal),
-		zap.Int("webhookSuccess", successCount),
-		zap.Int("webhookEnabled", enabledCount))
+		"taskID", task.ID,
+		"taskName", task.Name,
+		"triggerType", triggerType,
+		"reportType", reportType,
+		"status", logEntry.Status,
+		"bugTotal", logEntry.BugTotal,
+		"webhookSuccess", successCount,
+		"webhookEnabled", enabledCount)
 
 	// 发布事件：桌面通知等订阅者会消费（仅在 Wails 模式生效）
 	topic := event.TaskCompleted

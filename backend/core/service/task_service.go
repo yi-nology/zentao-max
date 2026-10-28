@@ -7,8 +7,7 @@ import (
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
-	"go.uber.org/zap"
-
+	
 	"github.com/yi-nology/zentao-max/backend/core/dto"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/utils"
@@ -222,8 +221,8 @@ func (s *TaskService) fetchAllTasks(productId int) ([]zentaosdk.Task, error) {
 		executions, err := s.client.GetExecutions(project.ID, 1, 1000)
 		if err != nil {
 			logger.Error("Failed to fetch executions for project",
-				zap.Int("projectID", project.ID),
-				zap.Error(err))
+				"projectID", project.ID,
+				"error", err)
 			continue
 		}
 
@@ -231,8 +230,8 @@ func (s *TaskService) fetchAllTasks(productId int) ([]zentaosdk.Task, error) {
 			tasks, err := s.client.GetTasks(execution.ID, 1, 10000)
 			if err != nil {
 				logger.Error("Failed to fetch tasks for execution",
-					zap.Int("executionID", execution.ID),
-					zap.Error(err))
+					"executionID", execution.ID,
+					"error", err)
 				continue
 			}
 			allTasks = append(allTasks, tasks...)
@@ -260,14 +259,14 @@ func (s *TaskService) fetchAllTasksAcrossExecutions() ([]zentaosdk.Task, error) 
 	var allTasks []zentaosdk.Task
 	for _, ec := range allExecCtxs {
 		if time.Now().After(deadline) {
-			logger.Warn("跨执行任务遍历超时，返回已收集部分", zap.Int("executions", len(allExecCtxs)))
+			logger.Warn("跨执行任务遍历超时，返回已收集部分", "executions", len(allExecCtxs))
 			break
 		}
 		tasks, err := s.client.GetTasks(ec.Exec.ID, 1, 10000)
 		if err != nil {
 			logger.Error("Failed to fetch tasks for execution",
-				zap.Int("executionID", ec.Exec.ID),
-				zap.Error(err))
+				"executionID", ec.Exec.ID,
+				"error", err)
 			continue
 		}
 		allTasks = append(allTasks, tasks...)

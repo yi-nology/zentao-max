@@ -5,7 +5,6 @@ go 1.26.0
 require (
 	github.com/cloudwego/hertz v0.10.6
 	github.com/google/uuid v1.6.0
-	github.com/google/wire v0.7.0
 	github.com/hertz-contrib/gzip v0.0.4
 	github.com/hertz-contrib/logger/slog v1.0.0
 	github.com/oekit/bootstrap v0.6.5

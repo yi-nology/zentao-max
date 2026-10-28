@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	"github.com/yi-nology/zentao-max/backend/internal/routes"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 
 	"github.com/oekit/concurrency/async"
 
@@ -22,7 +22,7 @@ type HTTPApp struct {
 	embedMode bool
 }
 
-func NewHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
+func newHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
 	return &HTTPApp{
 		config:    config,
 		deps:      deps,

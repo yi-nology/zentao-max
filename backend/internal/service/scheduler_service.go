@@ -9,8 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-	"github.com/yi-nology/zentao-max/backend/internal/event"
-	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+		"github.com/yi-nology/zentao-max/backend/internal/initialization"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	"github.com/yi-nology/zentao-max/backend/internal/models"
 
@@ -395,19 +394,6 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		"bugTotal", logEntry.BugTotal,
 		"webhookSuccess", successCount,
 		"webhookEnabled", enabledCount)
-
-	// 发布事件：桌面通知等订阅者会消费（仅在 Wails 模式生效）
-	topic := event.TaskCompleted
-	if logEntry.Status == "failed" {
-		topic = event.TaskFailed
-	}
-	event.GetGlobalBus().Publish(topic, map[string]interface{}{
-		"taskID":      task.ID,
-		"taskName":    task.Name,
-		"status":      logEntry.Status,
-		"bugTotal":    logEntry.BugTotal,
-		"triggerType": triggerType,
-	})
 
 	return logEntry
 }

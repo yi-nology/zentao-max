@@ -106,14 +106,9 @@ func main() {
 		appConfig.StaticFS = http.Dir(*staticDir)
 	}
 
-	application, err := svc.InitializeHTTPApp(appConfig)
+	httpApp, err := svc.InitializeHTTPApp(appConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
-	}
-
-	httpApp, ok := application.(*svc.HTTPApp)
-	if !ok {
-		log.Fatalf("Expected HTTPApp, got %T", application)
 	}
 
 	// 启动编排交给 oekit/bootstrap：组件序初始化（logger → metrics）→

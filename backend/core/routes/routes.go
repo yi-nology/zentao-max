@@ -10,6 +10,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/route"
+	"github.com/hertz-contrib/gzip"
 	"github.com/oekit/middleware"
 	"github.com/oekit/middleware/hmw"
 
@@ -64,6 +65,10 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		mw.WithAccessLogSkipPaths("/metrics", "/health"),
 	))
 	hertzServer.Use(middleware.MetricsMiddleware())
+	// API/静态资源 gzip 压缩（前端 JS bundle 与列表接口收益明显）；
+	// /metrics 排除——promhttp 自带压缩协商，双层会冲突
+	hertzServer.Use(gzip.Gzip(gzip.DefaultCompression,
+		gzip.WithExcludedPaths([]string{"/metrics"})))
 	// 限流参数来自配置文件的 rate_limit 段（未配置时回退内置默认 600/分钟）
 	rlCfg := config.Get().RateLimit
 	hertzServer.Use(errors.RateLimitMiddlewareWithConfig(rlCfg.RequestsPerMinute, rlCfg.BlockDurationMinutes))

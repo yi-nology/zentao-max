@@ -1,7 +1,7 @@
 package service
 
 import (
-	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/tls"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/oekit/pkg/httpjson"
 
 	"github.com/yi-nology/zentao-max/backend/core/models"
 )
@@ -157,30 +159,32 @@ func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayl
 		return result
 	}
 
+	// 出站 HTTP 统一走 oekit pkg/httpjson：ctx 感知、限容读体、rune 安全截断。
+	// DoRaw 不判 2xx 不解 JSON——webhook 的 errCode 语义由本处自行判定。
 	client := &http.Client{Timeout: 15 * time.Second}
 	if wh.SkipSSL {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
-	req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(body))
+
+	raw, err := httpjson.DoRaw(context.Background(), client, httpjson.Request{
+		Method: http.MethodPost,
+		URL:    wh.URL,
+		Body:   body,
+		Header: func(h http.Header) {
+			h.Set("Content-Type", "application/json; charset=utf-8")
+		},
+	}, 64<<10)
 	if err != nil {
 		result.Error = err.Error()
 		return result
 	}
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	defer resp.Body.Close()
-
-	result.StatusCode = resp.StatusCode
+	result.StatusCode = raw.StatusCode
 
 	var respBody map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&respBody); err == nil {
+	if err := json.Unmarshal(raw.Body, &respBody); err == nil {
 		if errCode, ok := respBody["errCode"]; ok {
 			if code, ok := errCode.(float64); ok && code == 0 {
 				result.Success = true
@@ -189,14 +193,14 @@ func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayl
 				result.Error = fmt.Sprintf("errCode=%v errMsg=%v", respBody["errCode"], respBody["errMsg"])
 			}
 		} else {
-			result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+			result.Success = raw.StatusCode >= 200 && raw.StatusCode < 300
 		}
 	} else {
-		result.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+		result.Success = raw.StatusCode >= 200 && raw.StatusCode < 300
 	}
 
 	if !result.Success && result.Error == "" {
-		result.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		result.Error = fmt.Sprintf("HTTP %d", raw.StatusCode)
 	}
 	return result
 }

@@ -25,7 +25,7 @@ backend/
     handlers/             → HTTP handlers (cache.go / logs.go)
     service/              → Business logic (cache_service / dashboard_service)
     storage/              → SQLite offline cache (modernc.org/sqlite, pure Go)
-    logger/               → zap + ring_buffer
+    logger/               → oekit logx（slog 后端）+ ring_buffer
     metrics/              → Prometheus + cache hit rate
 frontend/
   src/                    → Vue 3 + Element Plus + Chart.js
@@ -116,7 +116,10 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
   后端 401 层承担）；`api.ts` 对 401 分流——`/auth/*` 自身 401 表单自展示，含"管理员登录"
   字样跳 `/login?redirect=...`，其余（禅道配置失效）仅弹错误提示。
 - **注意**: 限流为配置驱动
-  （`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。
+  （`errors.RateLimitMiddlewareWithConfig`，默认 600 次/分钟）。实现为
+  oekit KeyedLimiter + TokenBucket（按 IP 直连地址 key，防 XFF 伪造；
+  超限即拒 429，无封禁期）；基础设施路径（/health、/api/healthz、/metrics、
+  /api/version）豁免。`BlockDurationMinutes` 字段为 yaml 兼容保留但不参与。
 
 ## Skills (Agent 技能包, `skills/`)
 
@@ -236,8 +239,8 @@ entityType 又会让所有 scope 共享一行 → 语义错。
 
 请求调度中心，`doSessionJSON / doSessionPost` 必经之路：
 
-- **限流**：全局共享 token bucket（`nextAllowedUnixNano atomic.CAS`），
-  受限实例默认 8/s，开源禅道 20/s；0 = 无限流
+- **限流**：全局共享令牌桶（oekit `concurrency/ratelimit.TokenBucket.Wait`，
+  ctx 取消不消耗配额），受限实例默认 8/s，开源禅道 20/s；0 = 无限流
 - **写串行**：写 worker 永远 1 个（避免受限实例 SSO 把写端点标记异常）
 - **读并发 4**：单 cookie 下受限实例 4 并发实测不触发限流
 - **降级**：pool 满 / 100ms 排队超时 → 自动走 `cacheFallback`（stale 也算）；

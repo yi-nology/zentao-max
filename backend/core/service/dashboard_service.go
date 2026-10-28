@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
 	"github.com/yi-nology/zentao-max/backend/core/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"go.uber.org/zap"
 )
 
@@ -247,7 +247,10 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		cancel   context.CancelFunc
 	)
 
-	bgCtx, cancel = context.WithCancel(ctx)
+	// 总超时保护：任务统计靠遍历执行收集（受限于禅道接口无产品级任务端点），
+	// 大实例（数千执行）全遍历需要数分钟，无超时会拖死 dashboard。
+	// 超时后返回已收集的部分数据（前端可见 FromCache/Stale 标志）。
+	bgCtx, cancel = context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
 	wg.Add(3)

@@ -1,4 +1,4 @@
-name: Build Wails App
+name: Build zentao-max
 
 on:
   push:

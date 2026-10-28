@@ -12,7 +12,7 @@
 
 ### 1. 核心接口和实现
 
-#### Application 接口 (`backend/core/app/app.go`)
+#### Application 接口 (`backend/internal/svc/app.go`)
 ```go
 type Application interface {
     Start(ctx context.Context) error
@@ -26,13 +26,13 @@ type Application interface {
 - 提供统一的生命周期管理接口
 - 支持未来扩展其他运行模式
 
-#### HTTPApp 实现 (`backend/core/app/http_app.go`)
+#### HTTPApp 实现 (`backend/internal/svc/http_app.go`)
 - 独立的HTTP服务器模式
 - 支持优雅关闭（30秒超时）
 - 自动处理系统信号（SIGINT, SIGTERM）
 - 嵌入式静态资源支持
 
-#### WailsApp 实现 (`backend/core/app/wails_app.go`)
+#### ~~WailsApp 实现~~（已移除：v0.4.0 起统一为纯 Web 模式）
 - Wails桌面应用模式
 - 与Wails框架生命周期集成
 - 同时启动HTTP服务器提供API服务
@@ -40,7 +40,7 @@ type Application interface {
 
 ### 2. 依赖注入机制
 
-#### HandlerRegistry (`backend/core/handlers/registry.go`)
+#### HandlerRegistry (`backend/internal/handlers/registry.go`)
 **核心功能**：
 - 单例模式管理所有handler实例
 - 统一的handler创建和访问入口
@@ -70,7 +70,7 @@ productHandler := registry.GetProductHandler()
 projectHandler := registry.GetProjectHandler()
 ```
 
-#### Wire 依赖注入 (`backend/core/app/wire.go`)
+#### Wire 依赖注入 (`backend/internal/svc/wire.go`)
 **使用Google Wire实现编译时依赖注入**：
 
 ```go

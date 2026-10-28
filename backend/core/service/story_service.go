@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 
@@ -140,8 +141,13 @@ func (s *StoryService) fetchAllStoriesAcrossExecutions() ([]zentaosdk.Story, err
 	if err != nil {
 		return nil, err
 	}
+	// 耗时闸：同 task 遍历，超时返回已收集部分
+	deadline := time.Now().Add(60 * time.Second)
 	var allStories []zentaosdk.Story
 	for _, ec := range allExecCtxs {
+		if time.Now().After(deadline) {
+			break
+		}
 		stories, err := s.client.GetStoriesByExecution(ec.Exec.ID, 1, 10000)
 		if err != nil {
 			continue

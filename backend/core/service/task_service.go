@@ -254,8 +254,15 @@ func (s *TaskService) fetchAllTasksAcrossExecutions() ([]zentaosdk.Task, error) 
 	if err != nil {
 		return nil, err
 	}
+	// 耗时闸：大实例（数千执行）逐执行遍历需数分钟，超时返回已收集部分，
+	// 避免请求无限 pending（调用方有持久缓存兜底）
+	deadline := time.Now().Add(60 * time.Second)
 	var allTasks []zentaosdk.Task
 	for _, ec := range allExecCtxs {
+		if time.Now().After(deadline) {
+			logger.Warn("跨执行任务遍历超时，返回已收集部分", zap.Int("executions", len(allExecCtxs)))
+			break
+		}
 		tasks, err := s.client.GetTasks(ec.Exec.ID, 1, 10000)
 		if err != nil {
 			logger.Error("Failed to fetch tasks for execution",

@@ -338,26 +338,24 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 	var out []zentaosdk.Execution
 	page := 1
 	recTotal := 0
-	const recPerPage = 100
+	const recPerPage = 20
 	for {
-		// execution-all 的分页 URL 格式（来自页面 pager link-creator）：
-		//   /execution-all-undone-{orderBy}-0--{recTotal}-{recPerPage}-{page}.json
-		// 第一页用裸路径 /execution-all.json 拿到真实 recTotal，后续页带完整段。
+		// execution-all 翻页段格式（取自执行列表页真实 pager 链接）：
+		//   /execution-all-{browseType}-{orderBy}-0--{recTotal}-{recPerPage}-{pageID}.json
+		// 此前 6 段格式 /execution-all-all-0--0-100-{page}.json 参数错位，
+		// 实测返回的是项目形状数据（仅 1 条），导致按产品/项目查执行永远为空。
 		// browseType 用 "all" 才能覆盖全部状态（受限实例默认 undone 只看进行中）。
-		var path string
-		if page == 1 {
-			path = "/execution-all-all-0--0-100-1.json"
-		} else {
-			path = fmt.Sprintf("/execution-all-all-0--%d-%d-%d.json", recTotal, recPerPage, page)
-		}
+		path := fmt.Sprintf("/execution-all-all-order_asc-0--%d-%d-%d.json", recTotal, recPerPage, page)
 		var resp sessionExecutionAllResp
 		// 第 2+ 页绕过缓存：各页 scope 相同，入缓存会命中第 1 页（见 doSessionJSONUncached）
+		var respErr error
 		if page > 1 {
-			if err := c.doSessionJSONUncached(ctx, "GetExecutions", path, &resp); err != nil {
-				return out, err
-			}
-		} else if err := c.doSessionJSON(ctx, "GetExecutions", path, &resp); err != nil {
-			return out, err
+			respErr = c.doSessionJSONUncached(ctx, "GetExecutions", path, &resp)
+		} else {
+			respErr = c.doSessionJSON(ctx, "GetExecutions", path, &resp)
+		}
+		if respErr != nil {
+			return out, respErr
 		}
 		src := resp.ExecutionStats
 		if len(src) == 0 {
@@ -366,8 +364,13 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 		if recTotal == 0 && resp.Pager != nil {
 			recTotal = pagerInt(resp.Pager.RecTotal)
 		}
+		dupBefore := len(out)
 		for _, e := range src {
 			out = append(out, e.toSDK())
+		}
+		// 翻页未推进（同一页内容重复返回）即收口，防死循环
+		if len(out) == dupBefore && page > 1 {
+			return out, nil
 		}
 		if len(src) < recPerPage {
 			return out, nil

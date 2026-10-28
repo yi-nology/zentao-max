@@ -37,6 +37,9 @@ func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{
 			query.ProductID = id
 		}
 	}
+	// 缺省分页兜底：不传时 Page=0 会在 client 侧切成 all[0:0] 空数组
+	query.Page = 1
+	query.PageSize = 2000
 
 	result, err := s.projectService.GetProjects(query)
 	if err != nil {
@@ -62,6 +65,9 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 			query.ProductID = id
 		}
 	}
+	// 缺省分页兜底（同 get_projects）
+	query.Page = 1
+	query.PageSize = 2000
 
 	result, err := s.executionService.GetExecutions(query)
 	if err != nil {

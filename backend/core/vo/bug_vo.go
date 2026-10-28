@@ -6,6 +6,7 @@ type BugVO struct {
 	ID            int         `json:"id"`            // Bug ID
 	Project       int         `json:"project"`       // 项目ID
 	Product       int         `json:"product"`       // 产品ID
+	Execution     int         `json:"execution"`     // 执行ID（bug-edit 全量更新必带原值）
 	Title         string      `json:"title"`         // 标题
 	Keywords      string      `json:"keywords"`      // 关键词
 	Severity      interface{} `json:"severity"`      // 严重程度

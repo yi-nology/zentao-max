@@ -159,6 +159,7 @@ func (s *BugService) convertToVO(bugs []zentaosdk.Bug) []vo.BugVO {
 			ID:            bug.ID,
 			Project:       bug.Project,
 			Product:       bug.Product,
+			Execution:     bug.Execution,
 			Title:         bug.Title,
 			Keywords:      bug.Keywords,
 			Severity:      bug.Severity,

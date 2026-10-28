@@ -118,6 +118,19 @@ v3 + CGO 不再支持 macOS 上交叉编译 Linux/Windows。三个选项：
 REST/MCP 入口；技能包覆盖的是应用 API 未暴露的实例侧细节（质量分析字段、Excel 工作流、
 biz8.x 全量更新语义、跳板机隧道）。
 
+**应用页面已吸收的技能能力**（2026-10-28，页面内即可用，无需 CLI）：
+
+- **Bug 质量分析字段**：Bugs 页详情弹窗「编辑 / 质量字段」对话框，一次 `bug-edit` 全量写全
+  fixedPackageVersion/reasonAnalysis/advice/implementation/testAdvise（+可选 resolution/
+  resolvedBuild/comment）。`BugVO.Execution` 已透出（bug-edit 全量更新必带 execution 原值），
+  提交前 title 的 `&#039;` 自动还原（防二次转义）。对应技能踩坑 #13/#17/#22。
+- **工时 Excel 导入**：EffortCalendar 批量弹窗「导入 Excel」，复刻 zt.py 语义——表头前 10 行
+  自动定位、日期归一（`2026/1/15`、`1.15`、`今天/昨天`、Excel 序列号）、对象号归一
+  （`任务#123`/`BUG#123`/`123`）、剩余工时留空按任务当前剩余累计扣减（手填=绝对值）、
+  台账式去重（日历已有同日同对象同消耗即跳过）、`#` 注释行跳过、消耗必须 >0；
+  提交按行日期分组逐天调 `/api/v1/efforts/batch`，完成后回读日历核对。
+  红线继承：剩余=0 会把任务置完成（弹窗内有警告提示）；接口成功 ≠ 落库，以回读为准。
+
 ## Authentication Modes (双认证模式)
 
 应用支持两种禅道认证与数据访问模式，按配置的 `realm` 字段自动切换：

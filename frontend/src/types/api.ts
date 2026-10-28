@@ -42,6 +42,8 @@ export interface Bug {
   id: number
   project: number
   product: number
+  /** 执行ID（bug-edit 全量更新必带原值） */
+  execution: number
   title: string
   keywords: string
   severity: number

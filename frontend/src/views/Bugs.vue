@@ -240,8 +240,43 @@
           <el-button size="small" type="success" @click="handleBugAction('close', currentBug.id)">关闭</el-button>
           <el-button size="small" @click="handleBugAction('activate', currentBug.id)">激活</el-button>
           <el-button size="small" @click="handleBugAction('assign', currentBug.id)">指派</el-button>
+          <el-button size="small" type="primary" @click="openBugEditDialog(currentBug)">编辑 / 质量字段</el-button>
         </div>
       </div>
+    </el-dialog>
+
+    <!-- Bug 编辑对话框（bug-edit 全量更新：质量五字段一次写全 + 原值透传） -->
+    <el-dialog v-model="editDialogVisible" title="编辑 Bug / 质量分析字段" width="640px" append-to-body>
+      <el-form label-width="100px">
+        <el-form-item label="修复包版本">
+          <el-input v-model="editForm.fixedPackageVersion" placeholder="包名=版本号（等号连接，如 example-pkg=1.0.0-1）" />
+        </el-form-item>
+        <el-form-item label="原因分析">
+          <el-input v-model="editForm.reasonAnalysis" type="textarea" :rows="3" placeholder="什么组件、什么功能、什么情况触发、造成什么后果" />
+        </el-form-item>
+        <el-form-item label="处理意见">
+          <el-input v-model="editForm.advice" type="textarea" :rows="3" placeholder="采用什么补丁、修复思路、改动范围、是否影响接口/ABI" />
+        </el-form-item>
+        <el-form-item label="实现说明">
+          <el-input v-model="editForm.implementation" type="textarea" :rows="3" placeholder="应用哪个 patch、修改哪个文件、主要改动点" />
+        </el-form-item>
+        <el-form-item label="测试建议">
+          <el-input v-model="editForm.testAdvise" type="textarea" :rows="3" placeholder="怎么构造测试用例、预期结果、影响域" />
+        </el-form-item>
+        <el-form-item label="解决版本">
+          <el-input v-model="editForm.resolvedBuild" placeholder="可选，如 mainV3_Build06" />
+        </el-form-item>
+        <el-form-item label="追加备注">
+          <el-input v-model="editForm.comment" type="textarea" :rows="2" placeholder="可选，追加到 Bug 备注" />
+        </el-form-item>
+      </el-form>
+      <div class="edit-warn">
+        禅道 bug-edit 为全量更新：提交时将自动带上标题/版本/执行的原值；接口返回 success 不代表字段落库，提交后会回读刷新列表，请核对详情。
+      </div>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSubmitting" @click="submitBugEdit">提交</el-button>
+      </template>
     </el-dialog>
 
     <!-- 简单动作对话框（确认/解决/关闭/激活/指派 通用） -->
@@ -284,7 +319,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug } from '@/api/zentao'
+import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
@@ -655,6 +690,79 @@ const submitAction = async (): Promise<void> => {
   }
 }
 
+// ----- Bug 编辑（质量分析五字段等，bug-edit 全量更新）-----
+const editDialogVisible = ref(false)
+const editSubmitting = ref(false)
+const editBugId = ref(0)
+const editForm = reactive<{
+  fixedPackageVersion: string
+  reasonAnalysis: string
+  advice: string
+  implementation: string
+  testAdvise: string
+  resolvedBuild: string
+  comment: string
+}>({
+  fixedPackageVersion: '',
+  reasonAnalysis: '',
+  advice: '',
+  implementation: '',
+  testAdvise: '',
+  resolvedBuild: '',
+  comment: ''
+})
+
+const openBugEditDialog = (bug: Bug): void => {
+  editBugId.value = bug.id
+  editForm.fixedPackageVersion = ''
+  editForm.reasonAnalysis = ''
+  editForm.advice = ''
+  editForm.implementation = ''
+  editForm.testAdvise = ''
+  editForm.resolvedBuild = ''
+  editForm.comment = ''
+  detailDialogVisible.value = false
+  editDialogVisible.value = true
+}
+
+const submitBugEdit = async (): Promise<void> => {
+  const bug = currentBug.value
+  if (!bug) return
+  editSubmitting.value = true
+  try {
+    // bug-edit 是全量更新：必填的 title/openedBuild/execution 及其余字段必须带原值一起提交，
+    // 否则校验失败或被占位值覆盖；bug-view 返回的 title 可能含 &#039;，提交前还原成 '，
+    // 否则禅道会二次转义渲染出字面量
+    await updateBug(editBugId.value, {
+      title: String(bug.title || '').replace(/&#039;/g, "'"),
+      type: bug.type || '',
+      severity: Number(bug.severity) || 0,
+      pri: Number(bug.pri) || 0,
+      steps: bug.steps || '',
+      assignedTo: bug.assignedTo?.account || '',
+      openedBuild: bug.openedBuild || [],
+      execution: bug.execution || 0,
+      resolution: String((bug as unknown as { resolution?: unknown }).resolution ?? ''),
+      fixedPackageVersion: editForm.fixedPackageVersion,
+      reasonAnalysis: editForm.reasonAnalysis,
+      advice: editForm.advice,
+      implementation: editForm.implementation,
+      testAdvise: editForm.testAdvise,
+      resolvedBuild: editForm.resolvedBuild,
+      comment: editForm.comment
+    })
+    ElMessage.success('提交成功，已回读刷新，请核对详情确认字段落库')
+    editDialogVisible.value = false
+    // 回查：重新拉列表（接口返回 success 不代表字段落库，以回读为准）
+    fetchBugs()
+  } catch (err) {
+    const anyErr = err as { response?: { data?: { message?: string } } }
+    ElMessage.error(anyErr?.response?.data?.message || '提交失败')
+  } finally {
+    editSubmitting.value = false
+  }
+}
+
 const handleSizeChange = (size: number): void => {
   if (!globalSelection.product) return
   pagination.pageSize = size
@@ -994,5 +1102,16 @@ onMounted(() => {
   padding-top: 12px;
   border-top: 1px solid var(--color-border-light);
   flex-wrap: wrap;
+}
+
+.edit-warn {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  color: #b8860b;
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

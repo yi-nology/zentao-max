@@ -81,8 +81,38 @@ func (c *Client) UpdateBug(bugID int, req zentaosdk.BugUpdateRequest) (*zentaosd
 	form.Set("steps", req.Steps)
 	form.Set("assignedTo", req.AssignedTo)
 	form.Set("openedBuild", strings.Join(req.OpenedBuild, ","))
+	// bug-edit 全量更新：execution 必带原值，否则部分实例校验失败或字段被覆盖
+	form.Set("execution", strconv.Itoa(req.Execution))
 	if req.Module != 0 {
 		form.Set("module", strconv.Itoa(req.Module))
+	}
+	// 质量分析字段（biz8.x）：fixedPackageVersion 格式为"包名=版本号"，一次 bug-edit 全量写全
+	if req.FixedPackageVersion != "" {
+		form.Set("fixedPackageVersion", req.FixedPackageVersion)
+	}
+	if req.ReasonAnalysis != "" {
+		form.Set("reasonAnalysis", req.ReasonAnalysis)
+	}
+	if req.Advice != "" {
+		form.Set("advice", req.Advice)
+	}
+	if req.Implementation != "" {
+		form.Set("implementation", req.Implementation)
+	}
+	if req.TestAdvise != "" {
+		form.Set("testAdvise", req.TestAdvise)
+	}
+	if req.Resolution != "" {
+		form.Set("resolution", req.Resolution)
+	}
+	if req.ResolvedBuild != "" {
+		form.Set("resolvedBuild", req.ResolvedBuild)
+	}
+	if req.Deadline != "" {
+		form.Set("deadline", req.Deadline)
+	}
+	if req.Comment != "" {
+		form.Set("comment", req.Comment)
 	}
 	if err := c.doSessionPost(context.Background(), "UpdateBug",
 		fmt.Sprintf("/bug-edit-%d.json", bugID), form); err != nil {

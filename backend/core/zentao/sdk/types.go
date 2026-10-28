@@ -415,6 +415,8 @@ type BugCreateRequest struct {
 }
 
 // BugUpdateRequest 修改Bug请求
+// 注意：禅道 bug-edit 是全量更新，title/openedBuild/execution 必须带原值
+// （漏带会校验失败或被占位值覆盖），调用方需先取 bug 详情再提交。
 type BugUpdateRequest struct {
 	Branch     int      `json:"branch,omitempty"`
 	Module     int      `json:"module,omitempty"`
@@ -433,6 +435,17 @@ type BugUpdateRequest struct {
 	Deadline   string   `json:"deadline,omitempty"`
 	OpenedBuild []string `json:"openedBuild,omitempty"`
 	AssignedTo string   `json:"assignedTo,omitempty"`
+	// 质量分析字段（biz8.x 定制，bug-edit 全量一次写全，不要分多次）
+	FixedPackageVersion string `json:"fixedPackageVersion,omitempty"`
+	ReasonAnalysis      string `json:"reasonAnalysis,omitempty"`
+	Advice              string `json:"advice,omitempty"`
+	Implementation      string `json:"implementation,omitempty"`
+	TestAdvise          string `json:"testAdvise,omitempty"`
+	// 解决方案相关（bug-edit 也可顺带更新）
+	Resolution   string `json:"resolution,omitempty"`
+	ResolvedBuild string `json:"resolvedBuild,omitempty"`
+	// 追加备注
+	Comment string `json:"comment,omitempty"`
 }
 
 // Bug Bug结构

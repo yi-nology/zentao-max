@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/oekit/bootstrap"
+	"github.com/oekit/core/lifecycle"
 
 	"github.com/yi-nology/zentao-max/backend/core/app"
 	"github.com/yi-nology/zentao-max/backend/core/config"
@@ -14,7 +15,18 @@ import (
 	"github.com/yi-nology/zentao-max/backend/core/metrics"
 
 	oekitconfig "github.com/oekit/core/config"
-	)
+)
+
+// fnComponent 启动任务组件（oekit bootstrap Component）。
+type fnComponent struct {
+	name string
+	fn   func() error
+}
+
+func (c fnComponent) Name() string { return c.name }
+func (c fnComponent) Init(context.Context, *bootstrap.App, *lifecycle.Manager) error {
+	return c.fn()
+}
 
 func main() {
 	// 解析命令行参数
@@ -38,19 +50,7 @@ func main() {
 	}
 	cfg := config.Get()
 
-	// 初始化日志
-	if err := logger.Init(&cfg.Log); err != nil {
-		fmt.Printf("Failed to initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer logger.Sync()
-
-	// 初始化性能监控
-	if err := metrics.Init(); err != nil {
-		logger.Fatal("Failed to initialize metrics", "error", err)
-	}
-
-	logger.Info("Starting chandao-mini application",
+	logger.Info("Starting zentao-max server",
 		"type", cfg.Server.Type,
 		"port", cfg.Server.Port,
 		"log_level", cfg.Log.Level,
@@ -80,6 +80,14 @@ func main() {
 	b, err := bootstrap.New(
 		bootstrap.WithServiceName("zentao-max-server"),
 		bootstrap.WithShutdownTimeout(cfg.Server.GetShutdownTimeout()),
+		bootstrap.WithComponent(fnComponent{
+			name: "logger",
+			fn:   func() error { return logger.Init(&cfg.Log) },
+		}),
+		bootstrap.WithComponent(fnComponent{
+			name: "metrics",
+			fn:   metrics.Init,
+		}),
 	)
 	if err != nil {
 		logger.Fatal("Failed to create bootstrapper", "error", err)

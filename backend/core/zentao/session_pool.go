@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/oekit/concurrency/ratelimit"
 )
 
 // SessionWorkerPool 是 Session 模式专属的请求调度中心。
@@ -17,8 +19,10 @@ import (
 //   - 降级：pool 满 / 排队超时 → 自动走 cache fallback；彻底无可用 → ErrPoolBusy。
 //   - 优雅停机：Shutdown 等待 in-flight 完成 / ctx 取消。
 type SessionWorkerPool struct {
-	nextAllowedUnixNano atomic.Int64
-	ratePerSec           float64
+	// rateLimiter 禅道请求全局限速（受限实例建议 4/s）；nil = 不限速。
+	// oekit TokenBucket：Wait(ctx) 取消不消耗配额，替代手写 CAS 间隔门
+	rateLimiter ratelimit.Limiter
+	ratePerSec  float64 // 仅用于 Stats 报告
 
 	readJobs  chan *job
 	writeJobs chan *job
@@ -31,9 +35,6 @@ type SessionWorkerPool struct {
 	readActive  atomic.Int64
 	writeActive atomic.Int64
 	queueDepth  atomic.Int64
-
-	now   func() time.Time
-	sleep func(time.Duration)
 }
 
 // SessionWorkerPoolConfig 构造配置。
@@ -73,13 +74,16 @@ func NewSessionWorkerPool(cfg SessionWorkerPoolConfig) *SessionWorkerPool {
 	if cfg.QueueTimeout <= 0 {
 		cfg.QueueTimeout = 100 * time.Millisecond
 	}
+	var rateLimiter ratelimit.Limiter
+	if cfg.RatePerSec > 0 {
+		rateLimiter = ratelimit.NewTokenBucketFloat(cfg.RatePerSec, 1)
+	}
 	return &SessionWorkerPool{
+		rateLimiter:     rateLimiter,
 		ratePerSec:      cfg.RatePerSec,
 		readConcurrency: cfg.ReadConcurrency,
 		readJobs:        make(chan *job, cfg.JobBuf),
 		writeJobs:       make(chan *job, cfg.JobBuf),
-		now:             time.Now,
-		sleep:           time.Sleep,
 	}
 }
 
@@ -203,42 +207,19 @@ func (p *SessionWorkerPool) writeWorker() {
 	}
 }
 
-func (p *SessionWorkerPool) acquireToken(ctx context.Context) {
-	if p.ratePerSec <= 0 {
-		return
-	}
-	interval := time.Duration(float64(time.Second) / p.ratePerSec)
-	for {
-		now := p.now().UnixNano()
-		next := p.nextAllowedUnixNano.Load()
-		if now >= next {
-			if p.nextAllowedUnixNano.CompareAndSwap(next, now+interval.Nanoseconds()) {
-				return
-			}
-			continue
-		}
-		wait := time.Duration(next - now)
-		if wait > interval {
-			p.nextAllowedUnixNano.Store(now + interval.Nanoseconds())
-			continue
-		}
-		t := time.NewTimer(wait)
-		select {
-		case <-t.C:
-		case <-ctx.Done():
-			t.Stop()
-			return
-		}
-	}
-}
-
 func (p *SessionWorkerPool) runJob(j *job) {
 	defer func() {
 		if r := recover(); r != nil {
 			j.done <- errors.New("session pool job panicked")
 		}
 	}()
-	p.acquireToken(j.ctx)
+	// 全局限速：等到令牌才执行（ctx 取消不消耗配额）
+	if p.rateLimiter != nil {
+		if err := p.rateLimiter.Wait(j.ctx); err != nil {
+			j.done <- err
+			return
+		}
+	}
 	err := j.fn(j.ctx)
 	j.done <- err
 }

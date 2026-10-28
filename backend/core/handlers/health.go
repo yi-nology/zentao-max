@@ -2,10 +2,9 @@ package handlers
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	"github.com/oekit/concurrency/async"
+	"github.com/oekit/concurrency/group"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
@@ -105,33 +104,27 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 		{"scheduler", h.checkScheduler},
 	}
 
-	var wg sync.WaitGroup
+	// 检查限时：story/task 等在大实例上会全量遍历执行（数千个），
+	// 无超时会拖死整个 healthz（前端心跳页长期转圈）。
+	// oekit group.NewWaitGroup：并发 + 超时编排一体，panic 已由 Wrap 内置
+	// GoSafe 收编；超时后未完成的检查项标记 fail
 	results := make([]CheckItem, len(checks))
+	wg := group.NewWaitGroup(context.Background(), group.WithTimeout(20*time.Second))
 	for i, check := range checks {
-		wg.Add(1)
-		// Go 1.22+ 循环变量语义，闭包捕获 i/check 安全
-		async.GoSafe(func() {
-			defer wg.Done()
+		wg.Wrap(func(_ context.Context) error {
 			item := check.fn()
 			item.Name = check.name
 			results[i] = item
+			return nil
 		})
 	}
-	// 检查限时：story/task 等在大实例上会全量遍历执行（数千个），
-	// 无超时会拖死整个 healthz（前端心跳页长期转圈）。
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	const checkTimeout = 20 * time.Second
-	select {
-	case <-done:
-	case <-time.After(checkTimeout):
-		for idx := range results {
-			if results[idx].Name == "" && results[idx].Status == "" {
-				results[idx] = CheckItem{
-					Name:    checks[idx].name,
-					Status:  "fail",
-					Message: "检测超时（数据量大，请稍后重试）",
-				}
+	_ = wg.Wait()
+	for idx := range results {
+		if results[idx].Name == "" && results[idx].Status == "" {
+			results[idx] = CheckItem{
+				Name:    checks[idx].name,
+				Status:  "fail",
+				Message: "检测超时（数据量大，请稍后重试）",
 			}
 		}
 	}

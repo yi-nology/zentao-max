@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/oekit/bootstrap"
+	"github.com/oekit/core/lifecycle"
 
 	"github.com/yi-nology/zentao-max/backend/core/app"
 	"github.com/yi-nology/zentao-max/backend/core/config"
@@ -38,23 +39,22 @@ func getFileSystem() http.FileSystem {
 	return http.FS(staticFS)
 }
 
+// loggerComponent / metricsComponent：启动任务组件化（oekit bootstrap）。
+// 组件按注册序 Init，任一失败自动回滚已初始化组件并退出——替代 main 里
+// 的手写 if err != nil 序列。
+type fnComponent struct {
+	name string
+	fn   func() error
+}
+
+func (c fnComponent) Name() string { return c.name }
+func (c fnComponent) Init(context.Context, *bootstrap.App, *lifecycle.Manager) error {
+	return c.fn()
+}
+
 func main() {
-	if err := logger.Init(&config.LogConfig{
-		Level:            "info",
-		Format:           "console",
-		OutputPath:       "",
-		EnableCaller:     true,
-		EnableStacktrace: false,
-	}); err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
-
-	if err := metrics.Init(); err != nil {
-		log.Fatalf("Failed to initialize metrics: %v", err)
-	}
-
-	// 预加载配置（HTTPApp.Start 内会再幂等 Init 一次）：
-	// bootstrap 的优雅关停超时需要 cfg.Server.ShutdownTimeout
+	// config 是 bootstrap 的前置依赖（ShutdownTimeout 等构造参数依赖它），
+	// 先于 bootstrap.New 执行；logger/metrics 走组件序
 	if err := config.Init("", "ZENTAO_MAX"); err != nil {
 		log.Printf("Warning: failed to initialize config: %v", err)
 	}
@@ -85,12 +85,20 @@ func main() {
 		log.Fatalf("Expected HTTPApp, got %T", application)
 	}
 
-	// 启动编排交给 oekit/bootstrap：等 SIGINT/SIGTERM → 执行注册的 closer
-	// （HTTPApp.Stop：停 scheduler → 关缓存 → hertz.Shutdown）→ 进程退出。
-	// 原实现 select{} 永久阻塞，优雅关停完全依赖 hertz.Spin 内置信号处理。
+	// 启动编排交给 oekit/bootstrap：组件序初始化（logger → metrics）→
+	// userFn 拉起服务 → 等 SIGINT/SIGTERM → closer（HTTPApp.Stop：
+	// 停 scheduler → 关缓存 → hertz.Shutdown）→ 进程退出
 	b, err := bootstrap.New(
 		bootstrap.WithServiceName("zentao-max"),
 		bootstrap.WithShutdownTimeout(cfg.Server.GetShutdownTimeout()),
+		bootstrap.WithComponent(fnComponent{
+			name: "logger",
+			fn:   func() error { return logger.Init(&cfg.Log) },
+		}),
+		bootstrap.WithComponent(fnComponent{
+			name: "metrics",
+			fn:   metrics.Init,
+		}),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrapper: %v", err)

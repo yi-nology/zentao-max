@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oekit/concurrency/async"
+	"github.com/oekit/concurrency/fanout"
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
@@ -657,30 +658,19 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 
 // collectTasksContext 并发收集任务（支持 context 取消）
 func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs []myzentao.ExecutionContext) []zentaosdk.Task {
-	var (
-		all []zentaosdk.Task
-		mu  sync.Mutex
-		wg  sync.WaitGroup
-	)
-	for _, ec := range execCtxs {
-		select {
-		case <-ctx.Done():
-			return all
-		default:
-		}
-		wg.Add(1)
-		// Go 1.22+ 循环变量语义，闭包捕获 ec 安全
-		async.GoSafe(func() {
-			defer wg.Done()
+	// fanout.Map：并发取各执行的任务列表（单个失败忽略），结果保序拼接
+	perExec, _ := fanout.Map(ctx, execCtxs, len(execCtxs),
+		func(ctx context.Context, ec myzentao.ExecutionContext) ([]zentaosdk.Task, error) {
 			tasks, err := client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
-			if err == nil && tasks != nil {
-				mu.Lock()
-				all = append(all, tasks...)
-				mu.Unlock()
+			if err != nil {
+				return nil, nil // 单个执行失败不阻断整体收集
 			}
+			return tasks, nil
 		})
+	var all []zentaosdk.Task
+	for _, tasks := range perExec {
+		all = append(all, tasks...)
 	}
-	wg.Wait()
 	return all
 }
 
@@ -690,17 +680,18 @@ func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, 
 	if err != nil {
 		return nil
 	}
+	// fanout 并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）
+	perExec, _ := fanout.Map(ctx, executions, len(executions),
+		func(ctx context.Context, e zentaosdk.Execution) ([]zentaosdk.Task, error) {
+			tasks, err := client.GetTasksContext(ctx, e.ID, 1, 200)
+			if err != nil {
+				return nil, nil
+			}
+			return tasks, nil
+		})
 	var all []zentaosdk.Task
-	for _, e := range executions {
-		select {
-		case <-ctx.Done():
-			return all
-		default:
-		}
-		tasks, err := client.GetTasksContext(ctx, e.ID, 1, 200)
-		if err == nil && tasks != nil {
-			all = append(all, tasks...)
-		}
+	for _, tasks := range perExec {
+		all = append(all, tasks...)
 	}
 	return all
 }

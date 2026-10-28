@@ -3,10 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/yi-nology/zentao-max/backend/core/config"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/routes"
 
@@ -32,17 +30,10 @@ func NewHTTPApp(config *AppConfig, deps *Dependencies) *HTTPApp {
 	}
 }
 
+// Start 前置要求：入口层已完成 config.Init 与 logger.Init
+// （bootstrap 组件序保证：config → logger → metrics → userFn）。
 func (a *HTTPApp) Start(ctx context.Context) error {
 	a.ctx, a.cancel = context.WithCancel(ctx)
-
-	if err := config.Init("", "ZENTAO_MAX"); err != nil {
-		log.Printf("Warning: failed to initialize config: %v", err)
-	}
-	cfg := config.Get()
-
-	if err := logger.Init(&cfg.Log); err != nil {
-		log.Printf("Warning: failed to initialize logger: %v", err)
-	}
 
 	a.deps.Handlers.InitScheduler(a.deps.ConfigStore)
 

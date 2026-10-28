@@ -21,33 +21,24 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-amd64
-            os: ubuntu-latest
             goos: linux
             goarch: amd64
             artifact_suffix: linux-amd64
-
-          # 原生 arm64 runner（public repo 免费）：GTK/WebKit 装原生 arm64 库，
-          # wails3 检测 host ARCH=arm64 走 build:native，无需交叉编译/Docker
           - name: linux-arm64
-            os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
             artifact_suffix: linux-arm64
-
           - name: windows-amd64
-            os: windows-latest
             goos: windows
             goarch: amd64
             artifact_suffix: windows-amd64
-
           - name: darwin-arm64
-            os: macos-latest
             goos: darwin
             goarch: arm64
             artifact_suffix: darwin-arm64
@@ -79,62 +70,32 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Linux dependencies
-        if: matrix.goos == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            pkg-config \
-            libgtk-3-dev \
-            libgtk-4-dev \
-            libwebkit2gtk-4.1-dev \
-            libwebkitgtk-6.0-dev \
-            libglib2.0-dev \
-            libayatana-appindicator3-dev \
-            patchelf \
-            file \
-            fakeroot \
-            desktop-file-utils
-
-      - name: Debug Linux pkg-config
-        if: matrix.goos == 'linux'
-        run: |
-          echo "== pkg-config debug =="
-          pkg-config --modversion gtk+-3.0 || true
-          pkg-config --modversion gtk4 || true
-          pkg-config --modversion webkit2gtk-4.1 || true
-          pkg-config --modversion webkitgtk-6.0 || true
-
-      - name: Install Wails v3 CLI
-        shell: bash
-        run: |
-          set -e
-          for i in 1 2 3 4 5; do
-            echo "Attempt $i to install Wails v3 CLI..."
-            if go install github.com/wailsapp/wails/v3/cmd/wails3@latest; then
-              break
-            fi
-            sleep 5
-          done
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-          "$(go env GOPATH)/bin/wails3" version
-
       - name: Install frontend dependencies
         working-directory: ./frontend
         run: npm ci
 
-      - name: Build using wails3 task
+      - name: Build frontend
+        working-directory: ./frontend
         shell: bash
         run: |
           set -e
-          # 统一用 build（产出裸 binary）
-          # macOS 产出 bin/zentao-max（无 .app bundle，但功能完整）
-          # Windows 产出 bin/zentao-max.exe（无 NSIS installer，免装 NSIS）
-          # Linux 产出 bin/zentao-max
-          # 如需 .app/.exe installer，本地运行 wails3 task package
-          echo "Building with wails3 task build..."
-          wails3 task build
+          npm run build
+
+      - name: Copy static assets
+        shell: bash
+        run: ./scripts/copy-static.sh
+
+      - name: Build web binary (embedded frontend)
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -e
+          mkdir -p bin
+          # 纯 Go（hertz + modernc sqlite），CGO_ENABLED=0 交叉编译
+          # 产出单 binary：HTTP server + 嵌入式前端（web 应用模式）
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"             -o "bin/zentao-max${{ matrix.goos == 'windows' && '.exe' || '' }}"             ./backend/cmd/app
 
       - name: List build outputs
         shell: bash

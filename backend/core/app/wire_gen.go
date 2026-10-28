@@ -23,15 +23,6 @@ func InitializeHTTPApp(config *AppConfig) (Application, error) {
 	return application, nil
 }
 
-func InitializeWailsApp(config *AppConfig) (Application, error) {
-	initService := provideInitService(config)
-	client := provideZentaoClient(config, initService)
-	configStore := provideConfigStore(config)
-	dependencies := NewDependencies(initService, client, configStore)
-	application := provideWailsApp(config, dependencies)
-	return application, nil
-}
-
 // wire.go:
 
 func provideInitService(config *AppConfig) *initialization.InitService {
@@ -107,9 +98,4 @@ func provideZentaoClient(config *AppConfig, initService *initialization.InitServ
 // provideHTTPApp 提供HTTPApp并绑定到Application接口
 func provideHTTPApp(config *AppConfig, deps *Dependencies) Application {
 	return NewHTTPApp(config, deps)
-}
-
-// provideWailsApp 提供WailsApp并绑定到Application接口
-func provideWailsApp(config *AppConfig, deps *Dependencies) Application {
-	return NewWailsApp(config, deps)
 }

@@ -37,7 +37,7 @@ type MCPConfig struct {
 
 // ServerConfig 服务器配置.
 type ServerConfig struct {
-	// 应用类型: "wails" 或 "http"
+	// 应用类型: http
 	Type string `mapstructure:"type"`
 	// HTTP服务器端口
 	Port string `mapstructure:"port"`
@@ -231,8 +231,8 @@ func setDefaults(v *viper.Viper) {
 // validate 验证配置.
 func validate(cfg *Config) error {
 	// 验证服务器配置
-	if cfg.Server.Type != "http" && cfg.Server.Type != "wails" {
-		return fmt.Errorf("invalid server type: %s, must be 'http' or 'wails'", cfg.Server.Type)
+	if cfg.Server.Type != "http" {
+		return fmt.Errorf("invalid server type: %s, must be 'http'", cfg.Server.Type)
 	}
 
 	if cfg.Server.Type == "http" {

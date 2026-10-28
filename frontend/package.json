@@ -8,13 +8,11 @@
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "build:dev": "vue-tsc && vite build --minify false --mode development",
-    "build:wails": "cp .env.wails .env && vite build",
     "build:docker": "cp .env.docker .env && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@wailsio/runtime": "^3.0.0-alpha.97",
     "axios": "^1.13.6",
     "chart.js": "^4.5.1",
     "dompurify": "^3.4.6",

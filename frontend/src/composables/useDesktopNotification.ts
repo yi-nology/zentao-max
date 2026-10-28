@@ -1,16 +1,17 @@
 /**
- * 桌面通知 composable (Wails v3 版本)
- * 1. 监听 @wailsio/runtime 事件 'notification'（后端 app.Event.Emit 推送）
- * 2. 通过 Notification API 显示桌面通知（需要用户授权）
- * 3. 同时通过 Element Plus 的 ElNotification 在应用内显示（不依赖授权）
+ * 桌面通知 composable（纯 Web 版本）
+ * 定时任务执行结束后通过浏览器 Notification API 提醒（需用户授权），
+ * 同时用 Element Plus 的 ElNotification 在应用内显示（不依赖授权）。
  *
- * 仅在 Wails 桌面环境下生效（其他模式后端不会发 Emit）
+ * 数据源：轮询 /api/scheduler/tasks 的 lastRunAt/lastRunStatus 变化
+ * （web 应用模式下后端无 Wails 事件通道，改为轮询）。
  */
 import { onMounted, onBeforeUnmount } from 'vue'
 import { ElNotification } from 'element-plus'
-import { Events } from '@wailsio/runtime'
+import { listTasks } from '@/api/scheduler'
 
 const STORAGE_KEY = 'zentao-max-notification'
+const POLL_INTERVAL_MS = 60_000
 
 export interface NotificationPayload {
   type?: string
@@ -52,16 +53,8 @@ function showOSNotification(payload: NotificationPayload): void {
     const n = new Notification(payload.title, {
       body: payload.body
     })
-    // 点击通知聚焦窗口（v3 通过 ShowWindow service binding）
-    n.onclick = async () => {
-      try {
-        // 相对路径引用 wails3 generate 生成的 bindings
-        // @ts-ignore - 由 wails3 generate 生成，无类型声明
-        const mod = await import('../../bindings/github.com/yi-nology/zentao-max/app.js')
-        if (mod.ShowWindow) mod.ShowWindow()
-      } catch {
-        /* 非 wails 环境忽略 */
-      }
+    n.onclick = () => {
+      window.focus()
       n.close()
     }
     setTimeout(() => n.close(), 8000)
@@ -82,33 +75,63 @@ function showAppNotification(payload: NotificationPayload): void {
   })
 }
 
-const NOTIFICATION_EVENT = 'notification'
-
 /**
- * 注册桌面通知监听，返回取消监听函数
+ * 注册桌面通知：轮询定时任务执行状态，变化时弹浏览器+应用内通知。
+ * 返回取消轮询函数。
  */
 export function useDesktopNotification(): { cancel: () => void } {
-  let cancelFn: (() => void) | null = null
+  let timer: ReturnType<typeof setInterval> | null = null
+  // 基线：首次轮询建立各任务的 lastRunAt 快照，之后只对新增执行弹通知
+  let baseline: Map<string, string> | null = null
 
-  const handler = (ev: { data?: NotificationPayload }): void => {
-    const payload = ev?.data
-    if (!payload) return
+  const handler = (payload: NotificationPayload): void => {
     if (!isNotificationEnabled()) return
     showAppNotification(payload)
     showOSNotification(payload)
   }
 
+  const poll = async (): Promise<void> => {
+    try {
+      const res = await listTasks()
+      const tasks = res.data || []
+      const snapshot = new Map<string, string>()
+      for (const t of tasks) {
+        snapshot.set(t.id, `${t.lastRunAt ?? ''}|${t.lastRunStatus ?? ''}`)
+        if (baseline && baseline.get(t.id) !== snapshot.get(t.id) && t.lastRunAt) {
+          const ok = t.lastRunStatus === 'success'
+          handler({
+            level: ok ? 'info' : 'error',
+            title: `定时任务：${t.name}`,
+            body: ok ? '执行成功' : `执行${t.lastRunStatus}`,
+            taskId: t.id,
+            taskName: t.name,
+            status: t.lastRunStatus
+          })
+        }
+      }
+      baseline = snapshot
+    } catch {
+      /* 后端不可达时静默，下轮重试 */
+    }
+  }
+
   onMounted(() => {
-    // v3 用 Events.On 返回取消函数
-    cancelFn = Events.On(NOTIFICATION_EVENT, handler as any)
+    timer = setInterval(() => {
+      void poll()
+    }, POLL_INTERVAL_MS)
+    // 首轮延迟一点，避免与页面初始数据请求挤在一起
+    setTimeout(() => {
+      void poll()
+    }, 3000)
   })
 
   onBeforeUnmount(() => {
-    if (cancelFn) cancelFn()
-    else Events.Off(NOTIFICATION_EVENT)
+    if (timer) clearInterval(timer)
   })
 
   return {
-    cancel: () => cancelFn?.()
+    cancel: () => {
+      if (timer) clearInterval(timer)
+    }
   }
 }

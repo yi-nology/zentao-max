@@ -4,165 +4,64 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"os"
-	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/oekit/concurrency/ratelimit"
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 )
 
-type RateLimiter struct {
-	requests map[string]*ClientInfo
-	mu       sync.RWMutex
-	config   RateLimitConfig
-}
-
-type ClientInfo struct {
-	Count     int
-	ResetTime time.Time
-	Blocked   bool
-}
-
+// RateLimitConfig 限流配置.
 type RateLimitConfig struct {
+	// RequestsPerMinute 每 IP 每分钟允许的请求数（令牌桶语义：填充速率
+	// rpm/60 每秒，桶容量 rpm——允许瞬时突发，持续超速被拒）
 	RequestsPerMinute int
-	BlockDuration     time.Duration
-	CleanupInterval   time.Duration
+	// Deprecated: 令牌桶语义下无"封禁期"（超限请求等令牌，桶不满即拒），
+	// 字段仅为 config.yaml 向后兼容保留。
+	BlockDurationMinutes int
 }
 
+// DefaultRateLimitConfig 默认限流配置.
 func DefaultRateLimitConfig() RateLimitConfig {
-	// 默认 600 次/分钟：前端单页加载会并发请求多个接口，
-	// 60 次/分钟在正常使用下极易触发，且触发后封禁 5 分钟会让应用完全不可用。
-	requestsPerMinute := 600
-	if val := os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"); val != "" {
-		if num, err := strconv.Atoi(val); err == nil && num > 0 {
-			requestsPerMinute = num
-		}
-	}
-
-	// 触发后封禁 1 分钟（原 5 分钟过长，相当于把用户彻底踢出）。
-	blockDuration := 1 * time.Minute
-	if val := os.Getenv("RATE_LIMIT_BLOCK_DURATION_MINUTES"); val != "" {
-		if num, err := strconv.Atoi(val); err == nil && num > 0 {
-			blockDuration = time.Duration(num) * time.Minute
-		}
-	}
-
-	return RateLimitConfig{
-		RequestsPerMinute: requestsPerMinute,
-		BlockDuration:     blockDuration,
-		CleanupInterval:   1 * time.Minute,
-	}
+	return RateLimitConfig{RequestsPerMinute: 600, BlockDurationMinutes: 1}
 }
 
-func NewRateLimiter(config RateLimitConfig) *RateLimiter {
-	limiter := &RateLimiter{
-		requests: make(map[string]*ClientInfo),
-		config:   config,
-	}
-
-	go limiter.cleanupTask()
-
-	return limiter
+// exemptPaths 不计入限流的基础设施端点：限流它们会导致监控/心跳把服务本身"打死"。
+var exemptPaths = map[string]bool{
+	"/health":      true,
+	"/api/healthz": true,
+	"/metrics":     true,
+	"/api/version": true,
 }
 
-func (rl *RateLimiter) cleanupTask() {
-	ticker := time.NewTicker(rl.config.CleanupInterval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, info := range rl.requests {
-			if now.After(info.ResetTime) {
-				delete(rl.requests, ip)
-			}
-		}
-		rl.mu.Unlock()
+// NewRateLimiter 创建按 IP 限流器：oekit KeyedLimiter（空闲 TTL 自动清理）
+// + TokenBucket 内核，替代原手写固定窗口计数 + 封禁期 + 清理 goroutine。
+func NewRateLimiter(config RateLimitConfig) *ratelimit.KeyedLimiter {
+	rpm := config.RequestsPerMinute
+	if rpm <= 0 {
+		rpm = 600
 	}
+	return ratelimit.NewKeyedLimiter(
+		func() ratelimit.Limiter {
+			return ratelimit.NewTokenBucketFloat(float64(rpm)/60.0, rpm)
+		},
+		10*time.Minute,
+	)
 }
 
-func (rl *RateLimiter) Allow(ip string) (bool, int, time.Time) {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	info, exists := rl.requests[ip]
-
-	if !exists {
-		rl.requests[ip] = &ClientInfo{
-			Count:     1,
-			ResetTime: now.Add(1 * time.Minute),
-			Blocked:   false,
-		}
-		return true, rl.config.RequestsPerMinute - 1, rl.requests[ip].ResetTime
-	}
-
-	if info.Blocked {
-		if now.Before(info.ResetTime) {
-			return false, 0, info.ResetTime
-		}
-		info.Blocked = false
-		info.Count = 0
-		info.ResetTime = now.Add(1 * time.Minute)
-	}
-
-	if now.After(info.ResetTime) {
-		info.Count = 0
-		info.ResetTime = now.Add(1 * time.Minute)
-	}
-
-	if info.Count >= rl.config.RequestsPerMinute {
-		info.Blocked = true
-		info.ResetTime = now.Add(rl.config.BlockDuration)
-		logger.Warn("rate limit: ip blocked", "ip", ip, "block_duration", rl.config.BlockDuration)
-		return false, 0, info.ResetTime
-	}
-
-	info.Count++
-	remaining := rl.config.RequestsPerMinute - info.Count
-	return true, remaining, info.ResetTime
-}
-
-// RateLimitMiddleware 使用内置默认值（600/分钟）创建限流中间件。
-// 仅适用于没有加载配置文件的场景；正式入口应使用 RateLimitMiddlewareWithConfig。
+// RateLimitMiddleware 使用默认配置的限流中间件.
 func RateLimitMiddleware() app.HandlerFunc {
-	config := DefaultRateLimitConfig()
-	return rateLimitMiddleware(config)
+	return RateLimitMiddlewareWithConfig(600, 0)
 }
 
-// RateLimitMiddlewareWithConfig 使用配置文件的 rate_limit 设置创建限流中间件。
-// requestsPerMinute / blockDurationMinutes 传 0 时回退到内置默认值，
-// 这样未配置限流的部署保持原有行为。
+// RateLimitMiddlewareWithConfig 按配置创建限流中间件.
+// blockDurationMinutes 已废弃（令牌桶语义），参数保留兼容既有调用点。
 func RateLimitMiddlewareWithConfig(requestsPerMinute, blockDurationMinutes int) app.HandlerFunc {
-	config := DefaultRateLimitConfig()
-	if requestsPerMinute > 0 {
-		config.RequestsPerMinute = requestsPerMinute
-	}
-	if blockDurationMinutes > 0 {
-		config.BlockDuration = time.Duration(blockDurationMinutes) * time.Minute
-	}
-	return rateLimitMiddleware(config)
+	return rateLimitMiddleware(NewRateLimiter(RateLimitConfig{RequestsPerMinute: requestsPerMinute}))
 }
 
-func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
-	limiter := NewRateLimiter(config)
-
-	// 不计入限流的路径：健康检查、指标、版本号。
-	// 这些是基础设施端点，限流它们会导致监控/心跳把服务本身"打死"。
-	exemptPaths := map[string]bool{
-		"/health":      true,
-		"/api/healthz": true,
-		"/metrics":     true,
-		"/api/version": true,
-	}
-
-	logger.Info("rate limiter initialized",
-		"requests_per_minute", config.RequestsPerMinute,
-		"block_duration", config.BlockDuration)
-
+func rateLimitMiddleware(limiter *ratelimit.KeyedLimiter) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		path := string(c.Request.URI().Path())
 		if exemptPaths[path] {
@@ -180,20 +79,13 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 			ip = c.RemoteAddr().String()
 		}
 
-		allowed, remaining, resetTime := limiter.Allow(ip)
-
-		c.Header("X-RateLimit-Limit", strconv.Itoa(config.RequestsPerMinute))
-		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
-		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime.Unix(), 10))
-
-		if !allowed {
-			logger.Warn("rate limit blocked", "ip", ip, "path", string(c.Request.URI().Path()))
+		if !limiter.Allow(ip) {
+			logger.Warn("rate limit blocked", "ip", ip, "path", path)
 			c.JSON(http.StatusTooManyRequests, Response{
 				Code:    http.StatusTooManyRequests,
 				Message: "请求过于频繁，请稍后再试",
 				Data: map[string]interface{}{
-					"retryAfter": resetTime.Sub(time.Now()).Seconds(),
-					"resetAt":    resetTime.Format(time.RFC3339),
+					"retryAfter": 1,
 				},
 			})
 			c.Abort()

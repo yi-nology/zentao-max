@@ -159,7 +159,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[5m])) by (status)",
+          "expr": "sum(rate(http_requests_total[5m])) by (status_code)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }

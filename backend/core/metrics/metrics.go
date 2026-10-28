@@ -2,20 +2,21 @@ package metrics
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
+	"github.com/oekit/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Metrics struct {
-	RequestsTotal    *prometheus.CounterVec
-	RequestDuration  *prometheus.HistogramVec
-	RequestsInFlight *prometheus.GaugeVec
+	// httpMetrics HTTP 指标委托 oekit/middleware 的 PrometheusMetrics
+	// （http_requests_total / http_request_duration_seconds /
+	//  http_requests_in_flight，路径标签用路由模板防高基数）
+	httpMetrics *mw.PrometheusMetrics
 
 	CacheHits    *prometheus.CounterVec
 	CacheMisses  *prometheus.CounterVec
@@ -65,29 +66,14 @@ func getCacheCounter(cacheType string) *cacheCounter {
 }
 
 func Init() error {
+	// HTTP 指标由 oekit PrometheusMetrics 创建并注册（与业务指标同一 Registry，
+	// /metrics 端点统一暴露）；status label 更名 status_code（Grafana 面板已同步）
+	httpMetrics := mw.NewPrometheusMetrics(mw.PrometheusConfig{
+		Registry:  prometheus.DefaultRegisterer,
+		SkipPaths: []string{"/metrics"},
+	})
 	m := &Metrics{
-		RequestsTotal: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_requests_total",
-				Help: "Total number of HTTP requests",
-			},
-			[]string{"method", "path", "status"},
-		),
-		RequestDuration: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "http_request_duration_seconds",
-				Help:    "HTTP request duration in seconds",
-				Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
-			},
-			[]string{"method", "path"},
-		),
-		RequestsInFlight: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "http_requests_in_flight",
-				Help: "Number of HTTP requests currently being processed",
-			},
-			[]string{"method"},
-		),
+		httpMetrics: httpMetrics,
 
 		CacheHits: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -173,9 +159,6 @@ func Init() error {
 	}
 
 	prometheus.MustRegister(
-		m.RequestsTotal,
-		m.RequestDuration,
-		m.RequestsInFlight,
 		m.CacheHits,
 		m.CacheMisses,
 		m.CacheLatency,
@@ -200,26 +183,7 @@ func Get() *Metrics {
 }
 
 func Middleware() app.HandlerFunc {
-	return func(ctx context.Context, c *app.RequestContext) {
-		if string(c.Request.URI().Path()) == "/metrics" {
-			c.Next(ctx)
-			return
-		}
-
-		start := time.Now()
-		path := string(c.Request.URI().Path())
-
-		Get().RequestsInFlight.WithLabelValues(string(c.Request.Method())).Inc()
-		defer Get().RequestsInFlight.WithLabelValues(string(c.Request.Method())).Dec()
-
-		c.Next(ctx)
-
-		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(c.Response.StatusCode())
-
-		Get().RequestsTotal.WithLabelValues(string(c.Request.Method()), path, status).Inc()
-		Get().RequestDuration.WithLabelValues(string(c.Request.Method()), path).Observe(duration)
-	}
+	return Get().httpMetrics.Middleware()
 }
 
 func Handler() app.HandlerFunc {

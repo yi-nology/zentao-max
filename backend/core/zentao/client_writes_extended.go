@@ -2,6 +2,7 @@ package zentao
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -11,8 +12,8 @@ import (
 
 	neturl "net/url"
 
-	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
 // 本文件补齐 SDK 的剩余写操作（Phase2c 扩展）。
@@ -349,8 +350,9 @@ type BatchCreateEffortItem struct {
 // 鉴权：session 模式（受限实例 SSO 等禁用 REST API 的实例）。
 // 缓存：写成功后通过 doSessionPost 的 writeOpToEntity 自动失效 sessionEntityEfforts。
 //
-// 受限实例响应是 HTML 关闭弹窗脚本（不是 JSON），PostForm 内部按 200 = 成功处理。
-// 验证写入成功可重新拉 /effort-ajaxGetEfforts-{userID}-{year}-{month}.html 看。
+// 响应穿透判定（技能红线：success 外壳 ≠ 落库）：
+//   - 成功：HTML reload/closeModal 脚本；
+//   - 失败：HTML alert('日志N : <原因>')——如实测"不能为将来的日期添加日志"。
 func (c *Client) BatchCreateEffort(ctx context.Context, date string, items []BatchCreateEffortItem) error {
 	if date == "" {
 		return fmt.Errorf("date 不能为空")
@@ -371,7 +373,45 @@ func (c *Client) BatchCreateEffort(ctx context.Context, date string, items []Bat
 		form.Set(fmt.Sprintf("left[%d]", id), strconv.FormatFloat(item.Left, 'f', -1, 64))
 	}
 	path := fmt.Sprintf("/effort-batchCreate-%s.html?onlybody=yes", date)
-	return c.doSessionPost(ctx, "BatchCreateEffort", path, form)
+	body, err := c.doSessionPostWithBody(ctx, "BatchCreateEffort", path, form)
+	if err != nil {
+		return err
+	}
+	if err := judgeBatchEffortResponse(body); err != nil {
+		return err
+	}
+	return nil
+}
+
+// WriteRejectedError 表示禅道服务端明确拒绝的写操作（含可透传给用户的中文原因）。
+type WriteRejectedError struct {
+	Msg string
+}
+
+func (e *WriteRejectedError) Error() string { return e.Msg }
+
+// judgeBatchEffortResponse 判定 effort-batchCreate 的 HTML 响应：
+// alert('...') 弹窗即服务端拒绝（提取原因），reload/closeModal 视为成功。
+func judgeBatchEffortResponse(body []byte) error {
+	s := string(body)
+	alertRe := regexp.MustCompile(`alert\('([^']+)'\)`)
+	if m := alertRe.FindStringSubmatch(s); len(m) > 1 {
+		return &WriteRejectedError{Msg: "工时写入被拒绝: " + m[1]}
+	}
+	if strings.Contains(s, "reload") || strings.Contains(s, "closeModal") || strings.Contains(s, "parent.$.enableForm") {
+		// 含 enableForm 但无 alert 的失败形态已由上面拦截；此处为成功跳转/关窗
+		return nil
+	}
+	// JSON 形态（部分实例）：{"result":"fail","message":...}
+	var jr struct {
+		Result  string `json:"result"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &jr) == nil && jr.Result == "fail" {
+		return &WriteRejectedError{Msg: "工时写入被拒绝: " + jr.Message}
+	}
+	// 未知形态：HTTP 200 按成功（与既有写端点行为一致）
+	return nil
 }
 
 // ---- Plan create/update/delete + link/unlink ----

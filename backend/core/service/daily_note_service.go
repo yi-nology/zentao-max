@@ -60,12 +60,23 @@ func (s *DailyNoteService) PutNote(ctx context.Context, user, date, content stri
 		return nil, errors.New("user and date are required")
 	}
 
-	// 1) 找/建 special task（zentao 端）
+	// 1) 找/建 special task（zentao 端）。负缓存（-1）表示该用户此前查找/创建
+	//    失败（受限实例常不支持 execution=0 建任务），本进程内快速跳过，
+	//    避免每次保存备注都慢速重试失败。
 	var zentaoTaskID int
 	var zentaoErr error
 	zentaoSynced := false
 	if s.client != nil {
-		zentaoTaskID, zentaoErr = s.findOrCreateDailyNoteTask(ctx, user)
+		if cached, ok := func() (int, bool) {
+			s.taskMu.Lock()
+			defer s.taskMu.Unlock()
+			v, ok := s.taskCache[user]
+			return v, ok
+		}(); ok && cached == -1 {
+			zentaoErr = errSpecialTaskUnavailable
+		} else {
+			zentaoTaskID, zentaoErr = s.findOrCreateDailyNoteTask(ctx, user)
+		}
 		if zentaoErr == nil && zentaoTaskID > 0 {
 			// 2) RecordEffort 到这个 task
 			// 禅道 work 字段存 daily note 内容，consumed=0.01 让 zentao 接受（禅道拒绝 0）
@@ -122,6 +133,9 @@ func (s *DailyNoteService) GetNote(ctx context.Context, user, date string) (*myz
 	return s.store.GetNote(ctx, user, date)
 }
 
+// errSpecialTaskUnavailable 表示 special task 在当前实例不可用（已负缓存）。
+var errSpecialTaskUnavailable = errors.New("special task 在当前实例不可用（已跳过重试）")
+
 // findOrCreateDailyNoteTask 找当前 user 的 special "📓 Daily Notes" task。
 // 查找顺序：进程内 cache → 本地 SQLite → zentao ListMyTasks 按 name 匹配 → 都没则创建。
 func (s *DailyNoteService) findOrCreateDailyNoteTask(ctx context.Context, user string) (int, error) {
@@ -146,8 +160,10 @@ func (s *DailyNoteService) findOrCreateDailyNoteTask(ctx context.Context, user s
 		_ = name
 	}
 
-	// 3) zentao ListMyTasks 按 name 匹配
-	tasks, err := s.client.ListMyTasks(ctx, "all")
+	// 3) zentao 查找（biz8.x 受限实例：/my-task-{status}.json 返回空，
+	//    改用 /my-work-task.json（禅道首页"待处理"数据源，实测可用）；
+	//    特殊任务若已关闭则不在列表中，走下一步创建）
+	tasks, err := s.client.GetMyWorkTasks(ctx)
 	if err == nil {
 		for _, t := range tasks {
 			if t.Name == specialName {
@@ -160,17 +176,23 @@ func (s *DailyNoteService) findOrCreateDailyNoteTask(ctx context.Context, user s
 			}
 		}
 	} else {
-		log.Printf("[DailyNoteService] ListMyTasks err: user=%s err=%v", user, err)
+		log.Printf("[DailyNoteService] GetMyWorkTasks err: user=%s err=%v", user, err)
 	}
 
-	// 4) 都没就创建
+	// 4) 都没就创建（execution=0；受限实例若拒绝创建会在此报错，
+	//    调用方降级为仅本地保存，前端可显式把日志挂到真实任务）
 	if err := s.client.CreateTaskNoExecution(specialName, "misc", user, "系统为 daily note 同步自动创建，请勿删除"); err != nil {
-		return 0, fmt.Errorf("创建 special task 失败: %w", err)
+		// 负缓存：本进程内不再对该用户重试（每次保存都慢速失败影响体验）。
+		// 显式挂真实任务的路径（前端"同步为工时"）不受影响。
+		s.taskMu.Lock()
+		s.taskCache[user] = -1
+		s.taskMu.Unlock()
+		return 0, fmt.Errorf("创建 special task 失败（实例可能要求任务必须挂执行）: %w", err)
 	}
-	// 创完再查（zentao CreateTask 不返 id，只能再 list 一次找）
-	tasks, err = s.client.ListMyTasks(ctx, "all")
+	// 创完再查
+	tasks, err = s.client.GetMyWorkTasks(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("创建后 ListMyTasks 失败: %w", err)
+		return 0, fmt.Errorf("创建后查询失败: %w", err)
 	}
 	for _, t := range tasks {
 		if t.Name == specialName {
@@ -181,5 +203,5 @@ func (s *DailyNoteService) findOrCreateDailyNoteTask(ctx context.Context, user s
 			return t.ID, nil
 		}
 	}
-	return 0, errors.New("创建 special task 后仍找不到，zentao 实例可能不支持 execution=0")
+	return 0, errors.New("创建 special task 后仍找不到")
 }

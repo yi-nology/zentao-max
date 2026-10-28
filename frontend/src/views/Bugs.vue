@@ -284,7 +284,7 @@
     <el-dialog v-model="effortDialogVisible" title="记录工时" width="480px" append-to-body>
       <el-form label-width="90px">
         <el-form-item label="日期">
-          <el-date-picker v-model="effortForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="effortForm.date" type="date" value-format="YYYY-MM-DD" :disabled-date="(d: Date) => d.getTime() > Date.now()" style="width: 100%" />
         </el-form-item>
         <el-form-item label="工作内容">
           <el-input v-model="effortForm.work" type="textarea" :rows="2" placeholder="做了什么（将写入禅道日志）" />

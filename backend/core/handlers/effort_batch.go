@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	stderrors "errors"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -101,6 +102,12 @@ func (h *EffortBatchHandler) Create(ctx context.Context, c *app.RequestContext) 
 	}
 
 	if err := h.client.BatchCreateEffort(ctx, req.Date, clientItems); err != nil {
+		// 服务端明确拒绝（如"不能为将来的日期添加日志"）→ 400 透传中文原因
+		var rejected *zentao.WriteRejectedError
+		if stderrors.As(err, &rejected) {
+			errors.BadRequest(c, rejected.Msg)
+			return
+		}
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return
 	}

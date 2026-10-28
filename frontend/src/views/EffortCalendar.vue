@@ -135,9 +135,38 @@
           show-word-limit
           @input="onNoteInput"
         />
+        <!-- 同步为工时：备注内容挂到指定任务（禅道日志必须挂对象） -->
+        <div class="note-effort-sync">
+          <el-checkbox v-model="noteSyncEnabled">同步为工时（挂到任务）</el-checkbox>
+          <template v-if="noteSyncEnabled">
+            <el-select
+              v-model="noteSyncTask"
+              placeholder="选择任务"
+              filterable
+              size="small"
+              style="width: 100%; margin-top: 8px"
+            >
+              <el-option-group label="我负责的任务">
+                <el-option
+                  v-for="t in taskOptions"
+                  :key="`note-${t.id}`"
+                  :label="`#${t.id} ${t.name} (剩 ${t.left}h)`"
+                  :value="`task_${t.id}`"
+                />
+              </el-option-group>
+            </el-select>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px">
+              <span class="note-sync-label">消耗(h)</span>
+              <el-input-number v-model="noteSyncConsumed" :min="0.5" :max="24" :step="0.5" :precision="1" size="small" />
+              <span class="note-sync-label" v-if="noteSyncTask">{{ currentNoteDay }}</span>
+            </div>
+          </template>
+        </div>
         <div class="note-actions">
           <el-button size="small" @click="onClearNote" :disabled="!noteDraft">清空</el-button>
-          <el-button size="small" type="primary" :loading="noteSaving" @click="onSaveNote">保存</el-button>
+          <el-button size="small" type="primary" :loading="noteSaving" @click="onSaveNote">
+            {{ noteSyncEnabled && noteSyncTask ? '保存并挂工时' : '保存' }}
+          </el-button>
         </div>
       </div>
 
@@ -175,6 +204,7 @@
               type="date"
               placeholder="选择日期"
               value-format="YYYY-MM-DD"
+              :disabled-date="(d: Date) => d.getTime() > Date.now()"
               style="width: 160px"
             />
           </div>
@@ -314,6 +344,10 @@ const dayTotal = computed(() => dayEntries.value.reduce((s, e) => s + e.consumed
 const noteByDate = ref<Record<string, DailyNote>>({})
 const noteDraft = ref('')
 const noteSaving = ref(false)
+// 同步为工时：备注内容挂到指定任务（禅道日志必须挂对象，纯文本不算日志）
+const noteSyncEnabled = ref(false)
+const noteSyncTask = ref('')
+const noteSyncConsumed = ref(0.5)
 const noteDirty = ref(false)  // 草稿未保存
 const noteSaved = ref(false)  // 刚保存成功（短暂显示 "已保存"）
 const currentNote = ref<DailyNote | null>(null) // 弹窗当前日期的 note（来自 noteByDate 或 null）
@@ -788,6 +822,8 @@ function onDayClick(day: string) {
   noteDraft.value = existing?.content ?? ''
   noteDirty.value = false
   noteSaved.value = false
+  // "同步为工时"需要我负责的任务下拉，打开时预加载
+  loadTaskOptions()
   dayDialogVisible.value = true
 }
 
@@ -814,8 +850,38 @@ async function onSaveNote() {
       noteDraft.value = saved.content
       noteDirty.value = false
       noteSaved.value = true
-      ElMessage.success('已保存')
-      // 1.5s 后清掉 "已保存" 标志
+      // 同步为工时：备注内容作为 work 挂到选中任务
+      let syncMsg = ''
+      if (noteSyncEnabled.value && noteSyncTask.value) {
+        const taskId = Number(noteSyncTask.value.split('_')[1])
+        const t = taskOptions.value.find((x) => x.id === taskId)
+        try {
+          const er = await batchCreateEffort({
+            date: currentNoteDay.value,
+            items: [{
+              work: noteDraft.value.trim(),
+              objectType: noteSyncTask.value,
+              execution: t?.execution || 0,
+              consumed: noteSyncConsumed.value,
+              left: t ? Math.max(0, t.left - noteSyncConsumed.value) : 0
+            }]
+          })
+          if (er.code === 200 && er.data && er.data.created > 0) {
+            syncMsg = `，已挂工时到 #${taskId}（${noteSyncConsumed.value}h）`
+            // 刷新日历让新工时条目出现
+            await loadData()
+          } else {
+            syncMsg = '，但挂工时失败：' + (er.message || '未知错误')
+          }
+        } catch (syncErr) {
+          syncMsg = '，但挂工时失败：' + (syncErr as Error).message
+        }
+      }
+      if (syncMsg.includes('失败')) {
+        ElMessage.warning('备注已保存' + syncMsg)
+      } else {
+        ElMessage.success('已保存' + syncMsg)
+      }
       setTimeout(() => {
         if (!noteDirty.value) noteSaved.value = false
       }, 1500)
@@ -1092,6 +1158,18 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.note-effort-sync {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
+.note-sync-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .day-entries {

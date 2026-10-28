@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oekit/concurrency/async"
+	"github.com/oekit/concurrency/singleflight"
 
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/storage"
@@ -19,11 +20,16 @@ const DefaultCacheTTL = 5 * time.Minute
 // 提供带 fallback 的 GetOrLoad 模式：缓存命中直接返回，未命中或过期调用 loader 回源
 type CacheService struct {
 	store storage.Store
+	// inflight 回源击穿保护：并发同 key 只放行一个 loader
+	inflight *singleflight.Flight[[]byte]
 }
 
 // NewCacheService 创建缓存服务
 func NewCacheService(store storage.Store) *CacheService {
-	return &CacheService{store: store}
+	return &CacheService{
+		store:    store,
+		inflight: singleflight.New[[]byte](),
+	}
 }
 
 // CacheResult 缓存查询结果
@@ -65,8 +71,12 @@ func (s *CacheService) GetOrLoad(
 		}, nil
 	}
 
-	// 2. 回源
-	freshData, loadErr := loader(ctx)
+	// 2. 回源（singleflight 击穿保护：并发同 entityType+productID 的请求
+	// 只有一个真正调 loader 打禅道，其余共享结果）
+	key := fmt.Sprintf("%s:%d", entityType, productID)
+	freshData, loadErr := s.inflight.Do(ctx, key, func(ctx context.Context) ([]byte, error) {
+		return loader(ctx)
+	})
 	if loadErr == nil {
 		// 回源成功，写缓存（异步避免阻塞）。
 		// 关键：ctx 用调用方传入的 + 5s 超时（不是 Background），store 已 Close 时
@@ -110,11 +120,14 @@ func (s *CacheService) GetOrLoad(
 
 // Invalidate 使指定缓存失效
 func (s *CacheService) Invalidate(ctx context.Context, entityType string, productID int) error {
+	s.inflight.Forget(fmt.Sprintf("%s:%d", entityType, productID))
 	return s.store.Invalidate(ctx, entityType, productID)
 }
 
 // ClearAll 清空所有缓存
 func (s *CacheService) ClearAll(ctx context.Context) error {
+	// 清空全部 in-flight（key 集合不可枚举，直接换新 Flight 实例）
+	s.inflight = singleflight.New[[]byte]()
 	return s.store.ClearAll(ctx)
 }
 

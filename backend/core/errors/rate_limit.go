@@ -2,7 +2,7 @@ package errors
 
 import (
 	"context"
-	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+
+	"github.com/yi-nology/zentao-max/backend/core/logger"
 )
 
 type RateLimiter struct {
@@ -115,7 +117,7 @@ func (rl *RateLimiter) Allow(ip string) (bool, int, time.Time) {
 	if info.Count >= rl.config.RequestsPerMinute {
 		info.Blocked = true
 		info.ResetTime = now.Add(rl.config.BlockDuration)
-		log.Printf("[RATE_LIMIT] IP %s blocked for %v due to exceeding rate limit", ip, rl.config.BlockDuration)
+		logger.Warn("rate limit: ip blocked", "ip", ip, "block_duration", rl.config.BlockDuration)
 		return false, 0, info.ResetTime
 	}
 
@@ -157,8 +159,9 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 		"/api/version": true,
 	}
 
-	log.Printf("[RATE_LIMIT] Rate limiter initialized: %d requests/minute, block duration: %v",
-		config.RequestsPerMinute, config.BlockDuration)
+	logger.Info("rate limiter initialized",
+		"requests_per_minute", config.RequestsPerMinute,
+		"block_duration", config.BlockDuration)
 
 	return func(ctx context.Context, c *app.RequestContext) {
 		path := string(c.Request.URI().Path())
@@ -167,7 +170,15 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 			return
 		}
 
-		ip := c.ClientIP()
+		// 限流 key 用直连地址（去端口）而非 ClientIP：hertz 默认信任任意网段的
+		// X-Forwarded-For，攻击者每请求换一个伪造 XFF 即可让 ClientIP 生成
+		// 无限个新桶（限流形同虚设）。与 oekit/middleware ratelimit 的
+		// defaultIPKey 同款防护（#13）；代理拓扑下如需按真实客户端 IP 限流，
+		// 须先配置可信网段再切回 ClientIP。
+		ip, _, err := net.SplitHostPort(c.RemoteAddr().String())
+		if err != nil {
+			ip = c.RemoteAddr().String()
+		}
 
 		allowed, remaining, resetTime := limiter.Allow(ip)
 
@@ -176,7 +187,7 @@ func rateLimitMiddleware(config RateLimitConfig) app.HandlerFunc {
 		c.Header("X-RateLimit-Reset", strconv.FormatInt(resetTime.Unix(), 10))
 
 		if !allowed {
-			log.Printf("[RATE_LIMIT] Request blocked from IP: %s, Path: %s", ip, string(c.Request.URI().Path()))
+			logger.Warn("rate limit blocked", "ip", ip, "path", string(c.Request.URI().Path()))
 			c.JSON(http.StatusTooManyRequests, Response{
 				Code:    http.StatusTooManyRequests,
 				Message: "请求过于频繁，请稍后再试",

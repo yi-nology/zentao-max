@@ -2,9 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	
+
 	"github.com/yi-nology/zentao-max/backend/core/errors"
 	"github.com/yi-nology/zentao-max/backend/core/initialization"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
@@ -71,6 +76,12 @@ func (h *InitHandler) UpdateZentaoConfig(ctx context.Context, c *app.RequestCont
 		req.Realm = ""
 	}
 
+	// 快速连通性预检：目标不可达时 TCP 拨号默认要挂 75s+，表单场景 5s 内给明确错误
+	if err := probeZentaoReachable(req.Domain, 5*time.Second); err != nil {
+		errors.BadRequest(c, err.Error())
+		return
+	}
+
 	if err := h.zentaoClient.UpdateSessionConfig(req.Domain, req.Account, req.Password, req.Realm); err != nil {
 		logger.Warn("禅道连接配置验证失败",
 			"domain", req.Domain,
@@ -106,4 +117,31 @@ func (h *InitHandler) UpdateZentaoConfig(ctx context.Context, c *app.RequestCont
 		"mode":      "session",
 		"realm":     h.zentaoClient.GetRealm(),
 	})
+}
+
+// probeZentaoReachable 目标主机 TCP 拨号预检。scheme 缺省行为与
+// Client.UpdateSessionConfig 保持一致（无前缀按 http:// 处理）。
+func probeZentaoReachable(rawDomain string, timeout time.Duration) error {
+	domain := rawDomain
+	if !strings.HasPrefix(domain, "http://") && !strings.HasPrefix(domain, "https://") {
+		domain = "http://" + domain
+	}
+	u, err := url.Parse(domain)
+	if err != nil || u.Hostname() == "" {
+		return fmt.Errorf("域名格式无效: %s", rawDomain)
+	}
+	port := u.Port()
+	if port == "" {
+		if u.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(u.Hostname(), port), timeout)
+	if err != nil {
+		return fmt.Errorf("无法连接到 %s（%s 端口 %v 内无响应），请检查域名或网络/VPN", rawDomain, port, timeout)
+	}
+	_ = conn.Close()
+	return nil
 }

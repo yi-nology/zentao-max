@@ -57,7 +57,12 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		})
 	})))
 	hertzServer.Use(hmw.Middleware()...)
-	hertzServer.Use(middleware.LoggerMiddleware())
+	// 访问日志由 oekit AccessLog 承担（trace_id 与 hmw 集成），/metrics 与
+	// /health 高频探活路径跳过降噪
+	hertzServer.Use(mw.AccessLogMiddleware(
+		mw.WithAccessLogLogger(logger.GetLogger()),
+		mw.WithAccessLogSkipPaths("/metrics", "/health"),
+	))
 	hertzServer.Use(middleware.MetricsMiddleware())
 	// 限流参数来自配置文件的 rate_limit 段（未配置时回退内置默认 600/分钟）
 	rlCfg := config.Get().RateLimit

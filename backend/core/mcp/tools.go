@@ -151,11 +151,12 @@ var Tools = []Tool{
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"taskId":   {Type: "number", Description: "任务 ID（必填）"},
-				"consumed": {Type: "number", Description: "消耗工时（小时，必填，>0）"},
-				"left":     {Type: "number", Description: "任务剩余工时（小时，必填，绝对值）"},
-				"work":     {Type: "string", Description: "工作内容（必填）"},
-				"date":     {Type: "string", Description: "日期 YYYY-MM-DD（可选，默认今天；不能是未来日期）"},
+				"taskId":    {Type: "number", Description: "任务 ID（必填）"},
+				"execution": {Type: "number", Description: "执行 ID（可选，缺省自动从我的任务补齐）"},
+				"consumed":  {Type: "number", Description: "消耗工时（小时，必填，>0）"},
+				"left":      {Type: "number", Description: "任务剩余工时（小时，必填，绝对值）"},
+				"work":      {Type: "string", Description: "工作内容（必填）"},
+				"date":      {Type: "string", Description: "日期 YYYY-MM-DD（可选，默认今天；不能是未来日期）"},
 			},
 			Required: []string{"taskId", "consumed", "left", "work"},
 		},

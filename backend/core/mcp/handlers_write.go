@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	myzentao "github.com/yi-nology/zentao-max/backend/core/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/core/zentao/sdk"
 )
 
@@ -83,7 +84,34 @@ func (s *MCPServer) handleRecordEffort(params map[string]interface{}) (interface
 	if date == "" {
 		date = time.Now().Format("2006-01-02")
 	}
-	if err := s.taskService.RecordEffort(taskID, date, consumed, left, work); err != nil {
+	// 走 effort-batchCreate 批量端点（实测产生日志条目）。
+	// task-recordEstimate 端点只更新任务"预计剩余"，不产生日志条目，语义错误。
+	execution := 0
+	if v, ok := params["execution"].(float64); ok && v > 0 {
+		execution = int(v)
+	}
+	if execution == 0 {
+		// 从我负责的任务里补 execution
+		tasks, terr := s.client.GetMyWorkTasks(context.Background())
+		if terr == nil {
+			for _, t := range tasks {
+				if t.ID == taskID && t.Execution != 0 {
+					execution = t.Execution
+					break
+				}
+			}
+		}
+	}
+	if execution == 0 {
+		return nil, fmt.Errorf("无法确定任务 #%d 所属执行：请传 execution 参数（受限实例要求工时必须挂执行）", taskID)
+	}
+	if err := s.client.BatchCreateEffort(context.Background(), date, []myzentao.BatchCreateEffortItem{{
+		ObjectType: fmt.Sprintf("task_%d", taskID),
+		Execution:  execution,
+		Consumed:   consumed,
+		Left:       left,
+		Work:       work,
+	}}); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{

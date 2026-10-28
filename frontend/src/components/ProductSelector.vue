@@ -65,6 +65,14 @@ const loadProductList = async (): Promise<void> => {
   try {
     const res = await getProducts()
     productOptions.value = res.data || []
+    // 脏数据自愈：持久化恢复的 product 不在产品列表里时自动清空，
+    // 避免下拉显示裸 ID（Element Plus 对无匹配选项的 value 显示原值）
+    if (selectedProduct.value && !productOptions.value.some((p) => p.id === Number(selectedProduct.value))) {
+      selectedProduct.value = ''
+      selectedProject.value = ''
+      projectOptions.value = []
+      emitSelection()
+    }
   } catch (error) {
     console.error('获取产品列表失败:', error)
   }
@@ -76,6 +84,11 @@ const loadProjectListByProduct = async (productId: number | string): Promise<voi
   try {
     const res = await getProjects({ productId })
     projectOptions.value = res.data || []
+    // 脏数据自愈：持久化恢复的 project 不在该产品的项目列表里时自动清空
+    if (selectedProject.value && !projectOptions.value.some((p) => p.id === Number(selectedProject.value))) {
+      selectedProject.value = ''
+      emitSelection()
+    }
   } catch (error) {
     console.error('按产品加载项目列表失败:', error)
     projectOptions.value = []

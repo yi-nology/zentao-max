@@ -62,7 +62,7 @@ type HandlerRegistry struct {
 	effortBatchHandler *EffortBatchHandler
 
 	// daily-note（工时日历的"这天我干了什么"）
-	dailyNoteStore  *myzentao.DailyNoteStore
+	dailyNoteStore   *myzentao.DailyNoteStore
 	dailyNoteHandler *DailyNoteHandler
 
 	// Phase2b 新增 handler
@@ -156,7 +156,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		registry.dashboardService.SetCacheService(registry.cacheService)
 	}
 
-	registry.initHandler = NewInitHandler(initService, client)
+	registry.initHandler = NewInitHandler(initService, client, registry.cacheService)
 
 	registry.healthHandler = NewHealthHandler(
 		client,

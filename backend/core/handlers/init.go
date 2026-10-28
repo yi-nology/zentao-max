@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/yi-nology/zentao-max/backend/core/errors"
+	"github.com/yi-nology/zentao-max/backend/core/service"
 	"github.com/yi-nology/zentao-max/backend/core/initialization"
 	"github.com/yi-nology/zentao-max/backend/core/logger"
 	"github.com/yi-nology/zentao-max/backend/core/zentao"
@@ -15,6 +16,7 @@ import (
 type InitHandler struct {
 	initService  *initialization.InitService
 	zentaoClient *zentao.Client
+	cacheService *service.CacheService
 }
 
 // loginRequest 账号密码登录表单请求体。
@@ -27,10 +29,11 @@ type loginRequest struct {
 	Realm string `json:"realm"`
 }
 
-func NewInitHandler(initService *initialization.InitService, zentaoClient *zentao.Client) *InitHandler {
+func NewInitHandler(initService *initialization.InitService, zentaoClient *zentao.Client, cacheService *service.CacheService) *InitHandler {
 	return &InitHandler{
 		initService:  initService,
 		zentaoClient: zentaoClient,
+		cacheService: cacheService,
 	}
 }
 
@@ -77,6 +80,13 @@ func (h *InitHandler) Login(ctx context.Context, c *app.RequestContext) {
 		logger.Error("持久化登录配置失败", zap.Error(err))
 		errors.InternalError(c, "保存登录配置失败")
 		return
+	}
+	// 配置恢复后失效全部业务缓存：坏配置期（禅道不可达/连接空）写入的
+	// 空结果会残留在持久缓存里，健康期读到会一直显示 0 数据
+	if h.cacheService != nil {
+		if err := h.cacheService.ClearAll(ctx); err != nil {
+			logger.Warn("清空业务缓存失败（不影响登录）", zap.Error(err))
+		}
 	}
 
 	errors.SuccessWithMessage(c, "登录成功", map[string]interface{}{

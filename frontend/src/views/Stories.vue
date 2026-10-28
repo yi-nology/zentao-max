@@ -213,6 +213,10 @@ const fetchProducts = async (): Promise<void> => {
     if (filterForm.productId === null && globalSelection.product !== null) {
       filterForm.productId = globalSelection.product
     }
+    // 脏数据自愈：恢复的 productId 不在产品列表里时清空，避免下拉显示裸 ID
+    if (filterForm.productId !== null && !productOptions.value.some((p) => p.id === filterForm.productId)) {
+      filterForm.productId = null
+    }
   } catch (error) { console.error('获取产品列表失败:', error) }
 }
 

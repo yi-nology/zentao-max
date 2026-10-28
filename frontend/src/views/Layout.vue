@@ -39,7 +39,8 @@
               <router-link class="auth-btn" to="/login">登录</router-link>
             </template>
           </div>
-          <div class="account-info" v-if="accountInfo">
+          <!-- 禅道账号信息仅在平台登录后显示：匿名只读态下与"登录"按钮并存易误读为已登录 -->
+          <div class="account-info" v-if="authStatus.authenticated && accountInfo">
             <span class="account-status-dot" :class="accountInfo.connected ? 'connected' : 'disconnected'"></span>
             <span class="account-text">{{ accountInfo.account }}</span>
             <span class="account-domain" v-if="accountInfo.domain">@ {{ accountInfo.domain.replace(/^https?:\/\//, '') }}</span>

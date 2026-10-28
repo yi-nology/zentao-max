@@ -24,14 +24,14 @@
           <div class="info-row">
             <span class="info-label">连接状态</span>
             <span class="info-value">
-              <el-tag :type="accountInfo.connected ? 'success' : 'danger'" size="small">
-                {{ accountInfo.connected ? '已连接' : '未连接' }}
+              <el-tag :type="healthZentaoOk ? 'success' : 'danger'" size="small">
+                {{ healthZentaoOk ? '已连接' : (healthLoading ? '检测中' : '未连接') }}
               </el-tag>
             </span>
           </div>
           <div class="info-row">
             <span class="info-label">检测延迟</span>
-            <span class="info-value">{{ latency }}ms</span>
+            <span class="info-value">{{ healthZentaoOk ? healthLatency + 'ms' : (healthLoading ? '检测中' : '—') }}</span>
           </div>
         </template>
         <div v-else class="empty-text">无法获取连接信息</div>
@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { getAccountInfo, testZentaoConnection } from '@/api/zentao'
+import { getAccountInfo } from '@/api/zentao'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
@@ -141,7 +141,9 @@ interface CacheStatus {
 
 const loading = ref(true)
 const accountInfo = ref<AccountInfo | null>(null)
-const latency = ref(0)
+const healthZentaoOk = ref(false)
+const healthLatency = ref(0)
+const healthLoading = ref(false)
 const appVersion = ref('dev')
 const themeMode = ref<ThemeMode>('auto')
 
@@ -189,11 +191,21 @@ const fetchAccountInfo = async () => {
     }
   } catch { /* ignore */ }
 
+  // 连接状态用 healthz 实时探测（与心跳页同源），避免 init/account 的
+  // connected 标志滞后导致误报"未连接"
+  healthLoading.value = true
   try {
     const start = Date.now()
-    await testZentaoConnection()
-    latency.value = Date.now() - start
-  } catch { latency.value = -1 }
+    const hz = await api.get('/healthz') as ApiResponse<{ zentao?: { status?: string; latencyMs?: number } }>
+    const zentao = hz?.data?.zentao
+    healthZentaoOk.value = zentao?.status === 'ok'
+    healthLatency.value = zentao?.latencyMs ?? (Date.now() - start)
+  } catch {
+    healthZentaoOk.value = false
+    healthLatency.value = -1
+  } finally {
+    healthLoading.value = false
+  }
 
   try {
     const res = await api.get('/version') as ApiResponse<{ version: string }>

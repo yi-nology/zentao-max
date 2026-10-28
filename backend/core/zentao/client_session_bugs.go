@@ -139,11 +139,12 @@ func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentao
 	var all []zentaosdk.Bug
 	page := 1
 	recTotal := 0
+	browseType := "all"
 	for {
 		if err := ctx.Err(); err != nil {
 			return all, err
 		}
-		bugs, pager, err := c.fetchBugsPageSession(ctx, productID, page, "all", recTotal)
+		bugs, pager, err := c.fetchBugsPageSession(ctx, productID, page, browseType, recTotal)
 		if err != nil {
 			return all, err
 		}
@@ -152,17 +153,25 @@ func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentao
 		}
 		all = append(all, bugs...)
 		if len(bugs) < sessionBugRecPerPage {
-			return all, nil
+			break
 		}
 		// 兜底：pager 缺失或已翻完。
 		if pager != nil && page >= pagerInt(pager.PageTotal) {
-			return all, nil
+			break
 		}
 		page++
 		if page > 1000 { // 安全闸，避免死循环
 			return all, fmt.Errorf("bug 翻页超过 1000 页，疑似异常")
 		}
 	}
+	// all 维度空时降级默认维度（实测 zen-os 定制实例的 bug-browse all
+	// 会间歇性返回空列表，默认维度有数据；默认维度不含 closed，
+	// 统计卡的"已关闭"计数会偏低但列表不至于全空）
+	if len(all) == 0 {
+		fallback, _, _ := c.fetchBugsPageSession(ctx, productID, 1, "unclosed", 0)
+		all = fallback
+	}
+	return all, nil
 }
 
 func (c *Client) getBugsSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Bug, error) {

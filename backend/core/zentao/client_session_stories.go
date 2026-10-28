@@ -19,6 +19,7 @@ type sessionProductStoryResp struct {
 	Stories        sessionStoryMap `json:"stories"`
 	StoryStages    interface{}     `json:"storyStages"`
 	IsProjectStory interface{}     `json:"isProjectStory"`
+	Pager          *sessionPager   `json:"pager"`
 }
 
 // sessionStoryMap 兼容 stories 的 map/array 两种返回形状
@@ -103,6 +104,12 @@ func (c *Client) getStoriesByProductSession(ctx context.Context, productID, page
 	return out, nil
 }
 
+// getAllStoriesSession 拉取产品需求列表（当前实现：默认维度第 1 页，上限 20 条）。
+//
+// 已知限制：product-browse 的翻页段格式在 zen-os 定制实例（biz8.x）上未破解——
+// 多段翻页 URL 实测第 2 页起返回空 stories（2026-10-28 探测记录），
+// 且 /product-browse-{id}-...-all-....json 多段格式会被实例按未知路由跳登录。
+// 待有效网页会话抓权威 pager 格式后补全翻页。
 func (c *Client) getAllStoriesSession(ctx context.Context, productID int) ([]zentaosdk.Story, error) {
 	path := fmt.Sprintf("/product-browse-%d-story.json", productID)
 	var resp sessionProductStoryResp

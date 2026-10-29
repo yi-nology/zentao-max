@@ -424,6 +424,11 @@ func (s *SessionTransport) DoJSONRaw(ctx context.Context, path string) ([]byte, 
 
 	var env zentaoEnvelope
 	if err := json.Unmarshal(body, &env); err != nil {
+		// 网关/网络层的纯文本响应（如 "Connection timed out"、"502 Bad Gateway"、
+		// HTML 错误页）会被当成 JSON 解析失败误导排障方向——识别并转成网络错误
+		if netErr := classifyNonJSONBody(body); netErr != nil {
+			return nil, fmt.Errorf("禅道网关/网络异常 (path=%s): %w", path, netErr)
+		}
 		return nil, fmt.Errorf("解析禅道响应外层 JSON 失败 (path=%s): %w; body=%s", path, err, truncate(string(body), 200))
 	}
 
@@ -660,4 +665,34 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+// classifyNonJSONBody 识别网关/网络层的非 JSON 响应文本，返回可读网络错误；
+// 无法识别时返回 nil（调用方保留原解析错误，不误导排障方向）。
+// 真实例：禅道网关在过载时返回纯文本 "Connection timed out"（HTTP 200），
+// 曾被报成「解析禅道响应外层 JSON 失败」。
+func classifyNonJSONBody(body []byte) error {
+	if len(body) == 0 {
+		// 空响应：网关偶发截断（受限实例实测出现过），重试通常可恢复
+		return fmt.Errorf("禅道返回空响应（网关偶发截断，重试通常可恢复）")
+	}
+	s := strings.TrimSpace(string(body))
+	if s[0] == '{' || s[0] == '[' {
+		return nil // 仍是 JSON，解析错误另有语义
+	}
+	lower := strings.ToLower(s)
+	switch {
+	case strings.Contains(lower, "connection timed out"):
+		return fmt.Errorf("连接超时（网关返回 Connection timed out），实例或网络繁忙，请稍后重试")
+	case strings.Contains(lower, "502") || strings.Contains(lower, "bad gateway"):
+		return fmt.Errorf("网关错误（502 Bad Gateway），禅道服务暂不可用")
+	case strings.Contains(lower, "504") || strings.Contains(lower, "gateway time-out"):
+		return fmt.Errorf("网关超时（504），禅道服务响应过慢")
+	case strings.Contains(lower, "503") || strings.Contains(lower, "service unavailable"):
+		return fmt.Errorf("服务不可用（503），禅道服务过载或维护中")
+	case s[0] == '<':
+		return fmt.Errorf("返回了 HTML 页面而非 JSON（可能是网关错误页或登录页）")
+	default:
+		return fmt.Errorf("非 JSON 响应: %s", truncate(s, 80))
+	}
 }

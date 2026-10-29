@@ -83,6 +83,13 @@ func (c *Client) GetExecutionsByProduct(productID int) ([]ExecutionContext, erro
 	return result, nil
 }
 
+// GetAllExecutionsContext 全执行列表（纯 Execution，不组装项目名映射）。
+// executionsByProductSession 会额外做全项目翻页（万级项目 ~60s）来填 ProjName，
+// 任务/工时等只需执行 ID+名称的遍历场景应走本方法，避免该成本。
+func (c *Client) GetAllExecutionsContext(ctx context.Context) ([]zentaosdk.Execution, error) {
+	return c.getAllExecutionsSession(ctx)
+}
+
 // GetExecutionsByProductContext 按产品获取所有执行（支持 context 取消）
 func (c *Client) GetExecutionsByProductContext(ctx context.Context, productID int) ([]ExecutionContext, error) {
 	return c.executionsByProductSession(ctx, productID)

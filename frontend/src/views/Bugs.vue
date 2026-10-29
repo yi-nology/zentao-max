@@ -565,8 +565,9 @@ const fetchUsers = async (): Promise<void> => {
     const users = await getUsers()
     userOptions.value = users || []
   } catch (error) {
-    console.error('获取用户列表失败:', error)
-    ElMessage.error('获取用户列表失败，请刷新页面重试')
+    // 指派人下拉是非关键数据：后端已降级为当前用户，失败时静默降级
+    // （下拉为空仍可查询），弹大错误 toast 反而吓到用户
+    console.error('获取用户列表失败（指派人下拉降级为空）:', error)
   }
 }
 

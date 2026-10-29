@@ -486,7 +486,10 @@ const loadProducts = async () => {
   try {
     const res = await getProducts()
     products.value = res.data || []
-  } catch { products.value = [] }
+  } catch (e) {
+    console.error('产品列表加载失败（新建任务的 产品 下拉将不可用）', e)
+    products.value = []
+  }
 }
 
 const onProductChange = async () => {
@@ -532,6 +535,10 @@ const openCreateDialog = () => {
   isEdit.value = false
   resetForm()
   dialogVisible.value = true
+  // 首屏 loadProducts 失败会被静默吞掉（下拉永远空且无提示）——打开对话框时兜底重拉
+  if (products.value.length === 0) {
+    loadProducts()
+  }
 }
 
 const openEditDialog = (task: SchedulerTask) => {

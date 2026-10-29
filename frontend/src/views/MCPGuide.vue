@@ -1175,6 +1175,14 @@ curl -s "${mcpBase}/mcp?action=get_my_tasks"`
 
 .section { margin-bottom: 36px; }
 
+/* grid 子项允许收缩到轨道宽度以内，配合 .code-block 的 overflow-x
+   防止不换行的代码块把双栏布局撑破容器（否则列会被撑到 min-content 宽） */
+.quick-steps > *,
+.protocol-cards > *,
+.protocol-cols > *,
+.format-grid > *,
+.tool-catalog > * { min-width: 0; }
+
 .section-title {
   font-size: 18px;
   font-weight: 600;

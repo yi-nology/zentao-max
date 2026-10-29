@@ -27,17 +27,26 @@ async function run(page) {
     for (const item of navMap) {
       await page.keyboard.press('Escape').catch(() => {}) // 清理可能残留的弹窗
       const link = page.locator('.nav-menu .nav-item', { hasText: item.label }).first()
-      await link.click()
-      // 等 URL path 变化 + 适当间隔（避免上一次导航过渡期点击落空）
-      await page.waitForFunction(
-        (exp) => location.pathname === exp,
-        item.path,
-        { timeout: 6000 },
-      ).catch(() => {})
+      // 长会话后偶发点击落在重渲染中的 DOM 上（G2 曾观察到"设置"点击落空）——
+      // 一次重试消除该 flaky
+      const clickAndWait = async () => {
+        await link.click()
+        await page.waitForFunction(
+          (exp) => location.pathname === exp,
+          item.path,
+          { timeout: 6000 },
+        ).catch(() => {})
+      }
+      await clickAndWait()
+      let curPath = new URL(page.url()).pathname
+      if (curPath !== item.path) {
+        await page.waitForTimeout(800)
+        await clickAndWait()
+        curPath = new URL(page.url()).pathname
+      }
       // 心跳检测页会发起较慢的 /api/healthz，进入后多等一会，避免下一次点击落在导航过渡期
       const waitMs = item.label === '心跳检测' ? 1500 : 700
       await page.waitForTimeout(waitMs)
-      const curPath = new URL(page.url()).pathname
       const isActive = await link.evaluate((el) => el.classList.contains('active')).catch(() => false)
       if (curPath !== item.path || !isActive) {
         navFail += `${item.label}→${item.path}(实际=${curPath},active=${isActive}); `

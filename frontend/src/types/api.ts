@@ -136,11 +136,15 @@ export interface TimelogAnalysis {
   byType: TimelogByType[]
   byDate: TimelogByDate[]
   efforts: TimelogEffort[]
+  source?: string
+  account?: string
 }
 
 export interface TimelogDashboard {
   totalHours: number
   effortCount: number
+  source?: string
+  account?: string
   taskCount: number
   byProject: TimelogByProject[]
   byType: TimelogByType[]

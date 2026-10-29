@@ -27,6 +27,12 @@ func (m *MockBugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]
 	return map[string]int{"active": 0, "resolved": 0, "closed": 0}, nil
 }
 
+func (m *MockBugService) GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.PaginatedVO, map[string]int, error) {
+	m.Called = true
+	m.Query = query
+	return m.Result, map[string]int{"active": 0, "resolved": 0, "closed": 0}, m.Err
+}
+
 type MockTaskService struct {
 	Result *vo.PaginatedVO
 	Err    error

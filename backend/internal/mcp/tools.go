@@ -179,13 +179,13 @@ var Tools = []Tool{
 	},
 	{
 		Name:        "get_timelog",
-		Description: "获取工时统计数据，可按产品 ID 和日期范围过滤",
+		Description: "获取工时统计数据，可按产品 ID 和日期范围过滤。注意：受限实例（Session 模式）下数据源为当前账号的工时日历，产品/执行过滤不参与，仅日期范围和账号维度有效",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
 				"productId": {
 					Type:        "string",
-					Description: "产品 ID（可选）",
+					Description: "产品 ID（可选；受限实例下不参与过滤）",
 				},
 				"dateFrom": {
 					Type:        "string",

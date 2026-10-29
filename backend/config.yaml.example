@@ -92,3 +92,17 @@ mcp:
   read_only: false
   # action 白名单，空 = 允许全部
   actions: []
+
+# ==================== 软件更新 ====================
+update:
+  # 启动注册检查 + 每 24h 定期检查（关闭后设置页仍可手动检查）
+  enabled: true
+  # 自建更新服务地址（POST JSON {app,version,os,arch}；响应
+  # {latest_version,download_url,notes}）。留空则回退查询 GitHub Releases
+  check_url: ""
+  # GitHub 仓库（check_url 为空时的默认检查源）
+  github_repo: "yi-nology/zentao-max"
+  # 定期检查间隔（小时）
+  interval_hours: 24
+  # 更新包下载目录
+  download_dir: "./data/updates"

@@ -23,6 +23,8 @@ import (
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	"github.com/yi-nology/zentao-max/backend/internal/initialization"
 	"github.com/yi-nology/zentao-max/backend/internal/mcp"
+	versionpkg "github.com/yi-nology/zentao-max/backend/internal/version"
+	"github.com/yi-nology/zentao-max/backend/internal/update"
 	"github.com/yi-nology/zentao-max/backend/internal/middleware"
 	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
@@ -203,6 +205,37 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 	registerBackwardCompatRoutes(r, registry)
 	registerMCPPostRoutes(r, transport)
 	registerMCPAdminRoutes(r)
+	registerUpdateRoutes(r)
+}
+
+// registerUpdateRoutes 注册软件版本检查/更新端点。
+// GET status 匿名可读；POST check/download 由平台认证中间件要求管理员。
+// 检查服务同时在启动时自动拉起（HTTPApp.Start → StartAutoCheck）。
+func registerUpdateRoutes(r *server.Hertz) {
+	updCfg := config.Get().Update
+	updateSvc := update.New(updCfg, versionpkg.Version)
+	updateHandler := handlers.NewUpdateHandler(updateSvc)
+
+	r.GET("/api/update/status", updateHandler.GetStatus)
+	r.POST("/api/update/check", updateHandler.CheckNow)
+	r.POST("/api/update/download", updateHandler.Download)
+	r.POST("/api/update/apply", updateHandler.Apply)
+	r.POST("/api/update/restart", updateHandler.Restart)
+
+	registerSystemInstallRoutes(r)
+
+	// 启动注册检查 + 定期复查（独立 goroutine，进程生命周期）
+	updateHandler.StartAutoCheck(context.Background())
+}
+
+// registerSystemInstallRoutes 注册系统服务安装（开机自启）端点。
+// GET status 匿名可读；POST 动作由平台认证中间件要求管理员。
+func registerSystemInstallRoutes(r *server.Hertz) {
+	h := handlers.NewSystemInstallHandler()
+	r.GET("/api/system/install-status", h.GetStatus)
+	r.POST("/api/system/install", h.Install)
+	r.POST("/api/system/uninstall", h.Uninstall)
+	r.POST("/api/system/service/:action", h.ServiceAction)
 }
 
 // registerAuthRoutes 注册平台认证路由（登录/登出/状态）

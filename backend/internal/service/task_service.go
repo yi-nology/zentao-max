@@ -91,20 +91,18 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 	} else if query.ProductID > 0 {
 		// 按 product 维度收集：受限 session 模式下，如果 product 范围内确实有
 		// project/execution/task，filter 之后能看到；否则 fallback 到全 execution。
+		// ⚠️ product 维度直接走单次全执行遍历（60s 总闸）。此前按"产品→项目→
+		// 逐项目 GetExecutions"收集，而 session 模式 GetExecutions 内部是
+		// 全执行遍历再按项目过滤——N 个项目 = N 次全量遍历，永远跑不完
+		//（堆栈实锤卡在 getAllExecutionsSession）。单次全量遍历的执行→任务
+		// 集合适用于任意产品（任务挂在执行下，产品维度靠业务过滤）。
+		overallDeadline := time.Now().Add(60 * time.Second)
 		cacheKey := "tasks:all:product:" + fmt.Sprint(query.ProductID)
 		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentaosdk.Task, error) {
-			return s.fetchAllTasks(query.ProductID)
+			return s.fetchAllTasksAcrossExecutions(overallDeadline)
 		})
 		if err != nil {
 			return nil, err
-		}
-		if len(allTasks) == 0 {
-			// product 维度没数据时，fallback 到全 execution 收集（dashboard 同款）
-			// 保证 <user-account> 等用户的 task 不被 product 过滤吞掉。
-			allTasks, err = s.fetchAllTasksAcrossExecutions()
-			if err != nil {
-				return nil, err
-			}
 		}
 	} else if query.AssignedTo != "" && query.AssignedTo == s.client.GetAccount() {
 		// 查"我的任务"：/my-work-task.json 直达当前用户，不遍历全执行。
@@ -114,8 +112,8 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 			return nil, err
 		}
 	} else {
-		// productId 缺省或 0：直接全 execution 收集（dashboard 同款）
-		allTasks, err = s.fetchAllTasksAcrossExecutions()
+		// productId 缺省或 0：直接全 execution 收集（dashboard 同款），独立 60s 闸
+		allTasks, err = s.fetchAllTasksAcrossExecutions(time.Time{})
 		if err != nil {
 			return nil, err
 		}
@@ -208,73 +206,34 @@ func (s *TaskService) getTasksWithCache(_ string, loadFunc func() ([]zentaosdk.T
 	return loadFunc()
 }
 
-// fetchAllTasks 获取所有执行的任务
-func (s *TaskService) fetchAllTasks(productId int) ([]zentaosdk.Task, error) {
-	var allTasks []zentaosdk.Task
-
-	projects, err := s.client.GetProjectsByProduct(productId, 1, 2000)
-	if err != nil {
-		return nil, err
-	}
-
-	// 耗时闸：与 fetchAllTasksAcrossExecutions 同款 60s 截断。此前无门控，
-	// product 维度慢拉 + 空 fallback 全执行遍历两层叠加曾把 /api/tasks 拖到 124s
-	deadline := time.Now().Add(60 * time.Second)
-
-	for _, project := range projects {
-		if time.Now().After(deadline) {
-			logger.Warn("product 维度任务收集超时，返回已收集部分",
-				"productId", productId, "projects", len(projects))
-			break
-		}
-		executions, err := s.client.GetExecutions(project.ID, 1, 1000)
-		if err != nil {
-			logger.Error("Failed to fetch executions for project",
-				"projectID", project.ID,
-				"error", err)
-			continue
-		}
-
-		for _, execution := range executions {
-			tasks, err := s.client.GetTasks(execution.ID, 1, 10000)
-			if err != nil {
-				logger.Error("Failed to fetch tasks for execution",
-					"executionID", execution.ID,
-					"error", err)
-				continue
-			}
-			allTasks = append(allTasks, tasks...)
-		}
-	}
-
-	return allTasks, nil
-}
-
 // fetchAllTasksAcrossExecutions 直接遍历全 execution 收集 task（dashboard 同款）。
 //
 // 受限 session 模式下 product 维度跟 user 维度数据不严格对应（<user-account> 的 task
 // 不一定都关联到选中的 product），按 product 过滤容易 0 数据。dashboard 风格
 // 直接遍历全 execution 是更稳的"全量"语义。
-func (s *TaskService) fetchAllTasksAcrossExecutions() ([]zentaosdk.Task, error) {
-	// GetExecutionsByProductContext 在 session 模式下忽略 productID受限实现
-	// 注：见 client_session_products.go:374 _ = productID），永远返回全 execution。
-	allExecCtxs, err := s.client.GetExecutionsByProductContext(context.Background(), 0)
+// deadline 为零值时使用独立 60s（dashboard 等直接调用方）；product 分支传入
+// 共享总闸。遍历超时返回已收集部分，避免请求无限 pending（调用方有持久缓存兜底）。
+func (s *TaskService) fetchAllTasksAcrossExecutions(deadline time.Time) ([]zentaosdk.Task, error) {
+	// 用纯执行列表（GetAllExecutionsContext）：此前走 GetExecutionsByProductContext，
+	// 它会额外做全项目翻页（万级项目 ~60s，无时间闸）只为填项目名——任务遍历
+	// 不需要名字，白吃该成本导致 60s 总闸形同虚设（实测 121s）。
+	allExecs, err := s.client.GetAllExecutionsContext(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	// 耗时闸：大实例（数千执行）逐执行遍历需数分钟，超时返回已收集部分，
-	// 避免请求无限 pending（调用方有持久缓存兜底）
-	deadline := time.Now().Add(60 * time.Second)
+	if deadline.IsZero() {
+		deadline = time.Now().Add(60 * time.Second)
+	}
 	var allTasks []zentaosdk.Task
-	for _, ec := range allExecCtxs {
+	for _, e := range allExecs {
 		if time.Now().After(deadline) {
-			logger.Warn("跨执行任务遍历超时，返回已收集部分", "executions", len(allExecCtxs))
+			logger.Warn("跨执行任务遍历超时，返回已收集部分", "executions", len(allExecs))
 			break
 		}
-		tasks, err := s.client.GetTasks(ec.Exec.ID, 1, 10000)
+		tasks, err := s.client.GetTasks(e.ID, 1, 10000)
 		if err != nil {
 			logger.Error("Failed to fetch tasks for execution",
-				"executionID", ec.Exec.ID,
+				"executionID", e.ID,
 				"error", err)
 			continue
 		}

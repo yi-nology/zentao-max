@@ -37,7 +37,10 @@
             </div>
             <div class="main-text">
               <div class="main-title">{{ data.summary.healthy ? '系统运行正常' : '存在异常服务' }}</div>
-              <div class="main-desc">{{ data.zentao?.status === 'ok' ? data.zentao.message : data.zentao?.message || '未连接禅道服务器' }}</div>
+              <div class="main-desc">
+                {{ data.zentao?.status === 'ok' ? data.zentao.message : data.zentao?.message || '未连接禅道服务器' }}
+                <span v-if="(data.summary.timeout || 0) > 0" class="main-timeout-note">（{{ data.summary.timeout }} 项检测超时——数据量大未跑完，非故障）</span>
+              </div>
             </div>
           </div>
           <div class="main-right">
@@ -89,7 +92,7 @@
           <span class="section-title">数据检测</span>
         </div>
         <div class="data-grid">
-          <div v-for="check in data.checks" :key="check.name" class="data-card" :class="check.status === 'ok' ? 'dc-ok' : 'dc-err'">
+          <div v-for="check in data.checks" :key="check.name" class="data-card" :class="statusClass(check.status)">
             <div class="dc-top">
               <div class="dc-icon">{{ iconMap[check.name] }}</div>
               <div class="dc-info">
@@ -104,8 +107,8 @@
               <span class="dc-ms">{{ check.latencyMs }}ms</span>
             </div>
             <div class="dc-bottom">
-              <span class="dc-status" :class="check.status === 'ok' ? 'st-ok' : 'st-err'">
-                {{ check.status === 'ok' ? (check.count > 0 ? '有数据' : '暂无数据') : '异常' }}
+              <span class="dc-status" :class="statusTextClass(check.status)">
+                {{ statusText(check) }}
               </span>
             </div>
             <div class="dc-error" v-if="check.status === 'fail'">{{ check.message }}</div>
@@ -133,7 +136,7 @@ interface HealthData {
   timestamp: string
   zentao: CheckItem
   checks: CheckItem[]
-  summary: { total: number; ok: number; fail: number; healthy: boolean }
+  summary: { total: number; ok: number; fail: number; timeout: number; healthy: boolean }
 }
 
 const data = ref<HealthData | null>(null)
@@ -159,6 +162,18 @@ const barWidth = (c: CheckItem) => {
   if (ms <= 1000) return '55%'
   if (ms <= 3000) return '75%'
   return '95%'
+}
+
+// timeout ≠ fail：大实例上需求/任务全量遍历常超 20s，属"数据量大没跑完"，
+// 展示为中性琥珀色而非红色异常，避免误导用户以为系统故障
+const statusClass = (status: string) =>
+  status === 'ok' ? 'dc-ok' : status === 'timeout' ? 'dc-timeout' : 'dc-err'
+const statusTextClass = (status: string) =>
+  status === 'ok' ? 'st-ok' : status === 'timeout' ? 'st-timeout' : 'st-err'
+const statusText = (c: CheckItem) => {
+  if (c.status === 'ok') return c.count > 0 ? '有数据' : '暂无数据'
+  if (c.status === 'timeout') return '超时（非故障）'
+  return '异常'
 }
 
 const runCheck = async () => {
@@ -258,6 +273,7 @@ watch(autoRefresh, (v) => {
 
 .main-title { font-size: 16px; font-weight: 700; color: var(--color-text-primary); margin-bottom: 2px; }
 .main-desc { font-size: 12px; color: var(--color-text-secondary); }
+.main-timeout-note { color: #d97706; }
 
 .main-right { text-align: right; }
 .main-count { font-size: 36px; font-weight: 800; line-height: 1; font-family: 'Inter', sans-serif; }
@@ -352,6 +368,7 @@ watch(autoRefresh, (v) => {
 .data-card:hover { box-shadow: var(--shadow-md); }
 .dc-ok { border-top: 3px solid #22c55e; }
 .dc-err { border-top: 3px solid #ef4444; }
+.dc-timeout { border-top: 3px solid #f59e0b; }
 
 .dc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 
@@ -386,6 +403,7 @@ watch(autoRefresh, (v) => {
 .dc-status { font-size: 11px; font-weight: 500; }
 .st-ok { color: #16a34a; }
 .st-err { color: #dc2626; }
+.st-timeout { color: #d97706; }
 
 .dc-error {
   margin-top: 8px; padding: 8px 10px; background: #fef2f2; border-radius: 4px;

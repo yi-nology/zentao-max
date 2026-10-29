@@ -7,8 +7,8 @@
         <p class="login-subtitle">登录后可执行写操作</p>
       </div>
 
-      <!-- SSO 登录（默认）：用户名 + 密码 + 短信验证码（麒麟统一认证） -->
-      <form v-if="mode === 'sso'" class="login-form" @submit.prevent="handleSsoLogin">
+      <!-- SSO 登录（唯一入口）：用户名 + 密码 + 短信验证码（麒麟统一认证） -->
+      <form class="login-form" @submit.prevent="handleSsoLogin">
         <div class="form-field">
           <label class="field-label" for="sso-username">用户名</label>
           <input
@@ -65,44 +65,7 @@
         </button>
       </form>
 
-      <!-- 本地管理员登录（备用） -->
-      <form v-else class="login-form" @submit.prevent="handleLogin">
-        <div class="form-field">
-          <label class="field-label" for="username">用户名</label>
-          <input
-            id="username"
-            v-model="username"
-            class="field-input"
-            type="text"
-            autocomplete="username"
-            placeholder="管理员用户名"
-            :disabled="loading"
-          />
-        </div>
-        <div class="form-field">
-          <label class="field-label" for="password">密码</label>
-          <input
-            id="password"
-            v-model="password"
-            class="field-input"
-            type="password"
-            autocomplete="current-password"
-            placeholder="管理员密码"
-            :disabled="loading"
-          />
-        </div>
-
-        <div v-if="error" class="message error">{{ error }}</div>
-
-        <button class="login-btn" type="submit" :disabled="loading || !username || !password">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-      </form>
-
       <div class="login-footer">
-        <a href="javascript:void(0)" class="back-link" @click="toggleMode">
-          {{ mode === 'sso' ? '使用本地管理员账号登录 →' : '使用统一认证（SSO）登录 →' }}
-        </a>
         <router-link to="/" class="back-link readonly-link">暂不登录，继续浏览 →</router-link>
       </div>
     </div>
@@ -110,24 +73,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import api from '@/api/api'
 
 const route = useRoute()
 const router = useRouter()
-const { login, ssoLogin, sendSsoCode } = useAuth()
-
-// 模式：sso（统一认证）| local（本地管理员）。
-// 默认本地；挂载后按后端开关（GET /auth/sso/status，部署配置 auth.sso.enabled）切换
-const mode = ref<'sso' | 'local'>('local')
-onMounted(async () => {
-  try {
-    const res = await api.get('/auth/sso/status') as { data?: { enabled?: boolean } }
-    if (res?.data?.enabled) mode.value = 'sso'
-  } catch { /* 后端不可达时保持本地登录表单 */ }
-})
+const { ssoLogin, sendSsoCode } = useAuth()
 
 // SSO 表单
 const ssoUsername = ref('')
@@ -138,17 +90,8 @@ const sendingCode = ref(false)
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 const countdown = ref(0)
 
-// 本地表单
-const username = ref('')
-const password = ref('')
-
 const loading = ref(false)
 const error = ref('')
-
-const toggleMode = (): void => {
-  mode.value = mode.value === 'sso' ? 'local' : 'sso'
-  error.value = ''
-}
 
 const startCountdown = (): void => {
   countdown.value = 60
@@ -194,25 +137,6 @@ const handleSsoLogin = async (): Promise<void> => {
     const resp = (err as { response?: { data?: { message?: string } } })?.response
     const backendMsg = resp?.data?.message
     error.value = backendMsg || (err instanceof Error ? err.message : '登录失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleLogin = async (): Promise<void> => {
-  if (!username.value || !password.value) return
-  loading.value = true
-  error.value = ''
-  try {
-    await login(username.value, password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    router.push(redirect)
-  } catch (err) {
-    // 优先展示后端返回的中文提示（如"用户名或密码错误"），axios 网络错误才用通用文案
-    const resp = (err as { response?: { data?: { message?: string } } })?.response
-    const backendMsg = resp?.data?.message
-    const msg = err instanceof Error && !backendMsg ? err.message : String(err)
-    error.value = backendMsg || (msg.includes('Network') ? '网络错误，请检查网络连接后重试。' : '登录失败：' + msg)
   } finally {
     loading.value = false
   }

@@ -4,6 +4,8 @@
     v-loading="loading"
     element-loading-text="正在获取数据..."
   >
+    <div v-if="myEffortMode" class="my-effort-note">当前实例为受限模式：工时数据来自你本人（{{ analysisData.account || '当前账号' }}）的工时日历（跨产品），执行/产品筛选不参与</div>
+    <div v-if="loading" class="cold-load-hint">正在拉取工时日历（秒级）</div>
     <div class="filter-card">
       <div class="quick-btns">
         <span class="quick-label">快捷选择:</span>
@@ -12,7 +14,7 @@
         </button>
       </div>
       <el-form :inline="true" class="filter-form">
-        <el-form-item label="执行/迭代">
+        <el-form-item v-if="!myEffortMode" label="执行/迭代">
           <el-select v-model="filters.executionId" placeholder="全部执行" style="width: 160px">
             <el-option value="" label="全部执行" />
             <el-option v-for="execution in executions" :key="execution.id" :value="execution.id" :label="execution.name" />
@@ -145,6 +147,7 @@ const filters: Ref<Filters> = ref({ executionId: '', assignedTo: '', dateFrom: '
 const executions: Ref<Execution[]> = ref([])
 const users: Ref<User[]> = ref([])
 const analysisData: Ref<TimelogAnalysis> = ref({ totalHours: 0, effortCount: 0, taskCount: 0, byDate: [], byProject: [], byType: [], efforts: [] })
+const myEffortMode = ref(false) // 受限实例：calendar 源（当前账号维度）
 const dailyChart: Ref<HTMLCanvasElement | null> = ref(null)
 const projectChart: Ref<HTMLCanvasElement | null> = ref(null)
 const typeChart: Ref<HTMLCanvasElement | null> = ref(null)
@@ -179,7 +182,9 @@ const queryTimelog = async (): Promise<void> => {
   try {
     const dashRes = await getTimelogDashboard({ productId: globalSelection.product ?? undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
     const effortRes = await getTimelogEfforts({ productId: globalSelection.product ?? undefined, executionId: filters.value.executionId ? parseInt(filters.value.executionId, 10) : undefined, assignedTo: filters.value.assignedTo, dateFrom: filters.value.dateFrom, dateTo: filters.value.dateTo })
-    analysisData.value = { ...dashRes.data, efforts: effortRes.data }; showResult.value = true
+    analysisData.value = { ...dashRes.data, efforts: effortRes.data };
+    myEffortMode.value = (dashRes.data as { source?: string })?.source === 'my-effort-calendar';
+    showResult.value = true
     await nextTick(); renderCharts()
   } catch (error) { console.error('查询工时统计失败:', error); ElMessage.error('查询失败') } finally { loading.value = false }
 }
@@ -301,6 +306,34 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.my-effort-note {
+  padding: 8px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1d4ed8;
+}
+:global(.dark) .my-effort-note {
+  background: #172554;
+  border-color: #1e3a8a;
+  color: #93c5fd;
+}
+
+.cold-load-hint {
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #92400e;
+}
+:global(.dark) .cold-load-hint {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fcd34d;
 }
 
 .filter-card {

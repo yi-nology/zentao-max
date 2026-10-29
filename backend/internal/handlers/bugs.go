@@ -29,14 +29,8 @@ func (h *BugHandler) GetBugs(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	result, err := h.bugService.GetBugs(&query)
-	if err != nil {
-		errors.Error(c, errors.ExternalError("禅道", err))
-		return
-	}
-
-	// 统计卡需要全量（分页前）的各状态数量，随列表一并返回
-	statusCounts, err := h.bugService.GetBugStatusCounts(&query)
+	// 列表 + 统计一次全量拉取（此前分调两次 service，冷缓存时同一产品真拉两遍）
+	result, statusCounts, err := h.bugService.GetBugsWithStatusCounts(&query)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return

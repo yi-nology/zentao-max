@@ -45,7 +45,7 @@ type calendarRawEntry struct {
 
 // parseCalendarObjectType 从 "[T]xxx" / "[B]xxx" 解析对象类型。
 // 未知前缀返空字符串 + 原始 title，前端可按空当 fallback。
-func parseCalendarObjectType(title string) (string, string) {
+func ParseCalendarObjectType(title string) (string, string) {
 	if !strings.HasPrefix(title, "[") {
 		return "", title
 	}
@@ -79,7 +79,7 @@ func parseCalendarEntries(data []byte) ([]CalendarEntry, error) {
 	}
 	out := make([]CalendarEntry, 0, len(raw))
 	for _, r := range raw {
-		objType, cleanTitle := parseCalendarObjectType(r.Title)
+		objType, cleanTitle := ParseCalendarObjectType(r.Title)
 		out = append(out, CalendarEntry{
 			ID:         r.ID,
 			Title:      cleanTitle,
@@ -133,7 +133,7 @@ func (c *Client) GetEffortCalendar(ctx context.Context, userID, year int) ([]Cal
 		}
 		out := make([]CalendarEntry, 0, len(raw))
 		for _, r := range raw {
-			objType, cleanTitle := parseCalendarObjectType(r.Title)
+			objType, cleanTitle := ParseCalendarObjectType(r.Title)
 			out = append(out, CalendarEntry{
 				ID:         r.ID,
 				Title:      cleanTitle,

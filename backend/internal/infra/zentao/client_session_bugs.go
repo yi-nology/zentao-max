@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 
+	"github.com/oekit/concurrency/async"
+
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
 
@@ -135,43 +139,89 @@ func (c *Client) fetchBugsPageSession(ctx context.Context, productID, page int, 
 
 // getAllBugsSession 自动翻页拉取产品全部 bug（含 closed，browseType=all）。
 // 优先复用上层 cache（与 Token 模式 GetAllBugsContext 一致）。
+// bugFetchConcurrency 并发翻页度。SessionWorkerPool 读 worker 固定 4 且
+// 排队 100ms 超时降级——无节制的整页并发会大面积 ErrPoolBusy，压到与
+// 池容量一致才能真实吃满带宽。
+const bugFetchConcurrency = 4
+
 func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentaosdk.Bug, error) {
-	var all []zentaosdk.Bug
-	page := 1
+	// 第一页串行：拿 recTotal / pageTotal，后续页 URL 完全可预测
+	bugs, pager, err := c.fetchBugsPageSession(ctx, productID, 1, "all", 0)
+	if err != nil {
+		return nil, err
+	}
+	all := make([]zentaosdk.Bug, 0, len(bugs)*4)
+	all = append(all, bugs...)
+	if len(bugs) < sessionBugRecPerPage {
+		return c.degradeUnclosedIfEmpty(ctx, productID, all)
+	}
 	recTotal := 0
-	browseType := "all"
-	for {
-		if err := ctx.Err(); err != nil {
-			return all, err
+	pageTotal := 1
+	if pager != nil {
+		recTotal = pagerInt(pager.RecTotal)
+		pageTotal = pagerInt(pager.PageTotal)
+	}
+	if pageTotal < 2 {
+		if pageTotal == 0 && recTotal > len(all) {
+			pageTotal = (recTotal + sessionBugRecPerPage - 1) / sessionBugRecPerPage
 		}
-		bugs, pager, err := c.fetchBugsPageSession(ctx, productID, page, browseType, recTotal)
-		if err != nil {
-			return all, err
-		}
-		if pager != nil && recTotal == 0 {
-			recTotal = pagerInt(pager.RecTotal)
-		}
-		all = append(all, bugs...)
-		if len(bugs) < sessionBugRecPerPage {
-			break
-		}
-		// 兜底：pager 缺失或已翻完。
-		if pager != nil && page >= pagerInt(pager.PageTotal) {
-			break
-		}
-		page++
-		if page > 1000 { // 安全闸，避免死循环
-			return all, fmt.Errorf("bug 翻页超过 1000 页，疑似异常")
+		if pageTotal < 2 {
+			return c.degradeUnclosedIfEmpty(ctx, productID, all)
 		}
 	}
-	// all 维度空时降级默认维度（实测 zen-os 定制实例的 bug-browse all
-	// 会间歇性返回空列表，默认维度有数据；默认维度不含 closed，
-	// 统计卡的"已关闭"计数会偏低但列表不至于全空）
-	if len(all) == 0 {
-		fallback, _, _ := c.fetchBugsPageSession(ctx, productID, 1, "unclosed", 0)
-		all = fallback
+	if pageTotal > 200 { // 安全闸（200 页 × 100 条 = 2 万条上限）
+		pageTotal = 200
 	}
-	return all, nil
+
+	// 第 2..pageTotal 页并发预取（GoSafe 收编 panic；结果按各自下标写，无竞争）
+	type pageResult struct {
+		bugs []zentaosdk.Bug
+	}
+	results := make([]pageResult, pageTotal-1)
+	sem := make(chan struct{}, bugFetchConcurrency)
+	var wg sync.WaitGroup
+	for p := 2; p <= pageTotal; p++ {
+		wg.Add(1)
+		page := p
+		async.GoSafe(func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			b, _, e := c.fetchBugsPageSession(ctx, productID, page, "all", recTotal)
+			if e != nil {
+				logger.Warn("bug 翻页并发拉取失败", "productID", productID, "page", page, "error", e)
+				return
+			}
+			results[page-2] = pageResult{bugs: b}
+		})
+	}
+	wg.Wait()
+	missing := 0
+	for _, r := range results {
+		if r.bugs == nil {
+			missing++
+			continue
+		}
+		all = append(all, r.bugs...)
+	}
+	if missing > 0 {
+		// 部分数据语义（与 execution-all 翻页同款）：缺页记日志返回已收集部分，
+		// 下游统计以实际条数为准；缓存过期重拉可自愈
+		logger.Warn("bug 全量拉取存在失败页，返回已收集部分",
+			"productID", productID, "missingPages", missing, "pageTotal", pageTotal)
+	}
+	return c.degradeUnclosedIfEmpty(ctx, productID, all)
+}
+
+// degradeUnclosedIfEmpty all 维度空时降级默认维度（实测 zen-os 定制实例的
+// bug-browse all 会间歇性返回空列表，默认维度有数据；默认维度不含 closed，
+// 统计卡的"已关闭"计数会偏低但列表不至于全空）。
+func (c *Client) degradeUnclosedIfEmpty(ctx context.Context, productID int, all []zentaosdk.Bug) ([]zentaosdk.Bug, error) {
+	if len(all) > 0 {
+		return all, nil
+	}
+	fallback, _, _ := c.fetchBugsPageSession(ctx, productID, 1, "unclosed", 0)
+	return fallback, nil
 }
 
 func (c *Client) getBugsSession(ctx context.Context, productID, page, pageSize int) ([]zentaosdk.Bug, error) {

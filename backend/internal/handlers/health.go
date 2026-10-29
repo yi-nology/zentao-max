@@ -70,6 +70,7 @@ type SummaryInfo struct {
 	Total   int  `json:"total"`
 	Ok      int  `json:"ok"`
 	Fail    int  `json:"fail"`
+	Timeout int  `json:"timeout"` // 大实例遍历超时项，非故障，不拉低 Healthy
 	Healthy bool `json:"healthy"`
 }
 
@@ -155,10 +156,13 @@ collect:
 	}
 	for idx := range results {
 		if results[idx].Name == "" && results[idx].Status == "" {
+			// 语义区分：timeout ≠ fail。大实例上 stories/tasks 全量遍历几乎必然
+			// 超 20s，若计为 fail 会让 healthy 长期 False 误导用户以为系统故障；
+			// timeout 仅表示"数据量大没跑完"，不影响健康判定
 			results[idx] = CheckItem{
 				Name:    checks[idx].name,
-				Status:  "fail",
-				Message: "检测超时（数据量大，请稍后重试）",
+				Status:  "timeout",
+				Message: "检测超时（数据量大，非故障；缓存预热后可恢复）",
 			}
 		}
 	}
@@ -167,15 +171,19 @@ collect:
 
 	okCount := 0
 	failCount := 0
+	timeoutCount := 0
 	if zentaoCheck.Status == "ok" {
 		okCount++
 	} else {
 		failCount++
 	}
 	for _, r := range results {
-		if r.Status == "ok" {
+		switch r.Status {
+		case "ok":
 			okCount++
-		} else {
+		case "timeout":
+			timeoutCount++
+		default:
 			failCount++
 		}
 	}
@@ -184,6 +192,7 @@ collect:
 		Total:   1 + len(results),
 		Ok:      okCount,
 		Fail:    failCount,
+		Timeout: timeoutCount,
 		Healthy: failCount == 0,
 	}
 

@@ -41,7 +41,7 @@ release:
 	@make frontend-build
 	@rm -rf backend/static
 	@./scripts/copy-static.sh
-	@cd backend && go build -trimpath -ldflags "-s -w" -o zentao-max .
+	@cd backend && go build -trimpath -ldflags "-s -w -X github.com/yi-nology/zentao-max/backend/internal/version.Version=$$(date +%Y.%m.%d)" -o zentao-max .
 	@echo "Release build completed"
 
 build:

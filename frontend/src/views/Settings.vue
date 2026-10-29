@@ -133,6 +133,120 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">服务与开机启动</h3>
+      <div class="settings-card">
+        <div class="info-row">
+          <span class="info-label">平台</span>
+          <span class="info-value">{{ svcInfo.platform }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">安装状态</span>
+          <span class="info-value">
+            <el-tag v-if="svcInfo.installed" type="success" size="small">已安装（开机自启）</el-tag>
+            <el-tag v-else type="info" size="small">未安装</el-tag>
+            <el-tag v-if="svcInfo.running" type="success" size="small" style="margin-left:6px">运行中</el-tag>
+          </span>
+        </div>
+        <div class="info-row" v-if="svcInfo.execPath">
+          <span class="info-label">可执行文件</span>
+          <span class="info-value update-notes">{{ svcInfo.execPath }}</span>
+        </div>
+        <div class="info-row" v-if="svcInfo.workDir">
+          <span class="info-label">工作目录</span>
+          <span class="info-value update-notes">{{ svcInfo.workDir }}（数据目录随此路径）</span>
+        </div>
+        <div class="info-row" v-if="svcInfo.detail">
+          <span class="info-label">说明</span>
+          <span class="info-value update-notes">{{ svcInfo.detail }}</span>
+        </div>
+        <div class="update-actions">
+          <el-button v-if="!svcInfo.installed && !svcInfo.devMode" size="small" type="primary"
+            :loading="svcAction === 'install'" @click="svcDo('install')">
+            一键安装（开机自启）
+          </el-button>
+          <template v-if="svcInfo.installed">
+            <el-button size="small" :loading="svcAction === 'restart'" @click="svcDo('service-restart')">重启服务</el-button>
+            <el-button size="small" :loading="svcAction === 'stop'" @click="svcDo('service-stop')">停止服务</el-button>
+            <el-button size="small" :loading="svcAction === 'start'" @click="svcDo('service-start')">启动服务</el-button>
+            <el-button size="small" type="danger" :loading="svcAction === 'uninstall'" @click="svcDo('uninstall')">卸载服务</el-button>
+          </template>
+        </div>
+        <div class="update-notes" style="margin-top:10px">
+          安装后将注册为系统服务：开机/登录自启、崩溃自动拉起（Linux）。环境变量会固化进服务定义，
+          修改 ZENTAO_ENCRYPTION_KEY 等后需重新安装。⚠️ 安装后请停止手动运行的实例，避免端口冲突。
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3 class="section-title">软件更新</h3>
+      <div class="settings-card">
+        <div class="info-row">
+          <span class="info-label">当前版本</span>
+          <span class="info-value">v{{ appVersion }}
+            <el-tag v-if="updateInfo?.hasUpdate" type="warning" size="small" style="margin-left:6px">
+              可更新至 {{ updateInfo.latest }}
+            </el-tag>
+          </span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.latest">
+          <span class="info-label">最新版本</span>
+          <span class="info-value">{{ updateInfo.latest }}</span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.notes">
+          <span class="info-label">更新说明</span>
+          <span class="info-value update-notes">{{ updateInfo.notes }}</span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.downloadState === 'downloading'">
+          <span class="info-label">下载进度</span>
+          <span class="info-value update-notes" style="min-width:180px">
+            <el-progress :percentage="updateInfo.downloadPercent" :stroke-width="10" />
+          </span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.downloadState === 'done'">
+          <span class="info-label">已下载</span>
+          <span class="info-value update-notes">{{ updateInfo.downloadPath }}（替换二进制后重启生效）</span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.downloadState === 'failed'">
+          <span class="info-label">下载失败</span>
+          <span class="info-value update-notes">{{ updateInfo.downloadError }}</span>
+        </div>
+        <div class="info-row" v-if="updateInfo?.lastError">
+          <span class="info-label">上次检查</span>
+          <span class="info-value update-notes">{{ updateInfo.lastError }}</span>
+        </div>
+        <div class="update-actions">
+          <el-button size="small" :loading="checking" @click="checkUpdate">
+            {{ checking ? '检查中...' : '检查更新' }}
+          </el-button>
+          <el-button
+            v-if="updateInfo?.hasUpdate && updateInfo.downloadUrl && updateInfo.downloadState !== 'done'"
+            size="small" type="primary"
+            :loading="updateInfo.downloadState === 'downloading'"
+            @click="downloadUpdate"
+          >
+            {{ updateInfo.downloadState === 'downloading' ? '下载中...' : '下载更新包' }}
+          </el-button>
+          <el-button
+            v-if="updateInfo?.downloadState === 'done' && !updateInfo.applied"
+            size="small" type="warning" :loading="applying"
+            @click="applyingUpdate"
+          >
+            应用更新
+          </el-button>
+          <el-button
+            v-if="updateInfo?.applied && updateInfo.restartSupported"
+            size="small" type="success" :loading="restarting"
+            @click="restartApp"
+          >
+            重启应用
+          </el-button>
+          <el-button v-if="updateInfo?.downloadUrl" size="small" @click="openDownloadPage">在浏览器打开</el-button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">系统信息</h3>
       <div class="settings-card">
         <div class="info-row">
@@ -349,12 +463,159 @@ const onThemeChange = (val: ThemeMode) => {
   setThemeMode(val)
 }
 
+// ─── 软件更新 ───
+interface UpdateInfo {
+  current: string
+  latest: string
+  hasUpdate: boolean
+  downloadUrl: string
+  notes: string
+  source: string
+  checkedAt: string | null
+  lastError: string
+  checking: boolean
+  os: string
+  arch: string
+  downloadState: 'none' | 'downloading' | 'done' | 'failed'
+  downloadPath: string
+  downloadError: string
+  downloadTotal: number
+  downloaded: number
+  downloadPercent: number
+  applied: boolean
+  newBinaryPath: string
+  restartSupported: boolean
+}
+interface SvcStatus {
+  platform: string
+  installed: boolean
+  running: boolean
+  execPath: string
+  workDir: string
+  devMode: boolean
+  unitPath: string
+  detail: string
+  serviceArgs: string
+}
+const svcInfo = ref<SvcStatus>({ platform: '', installed: false, running: false, execPath: '', workDir: '', devMode: false, unitPath: '', detail: '', serviceArgs: '' })
+const svcAction = ref('')
+
+const fetchSvcStatus = async (): Promise<void> => {
+  try {
+    const res = await api.get('/system/install-status') as unknown as { data?: SvcStatus }
+    if (res?.data) svcInfo.value = res.data
+  } catch { /* 忽略 */ }
+}
+
+const svcDo = async (action: string): Promise<void> => {
+  svcAction.value = action
+  try {
+    const path = action === 'install' || action === 'uninstall'
+      ? `/system/${action}`
+      : `/system/service/${action.replace('service-', '')}`
+    const res = await api.post(path, {}) as unknown as { data?: { message?: string } }
+    ElMessage.success(res?.data?.message || '操作成功')
+    await fetchSvcStatus()
+  } catch (e) {
+    const resp = (e as { response?: { data?: { message?: string } } })?.response
+    ElMessage.error(resp?.data?.message || (e instanceof Error ? e.message : '操作失败'))
+  } finally {
+    svcAction.value = ''
+  }
+}
+
+const updateInfo = ref<UpdateInfo | null>(null)
+const checking = ref(false)
+
+const fetchUpdateStatus = async (): Promise<void> => {
+  try {
+    const res = await api.get('/update/status') as unknown as { data?: UpdateInfo }
+    updateInfo.value = res?.data || null
+  } catch { /* 状态获取失败不提示，手动检查时再反馈 */ }
+}
+
+const checkUpdate = async (): Promise<void> => {
+  checking.value = true
+  try {
+    const res = await api.post('/update/check', {}) as unknown as { data?: UpdateInfo }
+    updateInfo.value = res?.data || null
+    if (res?.data?.hasUpdate) ElMessage.success(`发现新版本 ${res.data.latest}`)
+    else if (res?.data?.lastError) ElMessage.warning(`检查失败：${res.data.lastError}`)
+    else ElMessage.success('当前已是最新版本')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '检查更新失败')
+  } finally {
+    checking.value = false
+  }
+}
+
+const downloadUpdate = async (): Promise<void> => {
+  try {
+    await api.post('/update/download', {})
+    ElMessage.success('下载已开始，完成后会显示保存路径')
+    // 轮询下载状态（含进度百分比）
+    const timer = setInterval(async () => {
+      await fetchUpdateStatus()
+      if (updateInfo.value?.downloadState !== 'downloading') clearInterval(timer)
+    }, 1500)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下载失败')
+  }
+}
+
+const applying = ref(false)
+const applyingUpdate = async (): Promise<void> => {
+  applying.value = true
+  try {
+    const res = await api.post('/update/apply', {}) as unknown as { data?: { message?: string } }
+    ElMessage.success(res?.data?.message || '更新已应用')
+    await fetchUpdateStatus()
+  } catch (e) {
+    const resp = (e as { response?: { data?: { message?: string } } })?.response
+    ElMessage.error(resp?.data?.message || (e instanceof Error ? e.message : '应用更新失败'))
+  } finally {
+    applying.value = false
+  }
+}
+
+const restarting = ref(false)
+const restartApp = async (): Promise<void> => {
+  try {
+    await ElMessageBox.confirm('将重启应用以加载新版本（数秒不可用），继续？', '重启确认', { type: 'warning' })
+  } catch { return }
+  restarting.value = true
+  try {
+    await api.post('/update/restart', {})
+    ElMessage.success('重启中，页面将在数秒后自动恢复...')
+    // 轮询后端恢复后刷新页面（新版本生效）
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      try {
+        await api.get('/version')
+        location.reload()
+        return
+      } catch { /* 未恢复，继续等 */ }
+    }
+    ElMessage.warning('未检测到服务恢复，请手动刷新页面并检查服务')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重启失败')
+  } finally {
+    restarting.value = false
+  }
+}
+
+const openDownloadPage = (): void => {
+  if (updateInfo.value?.downloadUrl) window.open(updateInfo.value.downloadUrl, '_blank')
+}
+
 onMounted(() => {
   themeMode.value = getStoredThemeMode()
   notificationEnabled.value = isNotificationEnabled()
   notifPermission.value = typeof Notification !== 'undefined' ? Notification.permission : 'default'
   fetchAccountInfo()
   fetchCacheStatus()
+  fetchUpdateStatus()
+  fetchSvcStatus()
 })
 </script>
 
@@ -399,6 +660,18 @@ onMounted(() => {
   font-size: 14px;
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.update-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.update-notes {
+  font-weight: 400;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .notif-controls {

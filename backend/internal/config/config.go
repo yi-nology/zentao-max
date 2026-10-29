@@ -18,6 +18,22 @@ type Config struct {
 	Log       LogConfig       `yaml:"log"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	MCP       MCPConfig       `yaml:"mcp"`
+	Update    UpdateConfig    `yaml:"update"`
+}
+
+// UpdateConfig 软件版本检查/更新配置.
+type UpdateConfig struct {
+	// 是否启用版本检查（启动注册 + 定期检查；关闭后设置页仍可手动检查）
+	Enabled bool `yaml:"enabled"`
+	// 自建更新服务地址（POST JSON：{app,version,os,arch}；响应：
+	// {latest_version,download_url,notes}）。留空则回退 GitHub Releases 查询。
+	CheckURL string `yaml:"check_url"`
+	// GitHub 仓库（owner/name），check_url 为空时的默认检查源
+	GitHubRepo string `yaml:"github_repo"`
+	// 定期检查间隔（小时，默认 24）
+	IntervalHours int `yaml:"interval_hours"`
+	// 更新包下载目录
+	DownloadDir string `yaml:"download_dir"`
 }
 
 // MCPConfig MCP 子系统配置
@@ -177,6 +193,13 @@ func DefaultConfig() *Config {
 			Enabled:   true,
 			Transport: "http",
 			ReadOnly:  false,
+		},
+		Update: UpdateConfig{
+			Enabled:       true,
+			CheckURL:      "",
+			GitHubRepo:    "yi-nology/zentao-max",
+			IntervalHours: 24,
+			DownloadDir:   "./data/updates",
 		},
 	}
 }

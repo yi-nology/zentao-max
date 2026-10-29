@@ -35,7 +35,7 @@ func TestParseCalendarObjectType(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.title, func(t *testing.T) {
-			gotType, gotClean := parseCalendarObjectType(tc.title)
+			gotType, gotClean := ParseCalendarObjectType(tc.title)
 			if gotType != tc.wantType {
 				t.Errorf("type: got %q want %q", gotType, tc.wantType)
 			}

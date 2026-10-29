@@ -65,9 +65,14 @@ async function testScheduler(page) {
     createdTaskName = 'UITEST_' + Date.now()
     await overlay.locator('input.form-input').first().fill(createdTaskName)
 
-    // 选产品（原生 select）— 选第一个非空 option
+    // 选产品（原生 select）— 等产品下拉就绪（打开对话框时会兜底重拉，
+    // 首屏加载失败的场景下 options 会延迟出现），选第一个非空 option
     const productSelect = overlay.locator('select.form-input').first()
-    const opts = await productSelect.locator('option').allTextContents()
+    let opts = await productSelect.locator('option').allTextContents()
+    if (opts.length <= 1) {
+      await productSelect.locator('option:nth-child(2)').waitFor({ state: 'attached', timeout: 20000 }).catch(() => {})
+      opts = await productSelect.locator('option').allTextContents()
+    }
     if (opts.length > 1) {
       await productSelect.selectOption({ index: 1 })
     }

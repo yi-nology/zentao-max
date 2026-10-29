@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
 
@@ -103,15 +104,16 @@ func (c *Client) getUsersAllSession(ctx context.Context) ([]zentaosdk.User, erro
 	// 受限实例实测：账号无用户管理权限时 HTTP 200 + 0 字节，导致 JSON parse fail
 	// （不是 access denied 走 locate=user-deny），需要也 fallback 到 getCurrentUserSession。
 	if err := c.doSessionJSON(ctx, "GetUsersAll", "/user-browse.json", &resp); err != nil {
-		if IsSessionAccessDenied(err) || isEmptyBodyParseError(err) {
-			// 回退：仅当前用户。
-			me, merr := c.getCurrentUserSession(ctx)
-			if merr != nil {
-				return nil, merr
-			}
-			return []zentaosdk.User{*me}, nil
+		// user-browse 是可选能力：无权限（空 body/deny）、网关偶发截断等都属于
+		// "拿不到完整列表"——一律降级为仅当前用户，而不是把错误抛给上层
+		// （列表/筛选页因此整页报错，指派人下拉这种非关键数据不值得）。
+		// 原条件只识别两种错误形态，分类器文案变化就漏（踩过）。
+		logger.Warn("user-browse 不可用，降级为当前用户", "error", err)
+		me, merr := c.getCurrentUserSession(ctx)
+		if merr != nil {
+			return nil, fmt.Errorf("获取用户列表失败且降级失败: %w", merr)
 		}
-		return nil, err
+		return []zentaosdk.User{*me}, nil
 	}
 	out := make([]zentaosdk.User, 0, len(resp.Users))
 	for _, u := range resp.Users {

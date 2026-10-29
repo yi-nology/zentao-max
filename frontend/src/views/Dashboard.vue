@@ -36,6 +36,7 @@
 
     <!-- 加载骨架屏 -->
     <div v-if="loading && !data" class="skeleton-wrap">
+      <div class="cold-load-hint">大实例首次聚合需遍历全部执行（可能需要 90 秒），之后走缓存秒开；超时会返回已收集的部分数据</div>
       <div class="skeleton-row stats-skeleton">
         <div v-for="i in 4" :key="i" class="skeleton-card"></div>
       </div>
@@ -692,6 +693,21 @@ const getTaskStatusLabel = (status: string): string => {
 .dashboard-container {
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.cold-load-hint {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #92400e;
+}
+:global(.dark) .cold-load-hint {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fcd34d;
 }
 
 /* ============ Toolbar ============ */

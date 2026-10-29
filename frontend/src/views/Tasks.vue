@@ -72,6 +72,7 @@
           </el-dropdown>
         </div>
       </div>
+      <div v-if="loading" class="cold-load-hint">大实例首次加载需全量遍历执行（可能需要 1 分钟），之后走缓存秒开</div>
       <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%" :empty-text="listEmptyText" :row-class-name="tableRowClassName" @row-click="handleRowClick">
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="name" label="标题" min-width="220">
@@ -449,6 +450,21 @@ onMounted(() => {
 <style scoped>
 .page-container {
   max-width: 1200px;
+}
+
+.cold-load-hint {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #92400e;
+}
+:global(.dark) .cold-load-hint {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fcd34d;
 }
 
 /* Stats Bar：单卡片分段式统计，段落可点击筛选 */

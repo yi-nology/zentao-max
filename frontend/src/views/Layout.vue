@@ -29,6 +29,9 @@
           </template>
           <router-link v-else class="sidebar-auth-btn" to="/login">登录</router-link>
         </div>
+        <router-link v-if="updateAvailable" to="/settings" class="update-badge" title="前往设置查看更新">
+          新版本 {{ updateBadgeVersion }} 可用
+        </router-link>
         <span class="version-info">v{{ appVersion }}</span>
         <span>©2024-2026 <a href="https://murphyyi.com" target="_blank" rel="noopener noreferrer">murphyyi.com</a></span>
       </div>
@@ -214,8 +217,23 @@ const searchHighlightIndex = ref(-1)
 const searchWrapperRef = ref<HTMLElement | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+// ─── 新版本角标：拉取版本检查状态（静默失败即可，非关键） ───
+const updateAvailable = ref(false)
+const updateBadgeVersion = ref('')
+const fetchUpdateBadge = async (): Promise<void> => {
+  try {
+    const res = await api.get('/update/status') as { data?: { hasUpdate?: boolean; latest?: string } }
+    if (res?.data?.hasUpdate && res.data.latest) {
+      updateAvailable.value = true
+      updateBadgeVersion.value = res.data.latest
+    }
+  } catch { /* 忽略 */ }
+}
+
 onMounted(async () => {
   document.addEventListener('keydown', onGlobalKeydown)
+
+  fetchUpdateBadge()
 
   const qProduct = route.query.product
   const qProject = route.query.project
@@ -517,6 +535,23 @@ provide<GlobalSelection>('globalSelection', globalSelection)
 }
 
 /* Sidebar Footer */
+.update-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  margin-bottom: 6px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  font-size: 11px;
+  color: #92400e;
+  text-decoration: none;
+}
+:global(.dark) .update-badge {
+  background: #451a03;
+  border-color: #78350f;
+  color: #fcd34d;
+}
+
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 1px solid #334155;

@@ -137,6 +137,45 @@ func (s *BugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int,
 	return counts, nil
 }
 
+// GetBugsWithStatusCounts 列表 + 状态统计一次全量拉取合并返回。
+// 此前 REST handler 分调 GetBugs 与 GetBugStatusCounts，冷缓存时同一产品
+// 全量真拉两遍（实测 2×9.7s=18.7s）；合并后减半。
+func (s *BugService) GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.PaginatedVO, map[string]int, error) {
+	counts := map[string]int{"active": 0, "resolved": 0, "closed": 0}
+	if query.ProductID == 0 {
+		empty := &vo.PaginatedVO{List: []vo.BugVO{}, Page: query.Page, PageSize: query.PageSize}
+		return empty, counts, nil
+	}
+
+	bugs, err := s.client.GetAllBugs(query.ProductID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	chainFilter := applyBugFilters(bugs, query)
+
+	// ⚠️ 统计必须在 Sort/Paginate 之前取：ChainFilter 的 Sort/Paginate 原地修改
+	// cf.data（PaginateSlice 截断成本页），分页后 Result 只剩本页条目——
+	// 曾把 statusCounts 算成当前页分布（total 936 而全部分段之和=pageSize）。
+	filtered := chainFilter.Result()
+	total := chainFilter.Count()
+	for _, bug := range filtered {
+		if _, ok := counts[bug.Status]; ok {
+			counts[bug.Status]++
+		}
+	}
+
+	// 与禅道网页列表一致：默认按 ID 降序（最新在前），再分页（原地截断）
+	pagedBugs := chainFilter.Sort(func(a, b zentaosdk.Bug) bool { return a.ID > b.ID }).Paginate(query.Page, query.PageSize).Result()
+
+	return &vo.PaginatedVO{
+		List:     s.convertToVO(pagedBugs),
+		Total:    total,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+	}, counts, nil
+}
+
 // convertToVO 将zentao.Bug转换为vo.BugVO
 func (s *BugService) convertToVO(bugs []zentaosdk.Bug) []vo.BugVO {
 	if len(bugs) == 0 {

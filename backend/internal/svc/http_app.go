@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/yi-nology/zentao-max/backend/internal/routes"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
@@ -69,6 +70,27 @@ func (a *HTTPApp) Start(ctx context.Context) error {
 			logger.Fatal("HTTP server failed to start", "error", err)
 		}
 	})
+
+	// 启动后台缓存预热：产品/执行列表是全局下拉与多数页面的公共依赖，
+	// 冷拉需 45~90s（禅道分页遍历）——不预热的话用户打开页面的第一下
+	// 就是这段等待。后台拉一次写入持久缓存（L2 跨重启），此后秒开。
+	// 预热失败静默（VPN 未连等场景），用户首次访问会自行触发拉取。
+	if a.deps.ZentaoClient != nil && a.deps.ZentaoClient.GetServer() != "" {
+		async.GoSafe(func() {
+			time.Sleep(2 * time.Second) // 等会话建立（首次登录 ~3s）
+			t0 := time.Now()
+			if products, err := a.deps.ZentaoClient.GetProducts(); err != nil {
+				logger.Warn("启动预热：产品列表拉取失败（首次访问将现拉）", "error", err)
+			} else {
+				logger.Info("启动预热：产品列表完成", "count", len(products), "elapsed", time.Since(t0).Round(time.Second))
+			}
+			if execs, err := a.deps.ZentaoClient.GetAllExecutionsContext(context.Background()); err != nil {
+				logger.Warn("启动预热：执行列表拉取失败（首次访问将现拉）", "error", err)
+			} else {
+				logger.Info("启动预热：执行列表完成", "count", len(execs), "elapsed", time.Since(t0).Round(time.Second))
+			}
+		})
+	}
 
 	return nil
 }

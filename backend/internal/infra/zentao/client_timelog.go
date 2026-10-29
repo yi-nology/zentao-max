@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
+	"time"
 
+	"github.com/oekit/concurrency/async"
+
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
 
@@ -86,59 +91,50 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 		productName = product.Name
 	}
 
-	projects, err := c.GetProjectsByProductContext(ctx, prodID, 1, 100)
-	if err != nil {
-		return nil, fmt.Errorf("获取项目列表失败: %w", err)
-	}
-
-	if filterProjectID > 0 {
-		filtered := make([]zentaosdk.Project, 0)
-		for _, p := range projects {
-			if p.ID == filterProjectID {
-				filtered = append(filtered, p)
-				break
-			}
-		}
-		projects = filtered
-	}
+	// 耗时/正确性总闸：工时分析三层嵌套（执行→任务→工时）曾是最重遍历——
+	// 旧实现按"项目→GetExecutionsContext"收集，而 session 模式下每个项目的
+	// GetExecutions 都返回全量执行且无去重：同一执行被收集 N_proj 次，工时
+	// 被逐任务重复拉取 N_proj 次，totalHours/byProject/byDate 全部虚增。
+	// 改为单次全执行遍历（GetAllExecutionsContext 内置 45s 翻页闸）；
+	// 任务/工时两层共享一个 60s 闸，在执行列表完成后再起算——否则列表先
+	// 吃掉大半预算，任务/工时层只剩十几秒（实测截断到 4 个任务、工时为 0）。
 
 	type execWithContext struct {
-		Exec     zentaosdk.Execution
-		ProjName string
+		Exec zentaosdk.Execution
 	}
 
 	var allExecs []execWithContext
 
 	if filterExecutionID > 0 {
-		projName := ""
-		for _, p := range projects {
-			projName = p.Name
-			break
-		}
 		allExecs = append(allExecs, execWithContext{
-			Exec:     zentaosdk.Execution{ID: filterExecutionID},
-			ProjName: projName,
+			Exec: zentaosdk.Execution{ID: filterExecutionID},
 		})
 	} else {
-		for _, proj := range projects {
-			execs, eerr := c.GetExecutionsContext(ctx, proj.ID, 1, 100)
-			if eerr != nil {
+		allExecList, err := c.GetAllExecutionsContext(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("获取执行列表失败: %w", err)
+		}
+		for _, e := range allExecList {
+			if filterProjectID > 0 && e.Project != filterProjectID {
 				continue
 			}
-			for _, e := range execs {
-				allExecs = append(allExecs, execWithContext{Exec: e, ProjName: proj.Name})
-			}
+			allExecs = append(allExecs, execWithContext{Exec: e})
 		}
 	}
 
 	type taskContext struct {
 		Task     zentaosdk.Task
-		ProjName string
 		ExecName string
 	}
 	var allTaskCtx []taskContext
 
+	// 每层独立 45s 预算：共享单闸时先跑的层会耗尽预算，后一层永远 0 收集
+	taskDeadline := time.Now().Add(45 * time.Second)
 	for _, ec := range allExecs {
+		if time.Now().After(taskDeadline) {
+			logger.Warn("工时分析任务收集超时，返回已收集部分", "executions", len(allExecs))
+			break
+		}
 		tasks, terr := c.GetTasksContext(ctx, ec.Exec.ID, 1, 500)
 		if terr != nil {
 			continue
@@ -147,7 +143,6 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 			if toFloat64(t.Consumed) > 0 {
 				allTaskCtx = append(allTaskCtx, taskContext{
 					Task:     t,
-					ProjName: ec.ProjName,
 					ExecName: ec.Exec.Name,
 				})
 			}
@@ -156,38 +151,65 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 
 	var allEfforts []effortItem
 
-	for _, tc := range allTaskCtx {
-		efforts, ferr := c.GetTaskEffortsContext(ctx, tc.Task.ID)
-		if ferr != nil {
-			continue
-		}
-
-		for _, e := range efforts {
-			if assignedTo != "" && e.Account != assignedTo {
-				continue
+	// 工时明细层并发拉取（cap 4 = SessionWorkerPool 读 worker 数）：逐任务
+	// 请求串行跑不完预算（实测截断到 0 条工时）；并发 4 后闸内吞吐 ×4。
+	// 每层独立 45s 预算：共享单闸时先跑的层会耗尽预算，后一层永远 0 收集。
+	// effortDeadline 到达后不再提交新任务，等在飞请求收尾（最长一个请求时长）。
+	{
+		effortDeadline := time.Now().Add(45 * time.Second)
+		var mu sync.Mutex
+		sem := make(chan struct{}, 4)
+		var wg sync.WaitGroup
+		for _, tc := range allTaskCtx {
+			if time.Now().After(effortDeadline) {
+				logger.Warn("工时分析工时明细收集超时，返回已收集部分",
+					"tasks", len(allTaskCtx), "collected", len(allEfforts))
+				break
 			}
-			if dateFrom != "" && e.Date < dateFrom {
-				continue
-			}
-			if dateTo != "" && e.Date > dateTo {
-				continue
-			}
-
-			allEfforts = append(allEfforts, effortItem{
-				ID:        e.ID,
-				TaskID:    tc.Task.ID,
-				TaskName:  tc.Task.Name,
-				TaskType:  tc.Task.Type,
-				Product:   productName,
-				Project:   tc.ProjName,
-				Execution: tc.ExecName,
-				Account:   e.Account,
-				Date:      e.Date,
-				Consumed:  e.Consumed,
-				Left:      e.Left,
-				Work:      e.Work,
+			wg.Add(1)
+			tc := tc
+			async.GoSafe(func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				efforts, ferr := c.GetTaskEffortsContext(ctx, tc.Task.ID)
+				if ferr != nil {
+					return
+				}
+				var items []effortItem
+				for _, e := range efforts {
+					if assignedTo != "" && e.Account != assignedTo {
+						continue
+					}
+					if dateFrom != "" && e.Date < dateFrom {
+						continue
+					}
+					if dateTo != "" && e.Date > dateTo {
+						continue
+					}
+					items = append(items, effortItem{
+						ID:        e.ID,
+						TaskID:    tc.Task.ID,
+						TaskName:  tc.Task.Name,
+						TaskType:  tc.Task.Type,
+						Product:   productName,
+						Project:   tc.ExecName,
+						Execution: tc.ExecName,
+						Account:   e.Account,
+						Date:      e.Date,
+						Consumed:  e.Consumed,
+						Left:      e.Left,
+						Work:      e.Work,
+					})
+				}
+				if len(items) > 0 {
+					mu.Lock()
+					allEfforts = append(allEfforts, items...)
+					mu.Unlock()
+				}
 			})
 		}
+		wg.Wait()
 	}
 
 	var totalHours float64

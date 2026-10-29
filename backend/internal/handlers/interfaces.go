@@ -13,6 +13,7 @@ import (
 type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
 	GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error)
+	GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.PaginatedVO, map[string]int, error)
 }
 
 type BuildServicer interface {

@@ -5,7 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 
+	"github.com/oekit/concurrency/async"
+
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
 
@@ -62,51 +67,85 @@ func (p sessionProduct) toSDK() zentaosdk.Product {
 // 会把页码解析成 browseType，每页都返回第 1 页内容导致整表重复）：
 //
 //	/product-all-{browseType}-{orderBy}-{programID}-{recTotal}-{recPerPage}-{pageID}.json
+//
+// 第 2+ 页并发预取（cap 4 = SessionWorkerPool 读 worker 数，与 bugs 并发翻页同款）：
+// 13 页串行 ~11s 是全局产品下拉"第一次启动特别慢"的主因。
 func (c *Client) getProductsSession(ctx context.Context) ([]zentaosdk.Product, error) {
-	var out []zentaosdk.Product
+	// 第一页串行：拿 recTotal / pageTotal
+	var first sessionProductAllResp
+	if err := c.doSessionJSON(ctx, "GetProducts", "/product-all.json", &first); err != nil {
+		return nil, err
+	}
 	seen := make(map[int]struct{})
-	page := 1
+	out := make([]zentaosdk.Product, 0, len(first.ProductStats)*2)
+	for _, p := range first.ProductStats {
+		if _, ok := seen[p.ID]; ok {
+			continue
+		}
+		seen[p.ID] = struct{}{}
+		out = append(out, p.toSDK())
+	}
 	recTotal := 0
-	const recPerPage = 20
-	for {
-		var path string
-		if page == 1 {
-			path = "/product-all.json"
-		} else {
-			path = fmt.Sprintf("/product-all-noclosed-program_asc-0-%d-%d-%d.json", recTotal, recPerPage, page)
-		}
-		var resp sessionProductAllResp
-		// 第 2+ 页绕过缓存：各页 scope 相同，入缓存会命中第 1 页（见 doSessionJSONUncached）
-		if page > 1 {
-			if err := c.doSessionJSONUncached(ctx, "GetProducts", path, &resp); err != nil {
-				return out, err
+	pageTotal := 1
+	if first.Pager != nil {
+		recTotal = pagerInt(first.Pager.RecTotal)
+		pageTotal = pagerInt(first.Pager.PageTotal)
+	}
+	if len(first.ProductStats) < 20 || pageTotal < 2 {
+		return out, nil
+	}
+	if pageTotal > 200 { // 安全闸（200 页 × 20 条 = 4000 产品上限）
+		pageTotal = 200
+	}
+
+	// 第 2..pageTotal 页并发预取（结果按各自下标写，无竞争；seen 去重事后做）
+	type pageResult struct {
+		products []zentaosdk.Product
+	}
+	results := make([]pageResult, pageTotal-1)
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for p := 2; p <= pageTotal; p++ {
+		wg.Add(1)
+		page := p
+		async.GoSafe(func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			var r sessionProductAllResp
+			path := fmt.Sprintf("/product-all-noclosed-program_asc-0-%d-%d-%d.json", recTotal, 20, page)
+			if e := c.doSessionJSONUncached(ctx, "GetProducts", path, &r); e != nil {
+				logger.Warn("product 翻页并发拉取失败", "page", page, "error", e)
+				return
 			}
-		} else if err := c.doSessionJSON(ctx, "GetProducts", path, &resp); err != nil {
-			return out, err
+			pr := make([]zentaosdk.Product, 0, len(r.ProductStats))
+			for _, pp := range r.ProductStats {
+				pr = append(pr, pp.toSDK())
+			}
+			results[page-2] = pageResult{products: pr}
+		})
+	}
+	wg.Wait()
+	missing := 0
+	for _, r := range results {
+		if r.products == nil {
+			missing++
+			continue
 		}
-		if recTotal == 0 && resp.Pager != nil {
-			recTotal = pagerInt(resp.Pager.RecTotal)
-		}
-		dupBefore := len(out)
-		for _, p := range resp.ProductStats {
-			if _, ok := seen[p.ID]; ok {
+		for _, pp := range r.products {
+			if _, ok := seen[pp.ID]; ok {
 				continue
 			}
-			seen[p.ID] = struct{}{}
-			out = append(out, p.toSDK())
-		}
-		// 翻页未推进（同一页内容重复返回）或已到末页即收口，防死循环
-		if len(out) == dupBefore && page > 1 {
-			return out, nil
-		}
-		if resp.Pager == nil || page >= pagerInt(resp.Pager.PageTotal) || len(resp.ProductStats) == 0 {
-			return out, nil
-		}
-		page++
-		if page > 500 {
-			return out, fmt.Errorf("product 翻页超过 500 页")
+			seen[pp.ID] = struct{}{}
+			out = append(out, pp)
 		}
 	}
+	if missing > 0 {
+		// 部分数据语义（与 bugs/execution-all 翻页同款）：缓存过期重拉可自愈
+		logger.Warn("product 全量拉取存在失败页，返回已收集部分",
+			"missingPages", missing, "pageTotal", pageTotal)
+	}
+	return out, nil
 }
 
 // ---- Projects ----
@@ -334,12 +373,23 @@ func (c *Client) getExecutionsSession(ctx context.Context, projectID int) ([]zen
 	return out, nil
 }
 
+// execAllPageBudget 全执行翻页的时间预算。大实例 2700+ 执行 ≈ 137 页，
+// 实测全翻完 ~96s——超过任何调用方的超时容忍（healthz 20s / tasks 60s 门控 /
+// axios 150s），必须在列表层就截断返回已收集部分（stale 缓存与部分数据兜底）。
+const execAllPageBudget = 45 * time.Second
+
 func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execution, error) {
 	var out []zentaosdk.Execution
 	page := 1
 	recTotal := 0
 	const recPerPage = 20
+	deadline := time.Now().Add(execAllPageBudget)
 	for {
+		if page > 1 && time.Now().After(deadline) {
+			logger.Warn("execution-all 翻页时间预算耗尽，返回已收集部分",
+				"page", page, "collected", len(out))
+			return out, nil
+		}
 		// execution-all 翻页段格式（取自执行列表页真实 pager 链接）：
 		//   /execution-all-{browseType}-{orderBy}-0--{recTotal}-{recPerPage}-{pageID}.json
 		// 此前 6 段格式 /execution-all-all-0--0-100-{page}.json 参数错位，
@@ -355,6 +405,14 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 			respErr = c.doSessionJSON(ctx, "GetExecutions", path, &resp)
 		}
 		if respErr != nil {
+			// 已收集到部分数据时，中途单页失败（网关超时/偶发截断）返回部分结果
+			// 而非整体报错——大实例遍历 50+ 页，末尾偶发超时推翻前 50 页的成果
+			// 得不偿失（调用方另有 60s 门控与 stale 缓存兜底）。首页失败仍报错。
+			if page > 1 && len(out) > 0 {
+				logger.Warn("execution-all 翻页中途失败，返回已收集部分",
+					"page", page, "collected", len(out), "error", respErr)
+				return out, nil
+			}
 			return out, respErr
 		}
 		src := resp.ExecutionStats

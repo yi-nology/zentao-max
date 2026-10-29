@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"time"
-
-	"github.com/oekit/concurrency/group"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
@@ -80,7 +79,21 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 		Timestamp: start.Format(time.RFC3339),
 	}
 
-	zentaoCheck := h.checkZentao()
+	// checkZentao 里的 GetCurrentUser 实时探测无内部超时——会话建立挂住时
+	// （VPN 抖动/底层 dial 105s）曾把整个 healthz 拖到 150s+。这里手工 20s
+	// 兜底，与下方检查组的限时语义一致。
+	zentaoCh := make(chan CheckItem, 1)
+	go func() { zentaoCh <- h.checkZentao() }()
+	var zentaoCheck CheckItem
+	select {
+	case zentaoCheck = <-zentaoCh:
+	case <-time.After(20 * time.Second):
+		zentaoCheck = CheckItem{
+			Status:    "fail",
+			Message:   "禅道探测超时（20s 内无响应，请检查网络/VPN）",
+			LatencyMs: 20000,
+		}
+	}
 	resp.Zentao = &zentaoCheck
 
 	if zentaoCheck.Status != "ok" {
@@ -106,19 +119,40 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 
 	// 检查限时：story/task 等在大实例上会全量遍历执行（数千个），
 	// 无超时会拖死整个 healthz（前端心跳页长期转圈）。
-	// oekit group.NewWaitGroup：并发 + 超时编排一体，panic 已由 Wrap 内置
-	// GoSafe 收编；超时后未完成的检查项标记 fail
+	// ⚠️ 不能用 oekit group.NewWaitGroup(WithTimeout)——其超时靠 cb 感知 ctx，
+	// 而这些 check.fn() 无参不接收 ctx，Wait() 会死等所有 fn 完成（实测挂 170s+）。
+	// 这里用 channel 收集 + 硬超时：到期即返回，未完成项标记 fail，
+	// 迟到的 goroutine 结果被丢弃（buffered channel 不阻塞写，无泄漏无竞争）。
 	results := make([]CheckItem, len(checks))
-	wg := group.NewWaitGroup(context.Background(), group.WithTimeout(20*time.Second))
-	for i, check := range checks {
-		wg.Wrap(func(_ context.Context) error {
-			item := check.fn()
-			item.Name = check.name
-			results[i] = item
-			return nil
-		})
+	type checkResult struct {
+		idx  int
+		item CheckItem
 	}
-	_ = wg.Wait()
+	ch := make(chan checkResult, len(checks))
+	for i, check := range checks {
+		go func(idx int, name string, fn func() CheckItem) {
+			// check.fn 内部已无 panic 传播需求（原来由 oekit GoSafe 收编）；
+			// 兜底 recover 转 fail，防止单检查崩溃拖垮 healthz
+			defer func() {
+				if r := recover(); r != nil {
+					ch <- checkResult{idx, CheckItem{Name: name, Status: "fail", Message: fmt.Sprintf("检查异常: %v", r)}}
+				}
+			}()
+			item := fn()
+			item.Name = name
+			ch <- checkResult{idx, item}
+		}(i, check.name, check.fn)
+	}
+	deadline := time.After(20 * time.Second)
+collect:
+	for collected := 0; collected < len(checks); collected++ {
+		select {
+		case r := <-ch:
+			results[r.idx] = r.item
+		case <-deadline:
+			break collect
+		}
+	}
 	for idx := range results {
 		if results[idx].Name == "" && results[idx].Status == "" {
 			results[idx] = CheckItem{

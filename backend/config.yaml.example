@@ -1,98 +1,94 @@
+# zentao-max 配置模板
+# 复制为 backend/config.yaml 使用；不提供配置文件时应用使用内置默认值。
+#
+# 配置优先级：环境变量（ZENTAO_MAX_ 前缀）> 配置文件 > 内置默认值
+# 环境变量命名：配置项下划线连接，如 server.port → ZENTAO_MAX_SERVER_PORT
+
 # ==================== 服务器配置 ====================
 server:
-  # 应用类型: "wails" 或 "http"
-  type: http
-  
-  # HTTP服务器端口
+  # HTTP 服务器端口
   port: "12345"
-  
-  # 静态资源路径（仅用于HTTP模式）
-  # static_path: "./backend/cmd/app/static"
-  
-  # 读超时时间（秒）
+  # 静态资源路径（仅 -static 磁盘伺服模式使用；默认为编译期嵌入的 frontend 产物）
+  # static_path: "../frontend/dist"
+  # 读/写超时（秒）
   read_timeout: 120
-  
-  # 写超时时间（秒）
   write_timeout: 120
-  
-  # 优雅关闭超时时间（秒）
+  # 优雅关闭超时（秒）
   shutdown_timeout: 30
 
 # ==================== 禅道配置 ====================
+# 运行时可在设置页「连接配置」卡片热更新（平台登录后，POST /api/v1/zentao-config）。
+# 此处/环境变量/ldflags 优先级高于 auth.db 加密存储。
 zentao:
-  # 禅道服务器地址
-  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_SERVER 设置
-  server: "http://your-zentao-server.com"
-  
-  # 禅道账号
-  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_ACCOUNT 设置
-  account: "your-account"
-  
-  # 禅道密码
-  # 也可以通过环境变量 ZENTAO_MAX_ZENTAO_PASSWORD 设置
-  password: "your-password"
-  
-  # Token刷新间隔（小时）
-  token_refresh_interval: 12
-  
-  # 请求超时时间（秒）
+  # 禅道服务器地址，如 https://zentao.example.com
+  # 环境变量：ZENTAO_MAX_ZENTAO_SERVER（或无前缀 ZENTAO_SERVER）
+  server: ""
+  # 禅道账号（环境变量 ZENTAO_MAX_ZENTAO_ACCOUNT）
+  account: ""
+  # 禅道密码（环境变量 ZENTAO_MAX_ZENTAO_PASSWORD）
+  password: ""
+  # 认证域：留空 = Token REST 模式（/api.php/v1/*）；
+  # 非空（如 kydc）= Session 模式（*.json 会话端点，适配禁用 REST API 的受限实例）
+  realm: ""
+  # 请求超时（秒）
   request_timeout: 120
 
 # ==================== 认证配置 ====================
 auth:
-  # 认证配置文件路径
-  config_path: "./auth_config.enc"
-  
-  # 认证数据库路径
-  db_path: "./auth.db"
+  # auth.db 路径。留空时由 ResolveAuthDBPath 统一解析：
+  #   显式配置 → ZENTAO_AUTH_DB_PATH → 已存在候选（./data/auth.db → ./auth.db →
+  #   ~/.zentao-max/auth.db）→ 默认 ./data/auth.db
+  # db_path: "./data/auth.db"
+  # 平台本地管理员（备用登录入口）
+  admin:
+    username: "admin"
+    password: "admin"       # 生产务必修改！环境变量 ZENTAO_MAX_AUTH_ADMIN_PASSWORD
+  # SSO 统一认证平台登录（用户名+密码+短信验证码协议）。默认关闭；
+  # 对接自有统一认证平台时启用并配置地址（代码不内置任何平台地址）
+  sso:
+    enabled: false
+    # 认证平台根地址（启用 SSO 时必填）
+    # base_url: "https://sso.example.com"
+    # 登录页完整地址（作为 Referer 发送，服务端可能校验；留空回退 {base_url}/sso/auth）
+    # auth_page_url: "https://sso.example.com/sso/auth?redirect=https%3A%2F%2Fportal.example.com&client_id=portal"
 
 # ==================== 安全配置 ====================
 security:
-  # 加密密钥（必须设置，用于加密存储的认证信息）
-  # 生产环境务必修改为强密码！
-  # 也可以通过环境变量 ZENTAO_MAX_SECURITY_ENCRYPTION_KEY 设置
-  encryption_key: "your-strong-encryption-key-here"
-  
-  # CORS允许的域名（多个域名用逗号分隔）
-  # 生产环境必须设置，开发环境可以不设置（允许所有来源）
-  # 示例: ["http://localhost:3000", "https://example.com"]
+  # auth.db 加密密钥。未设置时使用托管密钥文件（auth.db 同目录 encryption.key，
+  # 首次生成后稳定）；跨机器搬迁 auth.db 时请连同密钥文件一起拷贝，
+  # 或显式固定本密钥（环境变量 ZENTAO_ENCRYPTION_KEY）
+  encryption_key: ""
+  # CORS 允许的域名（生产环境建议收紧；同域部署无需配置）
   allowed_origins:
-    - "http://localhost:3000"
     - "http://localhost:5173"
 
 # ==================== 日志配置 ====================
 log:
-  # 日志级别: debug, info, warn, error
+  # 级别: debug, info, warn, error
   level: info
-  
-  # 日志格式: json（生产环境）, console（开发环境）
+  # 格式: json（生产）, console（开发）
   format: console
-  
-  # 日志输出路径（空表示标准输出）
-  # output_path: "./logs/app.log"
+  # 输出路径：空 = 标准输出；stderr = 标准错误；其余为文件路径
   output_path: ""
-  
-  # 是否启用调用者信息
   enable_caller: true
-  
-  # 是否启用堆栈跟踪
   enable_stacktrace: false
 
 # ==================== 限流配置 ====================
 rate_limit:
-  # 每分钟允许的请求数
-  requests_per_minute: 60
-  
-  # 超限后的封禁时长（分钟）
+  # 每分钟请求数（oekit 令牌桶平滑限流，按 IP 直连地址维度；基础设施路径豁免）
+  requests_per_minute: 600
+  # 【兼容保留，不生效】旧固定窗口方案的封禁时长；现为纯令牌桶（超限即拒 429）
   block_duration_minutes: 5
 
-# ==================== 配置说明 ====================
-# 1. 配置优先级：环境变量 > 配置文件 > 默认值
-# 2. 环境变量命名规范：使用 ZENTAO_MAX_ 前缀，配置项用下划线连接
-#    例如：server.port -> ZENTAO_MAX_SERVER_PORT
-# 3. 生产环境建议：
-#    - 使用环境变量管理敏感信息（密码、密钥等）
-#    - 日志格式设置为 json
-#    - 日志级别设置为 info 或 warn
-#    - 启用 CORS 白名单
-#    - 适当调整限流配置
+# ==================== MCP 配置 ====================
+mcp:
+  # 是否启用 MCP 服务（运行时可经 /api/v1/mcp/config 热重载）
+  enabled: true
+  # 传输模式: http | stdio | both（由启动入口决定，运行时不可改）
+  transport: http
+  # 鉴权 Token（空 = 不鉴权；运行时热重载，服务端仅存哈希）
+  token: ""
+  # 只读模式：true 时拦截 record_effort / add_bug_comment / transition_bug 写工具
+  read_only: false
+  # action 白名单，空 = 允许全部
+  actions: []

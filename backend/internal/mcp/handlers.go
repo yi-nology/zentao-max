@@ -101,7 +101,7 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	return map[string]interface{}{
 		"status":  "ok",
 		"message": "Bugs retrieved successfully",
-		"data":    result,
+		"data":    slimViaJSON(result, []string{"steps"}),
 	}, nil
 }
 
@@ -123,7 +123,7 @@ func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}
 	return map[string]interface{}{
 		"status":  "ok",
 		"message": "Stories retrieved successfully",
-		"data":    result,
+		"data":    slimViaJSON(result, []string{"spec", "verify"}),
 	}, nil
 }
 
@@ -150,7 +150,7 @@ func (s *MCPServer) handleGetTasks(params map[string]interface{}) (interface{}, 
 	return map[string]interface{}{
 		"status":  "ok",
 		"message": "Tasks retrieved successfully",
-		"data":    result,
+		"data":    slimViaJSON(result, []string{"desc"}),
 	}, nil
 }
 

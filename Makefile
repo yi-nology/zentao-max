@@ -1,4 +1,4 @@
-# Chandao Mini Makefile
+# zentao-max Makefile
 
 # 前端相关命令
 frontend-install:
@@ -35,16 +35,20 @@ run:
 	@echo "Running backend in development mode..."
 	@cd backend && go run .
 
-# 发布构建：前端构建 + 单二进制
+# 发布构建：前端构建 + 静态资源就位 + 单二进制
 release:
 	@echo "Building release version..."
 	@make frontend-build
+	@rm -rf backend/static
+	@./scripts/copy-static.sh
 	@cd backend && go build -trimpath -ldflags "-s -w" -o zentao-max .
 	@echo "Release build completed"
 
 build:
 	@echo "Building all components..."
 	@make frontend-build
+	@rm -rf backend/static
+	@./scripts/copy-static.sh
 	@cd backend && go build -o zentao-max .
 
 # 清理命令

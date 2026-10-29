@@ -12,11 +12,11 @@
 
 ## 指标清单
 
-应用通过 `/metrics` 暴露的指标（来自 `backend/core/metrics/metrics.go`）：
+应用通过 `/metrics` 暴露的指标（HTTP 指标来自 oekit `mw.PrometheusMetrics`，业务指标来自 `backend/pkg/metrics/metrics.go`）：
 
 | 指标名 | 类型 | 标签 | 说明 |
 |--------|------|------|------|
-| `http_requests_total` | Counter | method, path, status | HTTP 请求总数 |
+| `http_requests_total` | Counter | method, path, status_code | HTTP 请求总数（path 为路由模板，无高基数风险） |
 | `http_request_duration_seconds` | Histogram | method, path | HTTP 请求耗时 |
 | `http_requests_in_flight` | Gauge | method | 正在处理的请求数 |
 | `cache_hits_total` | Counter | cache_type | 缓存命中次数 |
@@ -55,4 +55,6 @@
 ## 注意事项
 
 - 部分业务指标（`bugs_total`、`tasks_total` 等）需要应用层主动调用 `metrics.UpdateBugsTotal()` 才会更新。目前应用未在所有路径调用，可能显示为空——后续会逐步完善。
+- HTTP 指标的状态码标签名为 `status_code`（oekit 命名；按状态码聚合请用 `{status_code=~"5.."}`）。
+  业务指标 `bugs_total`/`tasks_total` 的 `status` 标签是 Bug/任务**状态字段值**，语义不同，勿混用。
 - `cache_type` 当前包含 `bug`、`story`、`task`、`build`、`execution` 等命名空间。

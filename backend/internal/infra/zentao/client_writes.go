@@ -5,6 +5,7 @@ import (
 	"fmt"
 	neturl "net/url"
 
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
 
@@ -39,8 +40,14 @@ func (c *Client) AssignBug(bugID int, req zentaosdk.BugAssignRequest) error {
 	if req.Comment != "" {
 		form.Set("comment", req.Comment)
 	}
-	return c.doSessionPost(context.Background(), "AssignBug",
+	// bug-assignTo 在 biz8.x 实测会"成功响应但不落库"——取回响应体记录样本便于确诊
+	body, err := c.doSessionPostWithBody(context.Background(), "AssignBug",
 		fmt.Sprintf("/bug-assignTo-%d.json", bugID), form)
+	if err != nil {
+		return err
+	}
+	logger.Warn("AssignBug response sample", "bugId", bugID, "head", truncate(string(body), 300))
+	return nil
 }
 
 func (c *Client) ConfirmBug(bugID int, req zentaosdk.BugConfirmRequest) error {

@@ -213,6 +213,122 @@ func (s *MCPServer) handleTransitionBug(params map[string]interface{}) (interfac
 	}, nil
 }
 
+// handleCreateBug 创建禅道 Bug。
+// 复用已实测可用的 bug-create 通道（openedBuild[]、项目反查、受限实例定制必填
+// txjg[]/Evaluationanalysis 均由 client 处理）；成功返回新 Bug ID（来自跳转地址）。
+func (s *MCPServer) handleCreateBug(params map[string]interface{}) (interface{}, error) {
+	productID, err := intFromParams(params, "productId")
+	if err != nil {
+		return nil, err
+	}
+	title := stringFromParams(params, "title")
+	if title == "" {
+		return nil, fmt.Errorf("title 不能为空")
+	}
+	severity := 3
+	if v, ok := params["severity"].(float64); ok && v >= 1 && v <= 4 {
+		severity = int(v)
+	}
+	pri := 3
+	if v, ok := params["pri"].(float64); ok && v >= 1 && v <= 4 {
+		pri = int(v)
+	}
+	bugType := stringFromParams(params, "type")
+	if bugType == "" {
+		bugType = "codeerror"
+	}
+	openedBuild := stringFromParams(params, "openedBuild")
+	if openedBuild == "" {
+		openedBuild = "trunk"
+	}
+	execution := 0
+	if v, ok := params["execution"].(float64); ok && v > 0 {
+		execution = int(v)
+	}
+	module := 0
+	if v, ok := params["module"].(float64); ok && v > 0 {
+		module = int(v)
+	}
+
+	bug, err := s.client.CreateBug(productID, zentaosdk.BugCreateRequest{
+		Title:       title,
+		Steps:       stringFromParams(params, "steps"),
+		Severity:    severity,
+		Pri:         pri,
+		Type:        bugType,
+		AssignedTo:  stringFromParams(params, "assignedTo"),
+		OpenedBuild: []string{openedBuild},
+		Execution:   execution,
+		Module:      module,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idMsg := ""
+	if bug.ID > 0 {
+		idMsg = fmt.Sprintf("，新 Bug ID #%d", bug.ID)
+	}
+	return map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("Bug 创建成功%s（success≠落库，请用 get_bug_detail 回查核对）", idMsg),
+		"data":    bug,
+	}, nil
+}
+
+// handleTransitionTask 任务状态流转（start/finish/pause/assign）。
+// 走 client 既有的 session 写通道；finish 建议带 consumed（累计值），
+// 剩余工时的同步更新由 record_effort 承担（task-finish 端点不带 left 字段）。
+func (s *MCPServer) handleTransitionTask(params map[string]interface{}) (interface{}, error) {
+	taskID, err := intFromParams(params, "taskId")
+	if err != nil {
+		return nil, err
+	}
+	comment := stringFromParams(params, "comment")
+	action := stringFromParams(params, "action")
+
+	switch action {
+	case "start":
+		req := zentaosdk.TaskStartRequest{Comment: comment}
+		if v, ok := params["left"].(float64); ok && v >= 0 {
+			req.Left = v
+		}
+		err = s.client.StartTask(taskID, req)
+	case "finish":
+		req := zentaosdk.TaskFinishRequest{
+			FinishedDate: stringFromParams(params, "finishedDate"),
+			Comment:      comment,
+		}
+		if v, ok := params["consumed"].(float64); ok && v >= 0 {
+			req.Consumed = v
+		}
+		if req.Consumed == 0 {
+			return nil, fmt.Errorf("finish 必须携带 consumed（累计消耗工时，>0）；只想记工时/更新剩余请改用 record_effort")
+		}
+		err = s.client.FinishTask(taskID, req)
+	case "pause":
+		err = s.client.PauseTask(taskID, zentaosdk.TaskPauseRequest{Comment: comment})
+	case "assign":
+		assignedTo := stringFromParams(params, "assignedTo")
+		if assignedTo == "" {
+			return nil, fmt.Errorf("assign 必须指定 assignedTo（禅道账号）")
+		}
+		req := zentaosdk.TaskAssignRequest{AssignedTo: assignedTo, Comment: comment}
+		if v, ok := params["left"].(float64); ok && v >= 0 {
+			req.Left = v
+		}
+		err = s.client.AssignTask(taskID, req)
+	default:
+		return nil, fmt.Errorf("不支持的 action: %s（支持 start/finish/pause/assign）", action)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("任务流转成功（%s），任务 #%d（请用 get_task_detail 回查核对状态）", action, taskID),
+	}, nil
+}
+
 // ---- 小工具：SDK 松散类型归一 ----
 
 func toInt(v interface{}) int {

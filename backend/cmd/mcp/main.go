@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/yi-nology/zentao-max/backend/internal/auth"
 	"github.com/yi-nology/zentao-max/backend/internal/config"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	"github.com/yi-nology/zentao-max/backend/internal/initialization"
@@ -55,7 +57,11 @@ func main() {
 	}
 	cfg := config.Get()
 
-	// 初始化日志（stdio 模式下日志写到 stderr，避免污染 stdout JSON 流）
+	// 初始化日志。stdio 模式下日志必须走 stderr——JSON Lines 协议独占 stdout，
+	// 任何 stdout 上的日志都会让 MCP 客户端解析失败（config 未显式配置时强制 stderr）
+	if cfg.Log.OutputPath == "" {
+		cfg.Log.OutputPath = "stderr"
+	}
 	if err := logger.Init(&cfg.Log); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
@@ -79,17 +85,29 @@ func main() {
 	mcp.GetMCPModeManager().InitFromConfig(cfg.MCP)
 
 	// 装配禅道客户端：优先 config/env，回退 auth.db 加密存储
-	zentaoServer, zentaoAccount, zentaoPassword, zentaoRealm := resolveZentaoConfig(cfg)
+	initSvc := initialization.NewInitService(cfg.Auth.DBPath, cfg.Security.EncryptionKey)
+	zentaoServer, zentaoAccount, zentaoPassword, zentaoRealm := resolveZentaoConfig(cfg, initSvc)
 	if zentaoServer == "" {
 		logger.Warn("Zentao server not configured; stdio MCP will start but queries will fail until config is provided",
-			"hint", "set ZENTAO_SERVER/ACCOUNT/PASSWORD env vars, config.yaml, or upload via HTTP UI first",
+			"hint", "AI 可引导用户调 update_zentao_config 工具完成首次配置（server/account/password）",
 		)
 	}
 
 	client := zentao.NewSessionClient(zentaoServer, zentaoAccount, zentaoPassword, zentaoRealm, "", nil)
 
 	// 构造 MCP Server（直接从 client，无需 HTTP/handler 依赖）
+	// 注入基础配置能力：auth.db 持久化（update_zentao_config）+ 统一认证平台 SSO 登录（send_verify_code/sso_login）
 	mcpServer := mcp.NewMCPServer(client)
+	var ssoClient *auth.SSOClient
+	if cfg.Auth.SSO.Enabled {
+		if strings.TrimSpace(cfg.Auth.SSO.BaseURL) == "" {
+			logger.Warn("auth.sso.enabled=true but auth.sso.base_url is empty; sso MCP tools unavailable",
+				"config_key", "auth.sso.base_url")
+		} else {
+			ssoClient = auth.NewSSOClient(cfg.Auth.SSO.BaseURL, cfg.Auth.SSO.AuthPageURL)
+		}
+	}
+	mcpServer.WithConfigDeps(initSvc, ssoClient, nil) // stdio 无业务缓存，无需清理回调
 
 	// 启动 stdio 传输（阻塞主 goroutine）
 	ctx, cancel := context.WithCancel(context.Background())
@@ -114,7 +132,7 @@ func main() {
 
 // resolveZentaoConfig 解析禅道连接配置
 // 优先级：config 文件 / 环境变量（已合并进 cfg）→ auth.db 加密存储.
-func resolveZentaoConfig(cfg *config.Config) (server, account, password, realm string) {
+func resolveZentaoConfig(cfg *config.Config, initSvc *initialization.InitService) (server, account, password, realm string) {
 	// Init 已按「默认值 → config.yaml → env 覆盖」合并到 cfg.Zentao
 	server = cfg.Zentao.Server
 	account = cfg.Zentao.Account
@@ -127,7 +145,6 @@ func resolveZentaoConfig(cfg *config.Config) (server, account, password, realm s
 	}
 
 	// 回退：从 auth.db 加密存储读取（与 HTTP 入口 provideZentaoClient 一致）
-	initSvc := initialization.NewInitService(cfg.Auth.DBPath, cfg.Security.EncryptionKey)
 	dbServer, dbAccount, dbPassword, dbRealm := initialization.LoadZentaoConfigWithRealm(initSvc)
 	if server == "" {
 		server = dbServer

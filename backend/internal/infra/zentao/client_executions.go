@@ -26,6 +26,13 @@ func (c *Client) GetExecutions(projectID int, page, pageSize int) ([]zentaosdk.E
 	return all[start:end], nil
 }
 
+// GetAllExecutions 获取实例全部执行（execution-all 分页遍历，无项目/产品过滤）。
+// 供 ExecutionService 无过滤分支使用——此前该分支直接返回空列表，
+// 导致 REST /api/executions 与 MCP get_executions 不带参数时永远空数组。
+func (c *Client) GetAllExecutions() ([]zentaosdk.Execution, error) {
+	return c.getAllExecutionsSession(context.Background())
+}
+
 // GetExecutionsContext 获取执行列表（支持 context 取消）
 func (c *Client) GetExecutionsContext(ctx context.Context, projectID int, page, pageSize int) ([]zentaosdk.Execution, error) {
 	all, err := c.getExecutionsSession(ctx, projectID)

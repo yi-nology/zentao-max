@@ -373,10 +373,20 @@ func (m *Manager) RegisterRoutes(r *route.RouterGroup) {
 	r.POST("/auth/login", m.LoginHandler)
 	r.POST("/auth/logout", m.LogoutHandler)
 	r.GET("/auth/status", m.StatusHandler)
+	// sso/status 恒注册（匿名 GET，仅暴露启用布尔值）：登录页据此选择默认登录方式
+	r.GET("/auth/sso/status", m.SSOStatusHandler)
 	if m.sso != nil {
 		r.POST("/auth/sso/send-code", m.SSOSendCodeHandler)
 		r.POST("/auth/sso/login", m.SSOLoginHandler)
 	}
+}
+
+// SSOStatusHandler GET /api/auth/sso/status → {"enabled": bool}
+// 供登录页决定默认展示 SSO 表单还是本地管理员表单。
+func (m *Manager) SSOStatusHandler(ctx context.Context, c *app.RequestContext) {
+	errors.Success(c, map[string]interface{}{
+		"enabled": m.sso != nil,
+	})
 }
 
 // SecretFromEncryptionKey 从部署加密密钥派生会话签名密钥，保证重启后会话不失效

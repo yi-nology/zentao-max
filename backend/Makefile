@@ -15,11 +15,11 @@ build-mcp:
 
 # 运行项目
 run: build
-	./server
+	./zentao-max
 
 # 清理构建产物
 clean:
-	rm -f server zentao-max-mcp
+	rm -f zentao-max zentao-max-mcp
 	rm -f coverage.out coverage.html
 
 # 运行所有测试

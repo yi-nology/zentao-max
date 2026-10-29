@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"log"
 
-	"github.com/yi-nology/zentao-max/backend/internal/initialization"
-	"github.com/yi-nology/zentao-max/backend/internal/service"
-	"github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+	"github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
+	"github.com/yi-nology/zentao-max/backend/internal/service"
 )
 
 // HandlerRegistry Handler注册表
@@ -196,6 +197,15 @@ func (r *HandlerRegistry) CloseCache() {
 			log.Printf("Failed to close cache store: %v", err)
 		}
 	}
+}
+
+// ClearAllCaches 清空业务缓存（设置页改连接配置、MCP update_zentao_config 保存
+// 成功后调用——坏配置期写入的空结果会残留毒化健康期数据）。缓存层未启用时为空操作。
+func (r *HandlerRegistry) ClearAllCaches(ctx context.Context) error {
+	if r.cacheService == nil {
+		return nil
+	}
+	return r.cacheService.ClearAll(ctx)
 }
 
 // GetProductHandler 获取产品Handler

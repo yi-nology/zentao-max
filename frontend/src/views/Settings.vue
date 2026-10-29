@@ -48,7 +48,7 @@
         <div class="config-form">
           <div class="form-item">
             <label class="form-label">基础域名</label>
-            <el-input v-model="configForm.domain" placeholder="https://zentao.example.com" clearable />
+            <el-input v-model="configForm.domain" placeholder="https://demo.zentao.net" clearable />
           </div>
           <div class="form-item">
             <label class="form-label">账号</label>
@@ -276,7 +276,7 @@ const configForm = reactive({
   domain: '',
   account: '',
   password: '',
-  realm: 'kydc'
+  realm: 'local'
 })
 const configSaving = ref(false)
 

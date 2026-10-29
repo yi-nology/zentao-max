@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"path"
@@ -44,9 +45,17 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		cfg.Auth.Admin.Password,
 		auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey),
 	)
-	// SSO 登录（麒麟统一认证，用户名+密码+短信验证码）
+	// SSO 登录（统一认证平台，用户名+密码+短信验证码）；客户端同时供 MCP sso_* 工具使用。
+	// 平台地址全部来自配置（auth.sso.base_url/auth_page_url），未配置时 SSO 入口自动关闭
+	var ssoClient *auth.SSOClient
 	if cfg.Auth.SSO.Enabled {
-		authManager.SetSSO(auth.NewSSOClient(cfg.Auth.SSO.BaseURL))
+		if strings.TrimSpace(cfg.Auth.SSO.BaseURL) == "" {
+			logger.GetLogger().Warn("auth.sso.enabled=true 但未配置 auth.sso.base_url，SSO 登录入口不可用",
+				"config_key", "auth.sso.base_url")
+		} else {
+			ssoClient = auth.NewSSOClient(cfg.Auth.SSO.BaseURL, cfg.Auth.SSO.AuthPageURL)
+			authManager.SetSSO(ssoClient)
+		}
 	}
 	// panic 防护与 trace_id 由 oekit/middleware 提供；Recovery 的响应体保持
 	// 项目 errors.Response 结构（前端按 code/message/data 解析）
@@ -89,7 +98,10 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		registry.GetTaskService(),
 		registry.GetUserService(),
 		registry.GetTimelogService(),
-	)
+	).WithConfigDeps(initService, ssoClient, func() error {
+		// MCP 改配置后清业务缓存（与设置页同语义）
+		return registry.ClearAllCaches(context.Background())
+	})
 	mcpTransport := mcp.NewHTTPTransport(mcpServer)
 
 	// 初始化 MCP 模式管理器：从配置加载，HTTP 入口标记传输模式为 http
@@ -337,9 +349,18 @@ func registerSchedulerRoutes(g *route.RouterGroup, h *handlers.SchedulerHandler)
 	scheduler.POST("/preview", h.PreviewReport)
 }
 
+// registerMCPPostRoutes 注册 MCP 简化协议的 POST 路由。
+// 全量工具从 mcp.Tools 动态注册（POST /mcp/<工具全名>）——新增工具无需改这里；
+// 另保留早期集成的短别名（/mcp/bugs 等）向后兼容。
 func registerMCPPostRoutes(r *server.Hertz, transport *mcp.HTTPTransport) {
-	actionMap := map[string]string{
-		"ping":       "ping",
+	for _, tool := range mcp.Tools {
+		name := tool.Name
+		r.POST("/mcp/"+name, func(ctx context.Context, c *app.RequestContext) {
+			callMCPAction(c, transport, name)
+		})
+	}
+
+	aliases := map[string]string{
 		"products":   "get_products",
 		"projects":   "get_projects",
 		"executions": "get_executions",
@@ -349,13 +370,32 @@ func registerMCPPostRoutes(r *server.Hertz, transport *mcp.HTTPTransport) {
 		"users":      "get_users",
 		"timelog":    "get_timelog",
 	}
-
-	for path, action := range actionMap {
+	for path, action := range aliases {
 		act := action
 		r.POST("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
-			transport.HandleActionByName(ctx, act, c)
+			callMCPAction(c, transport, act)
 		})
 	}
+}
+
+// callMCPAction POST /mcp/<action> 的统一处理：优先解析 JSON body 里的 params
+// （{"action":...,"params":{...}} 形式），body 无有效 params 时回退 query 参数
+// （GET 风格兼容）。此前该路径只收 query 白名单参数，POST body 的 params 被
+// 静默丢弃——所有带参调用实际都在无参执行。
+func callMCPAction(c *app.RequestContext, transport *mcp.HTTPTransport, action string) {
+	var body struct {
+		Params map[string]interface{} `json:"params"`
+	}
+	if len(c.Request.Body()) > 0 {
+		if err := json.Unmarshal(c.Request.Body(), &body); err != nil {
+			body.Params = nil // 容忍非 JSON body，走 query
+		}
+	}
+	if len(body.Params) > 0 {
+		transport.HandleActionByNameWithParams(context.Background(), action, body.Params, c)
+		return
+	}
+	transport.HandleActionByName(context.Background(), action, c)
 }
 
 func getExt(filePath string) string {

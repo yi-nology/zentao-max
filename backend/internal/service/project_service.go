@@ -112,8 +112,13 @@ func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.Exe
 			executions = append(executions, projectExecutions...)
 		}
 	} else {
-		// 如果没有项目ID和产品ID，返回空列表
-		return []vo.ExecutionVO{}, nil
+		// 无项目/产品过滤：返回实例全量执行。此前直接返回空列表，
+		// REST /api/executions 与 MCP get_executions 不带参数时永远空数组。
+		var err error
+		executions, err = s.client.GetAllExecutions()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// 转换为VO

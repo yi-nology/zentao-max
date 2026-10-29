@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-		"regexp"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -71,32 +71,89 @@ func (c *Client) CreateBug(productID int, req zentaosdk.BugCreateRequest) (*zent
 	if err != nil {
 		return nil, err
 	}
-	// TODO(test): 临时诊断，验证后删除
-	logger.Warn("[DIAG] CreateBug response", "len", len(body),
-		"head", truncate(string(body), 200))
-	if err := judgeBugCreateResponse(body); err != nil {
+	newID, confirmed, err := judgeBugCreateResponse(body)
+	if err != nil {
 		return nil, err
 	}
-	return &zentaosdk.Bug{}, nil
+	if !confirmed {
+		// 无跳转 ID 也无成功标志：保守判定为失败。真实例 E2E 发现
+		// biz8.x 实例在校验静默拒绝时返回既非表单回显也非成功提示的页面，
+		// 旧逻辑"未知形态按成功"会把这类失败误报成创建成功（本次冒烟实测抓到）。
+		logger.Warn("bug-create response unrecognized",
+			"head", truncate(string(body), 300))
+		return nil, fmt.Errorf("Bug 创建结果无法确认（响应无成功标志也无跳转地址），请人工回查是否已创建；响应样本已记录服务端日志")
+	}
+	return &zentaosdk.Bug{ID: newID}, nil
 }
 
-// judgeBugCreateResponse 判定 bug-create 的 HTML 响应。
+// judgeBugCreateResponse 判定 bug-create 的 HTML/JSON 响应。
 // 判定顺序很关键：表单回显页的 JS 里也含 bug-view 字样，必须先判失败特征。
-func judgeBugCreateResponse(body []byte) error {
+// 返回 (新 Bug ID, 是否确认创建成功, 错误)。确认成功但实例未回传 ID 时
+// newID 为 0（biz8.x 的 success 响应 locate 指向 bug-browse 列表页而非 bug-view）。
+func judgeBugCreateResponse(body []byte) (int, bool, error) {
 	s := string(body)
 	// 弹回表单页（服务端校验拒绝的 HTML 形态）
 	if strings.Contains(s, `id="submit"`) && strings.Contains(s, "bug-create") {
-		return fmt.Errorf("Bug 创建被实例校验拒绝（弹回表单页）：请检查影响版本/所属模块/执行/项目等必填字段，或该产品存在定制必填项")
+		return 0, false, fmt.Errorf("Bug 创建被实例校验拒绝（弹回表单页）：请检查影响版本/所属模块/执行/项目等必填字段，或该产品存在定制必填项")
 	}
-	// 成功：保存成功提示，或跳转到 bug-view
-	if strings.Contains(s, "保存成功") {
-		return nil
+	// 成功：跳转到 bug-view（可提取新 ID）
+	if id := extractBugViewID(s); id != 0 {
+		return id, true, nil
 	}
-	if regexp.MustCompile(`(?i)(location|href)\s*[=:'" ]+[^;'"]*bug-view-\d+`).MatchString(s) {
-		return nil
+	// biz8.x 实例的 JSON 形态响应：{"result":"success"|"fail","message":...,"locate":...}
+	var jsonResp struct {
+		Result  string              `json:"result"`
+		Message json.RawMessage     `json:"message"`
+		Msg     string              `json:"msg"`
+		Locate  string              `json:"locate"`
 	}
-	// 未知形态：HTTP 200 已过，按成功（与既有其它写端点行为一致）
-	return nil
+	if err := json.Unmarshal(body, &jsonResp); err == nil && jsonResp.Result != "" {
+		switch jsonResp.Result {
+		case "success":
+			// locate 通常指向 bug-browse 列表页；尽力提取 bug-view ID
+			if id := extractBugViewID(jsonResp.Locate); id != 0 {
+				return id, true, nil
+			}
+			return 0, true, nil
+		case "fail":
+			detail := jsonResp.Msg
+			if detail == "" {
+				// message 可能是 {field:[msg]} 或纯字符串
+				var fieldMsgs map[string][]string
+				if jerr := json.Unmarshal(jsonResp.Message, &fieldMsgs); jerr == nil {
+					var parts []string
+					for _, msgs := range fieldMsgs {
+						parts = append(parts, msgs...)
+					}
+					detail = strings.Join(parts, "；")
+				} else {
+					var plain string
+					if jerr := json.Unmarshal(jsonResp.Message, &plain); jerr == nil {
+						detail = plain
+					}
+				}
+			}
+			if detail != "" {
+				return 0, false, fmt.Errorf("Bug 创建被实例校验拒绝：%s（该实例要求所属模块/执行必填，module 可从同产品已有 Bug 的详情读取）", detail)
+			}
+			return 0, false, fmt.Errorf("Bug 创建被实例校验拒绝（实例未返回具体原因）")
+		}
+	}
+	// "保存成功"提示但无跳转地址、及其它未知形态：视为未确认，交由调用方保守报错
+	return 0, false, nil
+}
+
+// extractBugViewID 从跳转/链接形态的响应里提取 bug-view-{id} 的 ID。
+func extractBugViewID(s string) int {
+	m := regexp.MustCompile(`(?i)(location|href)\s*[=:'" ]+[^;'"]*bug-view-(\d+)`).FindStringSubmatch(s)
+	if m == nil {
+		return 0
+	}
+	id, err := strconv.Atoi(m[2])
+	if err != nil {
+		return 0
+	}
+	return id
 }
 
 func bugCreateForm(productID int, req zentaosdk.BugCreateRequest) neturl.Values {

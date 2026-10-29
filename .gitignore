@@ -71,3 +71,6 @@ backend/*.log
 # 会话缓存为运行时产物（进程工作目录下生成），不入库
 backend/cache-session.db*
 backend/backend
+
+# compiled MCP binary
+backend/zentao-max-mcp

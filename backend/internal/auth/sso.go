@@ -1,4 +1,4 @@
-// Package auth 的 SSO 登录客户端：麒麟统一安全认证平台（sso.example.com）。
+// Package auth 的 SSO 登录客户端：统一安全认证平台（地址由 auth.sso 配置提供）。
 // 流程移植自 ky-work-mcp/internal/auth/sso.go（与 sso_login.sh 同源实测）：
 //
 //  1. 用登录页硬编码的 1024-bit RSA 公钥加密密码（PKCS#1 v1.5 → base64）
@@ -38,27 +38,31 @@ CSSs5TThqqd8vRi05WwIDAQAB
 -----END PUBLIC KEY-----`
 
 const (
-	ssoDefaultBaseURL = "https://sso.example.com"
-	// Referer 必须是 SSO 认证页，服务端可能校验
-	ssoAuthURLPath = "/sso/auth?redirect=https%3A%2F%2Fportal.example.com&client_id=portal"
-	ssoUserAgent   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+	// Referer 必须是 SSO 认证页，服务端可能校验；认证页地址由部署配置
+	// （auth.sso.auth_page_url）提供，未配置时回退到 {base_url}/sso/auth
+	ssoAuthPageFallback = "/sso/auth"
+	ssoUserAgent        = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
 )
 
-// SSOClient 麒麟统一认证登录客户端。可安全并发使用。
+// SSOClient 统一认证平台登录客户端（用户名+密码+短信验证码协议）。可安全并发使用。
+// 平台地址不内置默认值，全部来自部署配置（auth.sso.base_url / auth_page_url）。
 type SSOClient struct {
-	BaseURL string
-	http    *http.Client
+	BaseURL     string
+	AuthPageURL string
+	http        *http.Client
 }
 
-// NewSSOClient 构造 SSO 客户端。baseURL 为空时用默认 sso.example.com。
-func NewSSOClient(baseURL string) *SSOClient {
-	if strings.TrimSpace(baseURL) == "" {
-		baseURL = ssoDefaultBaseURL
+// NewSSOClient 构造 SSO 客户端。baseURL 为空表示未配置（调用方应先判断再启用）。
+func NewSSOClient(baseURL, authPageURL string) *SSOClient {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	authPageURL = strings.TrimSpace(authPageURL)
+	if authPageURL == "" && baseURL != "" {
+		authPageURL = baseURL + ssoAuthPageFallback
 	}
-	baseURL = strings.TrimRight(baseURL, "/")
 	return &SSOClient{
-		BaseURL: baseURL,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		BaseURL:     baseURL,
+		AuthPageURL: authPageURL,
+		http:        &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -134,7 +138,7 @@ func (s *SSOClient) ssoHeaders() http.Header {
 		"Accept":           []string{"application/json, text/javascript, */*; q=0.01"},
 		"Content-Type":     []string{"application/json;charset=UTF-8"},
 		"Origin":           []string{s.BaseURL},
-		"Referer":          []string{s.BaseURL + ssoAuthURLPath},
+		"Referer":          []string{s.AuthPageURL},
 		"User-Agent":       []string{ssoUserAgent},
 		"X-Requested-With": []string{"XMLHttpRequest"},
 	}

@@ -12,6 +12,7 @@ import (
 // → 禅道 client（含 zentaosid 注入）→ 依赖容器 → HTTPApp。
 // 原 wire 生成层删除：装配对象仅 4 个，手写直读比生成代码更可读
 // （对齐 octopus svc.InitServiceContext 手写装配模式）。
+// 文件原名 wire_gen.go（wire 时代遗留），google/wire 移除后更名消除误导。
 func InitializeHTTPApp(config *AppConfig) (*HTTPApp, error) {
 	initService := initialization.NewInitService(config.AuthDBPath, config.EncryptionKey)
 	configStore := initialization.NewConfigStore(config.AuthDBPath)

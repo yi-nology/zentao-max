@@ -110,16 +110,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import api from '@/api/api'
 
 const route = useRoute()
 const router = useRouter()
 const { login, ssoLogin, sendSsoCode } = useAuth()
 
-// 模式：sso（默认，统一认证）| local（本地管理员）
-const mode = ref<'sso' | 'local'>('sso')
+// 模式：sso（统一认证）| local（本地管理员）。
+// 默认本地；挂载后按后端开关（GET /auth/sso/status，部署配置 auth.sso.enabled）切换
+const mode = ref<'sso' | 'local'>('local')
+onMounted(async () => {
+  try {
+    const res = await api.get('/auth/sso/status') as { data?: { enabled?: boolean } }
+    if (res?.data?.enabled) mode.value = 'sso'
+  } catch { /* 后端不可达时保持本地登录表单 */ }
+})
 
 // SSO 表单
 const ssoUsername = ref('')

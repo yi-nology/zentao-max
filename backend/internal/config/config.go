@@ -85,11 +85,17 @@ type AuthAdminConfig struct {
 }
 
 // SSOAuthConfig SSO 登录配置.
+// 对接「用户名+密码+短信验证码」协议的统一认证平台；平台地址不内置默认值，
+// 由部署配置提供（代码保持中性，开源发布不含具体平台地址）。
 type SSOAuthConfig struct {
-	// 是否启用 SSO 登录入口（启用后 /api/auth/sso/* 可用，登录页默认展示 SSO 表单）
+	// 是否启用 SSO 登录入口（启用后 /api/auth/sso/* 可用，登录页默认展示 SSO 表单）。
+	// 启用时必须同时配置 base_url，否则视为未启用（启动时告警）。
 	Enabled bool `yaml:"enabled"`
-	// SSO 服务地址（麒麟统一认证平台）
+	// SSO 服务地址（统一认证平台根地址）
 	BaseURL string `yaml:"base_url"`
+	// SSO 登录页完整地址（作为 Referer 发送，服务端可能校验）。
+	// 留空时回退为 {base_url}/sso/auth。
+	AuthPageURL string `yaml:"auth_page_url"`
 }
 
 // SecurityConfig 安全配置.
@@ -149,10 +155,10 @@ func DefaultConfig() *Config {
 				Username: "admin",
 				Password: "admin",
 			},
-			// SSO 登录（麒麟统一认证）默认启用
+			// SSO 登录默认关闭：平台地址由部署侧 config.yaml 提供（不内置默认值），
+			// 需要时设置 auth.sso.enabled=true + base_url（见 config.yaml.example）
 			SSO: SSOAuthConfig{
-				Enabled: true,
-				BaseURL: "https://sso.example.com",
+				Enabled: false,
 			},
 		},
 		Log: LogConfig{

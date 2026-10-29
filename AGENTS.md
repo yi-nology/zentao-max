@@ -111,8 +111,9 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   未配置则 SSO 入口自动关闭并启动告警）+ `auth.sso.auth_page_url`（Referer，留空回退
   `{base_url}/sso/auth`）。`GET /api/auth/sso/status` 恒注册（匿名 GET），返回 `{enabled}`
   供登录页选择默认表单。
-- **本地管理员（备用入口）**：`auth.admin.username/password`（默认 admin/admin，env
-  `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。登录页底部链接切换两种方式。
+- **本地管理员（API 备用）**：`auth.admin.username/password`（默认 admin/admin，env
+  `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。**登录页 UI 已无切换入口（SSO 表单常显，
+  2026-10-29 用户要求删除）**——本地登录仅可经 API（POST /api/auth/login）供脚本/自动化使用。
 - **会话**: HMAC 无状态 token，格式 `exp:username.签名`（分隔符 `:` 为 cookie 合法字符，
   不会被浏览器 percent-encode；verify 时归一化历史 `%7C` 残留）——令牌内记录登录者身份
   （SSO 账号或本地管理员名），`/api/auth/status` 返回该身份；Cookie `zentao_max_session`
@@ -120,8 +121,8 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   登录失败防爆破（10 次/分钟/IP，SSO 两步共用计数）。
 - **豁免**: `/mcp*`（MCP 有独立 token/只读控制）；`/api/auth/*`（登录/登出/SSO 两步）；
   `/api/scheduler/preview`（纯读）。
-- **前端**: `/login` 页按 `GET /api/auth/sso/status` 选择默认表单（SSO 启用=账号/密码/验证码
-  +60s 倒计时重发；否则本地管理员），底部可手动切换；
+- **前端**: `/login` 页 SSO 表单常显（账号/密码/验证码 +60s 倒计时重发；本地管理员登录
+  无 UI 入口，仅 API）；
   头部不展示模式徽章——登录后侧边栏底部显示用户名+退出，未登录只显示登录链接（模式守卫由
   后端 401 层承担）；`api.ts` 对 401 分流——`/auth/*` 自身 401 表单自展示，含"管理员登录"
   字样跳 `/login?redirect=...`，其余（禅道配置失效）仅弹错误提示不跳转。
@@ -141,6 +142,24 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   （steps/spec/verify/desc/work）经 `handlers_slim.go` 截断到 200 rune 并带截断标记
   （100 条 Bug 的 steps 全文数十 KB，对 AI 是纯 token 浪费）；全文用 `get_*_detail`。
   前端不走 MCP，无 UI 影响。
+
+## 版本检查/更新 与 系统服务安装
+
+- **版本检查**（`internal/update`）：启动注册检查（POST {app,version,os,arch} 到
+  `update.check_url` 自建服务；留空回退 GitHub Releases）+ 24h 定期复查 + 手动检查。
+  响应 `{latest_version,download_url,notes}`；下载到 `update.download_dir`
+  （独立 15min 超时 client + 进度上报）；Apply 从 zip/tar.gz 提取二进制**原子替换
+  os.Executable()**（Windows 无法替换运行中 exe → 新二进制留下载目录手动换）；
+  重启：已装系统服务走服务管理器 restart，否则 unix syscall.Exec 原位换进程映像
+  （restart_unix/windows.go 平台文件，update.go 主文件不得直接 import syscall）。
+  版本比较 isNewer：semver 三段 + 非数字段退化为字符串不等。隐私仅 app/version/os/arch。
+- **系统服务安装**（`internal/sysinstall`）：一键注册开机自启——macOS LaunchAgent
+  plist / Linux systemd user unit（+loginctl enable-linger）/ Windows 计划任务
+  （run.bat 包装保证工作目录）。**三不变量**：工作目录继承安装时 cwd（数据是相对
+  路径）、环境变量快照固化进服务定义（ZENTAO_ENCRYPTION_KEY 丢失=开机解密失败）、
+  go run 临时二进制拒绝安装。端点 GET /api/system/install-status（匿名）+
+  POST /api/system/{install,uninstall,service-start|stop|restart}（管理员）。
+  生成器（plist XML/unit）有单测。
 
 ## Skills (Agent 技能包, `skills/`)
 

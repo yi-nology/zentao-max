@@ -15,7 +15,9 @@
 - **健康检查**：`/health-check` 页面 + `/api/healthz` 实时探针（禅道连通性自愈）
 - **日志页**：环形缓冲实时日志（含 trace_id）
 - **MCP 服务**：24 个工具（16 查询 + 8 写），JSON-RPC `2026-07-28` 协议，HTTP 与 stdio 双入口，运行时热重载；stdio 入口日志走 stderr 保证协议流纯净；支持 AI 自助完成连接配置（`update_zentao_config`）与登录排错（SSO 验证码两步）
-- **平台认证**：匿名只读 / 登录读写；SSO（麒麟统一认证，用户名+密码+短信验证码）+ 本地管理员双入口
+- **平台认证**：匿名只读 / 登录读写；UI 登录统一走 SSO（麒麟统一认证，用户名+密码+短信验证码），本地管理员仅保留 API 入口（脚本/自动化）
+- **版本检查与更新**：启动注册检查（携带 OS/arch）+ 定期复查 + 设置页一键下载/应用/重启（单二进制自更新，Windows 下载后手动替换）
+- **系统服务安装**：设置页一键注册开机自启（macOS launchd / Linux systemd user / Windows 计划任务，全部用户级免管理员），环境变量快照固化进服务定义
 - **可观测性**：Prometheus `/metrics` + Grafana 仪表盘（`docs/grafana/`）
 - **Agent 技能包**：`skills/` 内置 zentao-bug / zentao-timelog 两个可分发技能（直连禅道实例）
 

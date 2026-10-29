@@ -379,7 +379,7 @@ import {
 } from '@/api/scheduler'
 import type { PreviewParams } from '@/api/scheduler'
 import { getProducts, getProjects } from '@/api/zentao'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { SchedulerTask, TaskExecutionLog, WebhookResult, WebhookConfig, RequirementReport, TaskProgressReport, BugReport, BugAgingReport } from '@/types/scheduler'
 import { CRON_PRESETS, STATUS_OPTIONS, REPORT_TYPE_OPTIONS, AGING_DAYS_OPTIONS } from '@/types/scheduler'
 
@@ -560,7 +560,11 @@ const openEditDialog = (task: SchedulerTask) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.name || !form.cronExpr || !form.productId) return
+  if (!form.name || !form.cronExpr || !form.productId) {
+    // 此前静默 return——用户漏选产品时点保存界面毫无反应（像按钮坏了）
+    ElMessage.warning('请填写任务名称、Cron 表达式，并选择产品')
+    return
+  }
   submitting.value = true
   try {
     const payload = {

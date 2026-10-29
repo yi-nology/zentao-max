@@ -217,7 +217,16 @@ func (s *TaskService) fetchAllTasks(productId int) ([]zentaosdk.Task, error) {
 		return nil, err
 	}
 
+	// 耗时闸：与 fetchAllTasksAcrossExecutions 同款 60s 截断。此前无门控，
+	// product 维度慢拉 + 空 fallback 全执行遍历两层叠加曾把 /api/tasks 拖到 124s
+	deadline := time.Now().Add(60 * time.Second)
+
 	for _, project := range projects {
+		if time.Now().After(deadline) {
+			logger.Warn("product 维度任务收集超时，返回已收集部分",
+				"productId", productId, "projects", len(projects))
+			break
+		}
 		executions, err := s.client.GetExecutions(project.ID, 1, 1000)
 		if err != nil {
 			logger.Error("Failed to fetch executions for project",

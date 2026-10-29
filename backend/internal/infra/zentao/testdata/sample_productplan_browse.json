@@ -1,0 +1,16 @@
+{
+  "title": "测试V2.0-示例",
+  "sample_key": "plans",
+  "sample": [],
+  "pager": {
+    "recTotal": 0,
+    "recPerPage": 20,
+    "pageCookie": "pagerProductplanBrowse",
+    "pageTotal": 0,
+    "pageID": 1,
+    "moduleName": "productplan",
+    "methodName": "browse",
+    "params": null,
+    "offset": 0
+  }
+}

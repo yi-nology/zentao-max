@@ -1,0 +1,2846 @@
+[
+  {
+    "id": 10000,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2025-12-01",
+    "end": "2025-12-01",
+    "url": "/effort-view-10000.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10001,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2025-12-02",
+    "end": "2025-12-02",
+    "url": "/effort-view-10001.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10002,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2025-12-03",
+    "end": "2025-12-03",
+    "url": "/effort-view-10002.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10003,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2025-12-04",
+    "end": "2025-12-04",
+    "url": "/effort-view-10003.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10004,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2025-12-05",
+    "end": "2025-12-05",
+    "url": "/effort-view-10004.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10005,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2025-12-08",
+    "end": "2025-12-08",
+    "url": "/effort-view-10005.html?onlybody=yes",
+    "consumed": 10
+  },
+  {
+    "id": 10006,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2025-12-09",
+    "end": "2025-12-09",
+    "url": "/effort-view-10006.html?onlybody=yes",
+    "consumed": 10
+  },
+  {
+    "id": 10007,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2025-12-10",
+    "end": "2025-12-10",
+    "url": "/effort-view-10007.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10008,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2025-12-11",
+    "end": "2025-12-11",
+    "url": "/effort-view-10008.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10009,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2025-12-12",
+    "end": "2025-12-12",
+    "url": "/effort-view-10009.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10010,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2025-12-15",
+    "end": "2025-12-15",
+    "url": "/effort-view-10010.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10011,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2025-12-16",
+    "end": "2025-12-16",
+    "url": "/effort-view-10011.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10012,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2025-12-16",
+    "end": "2025-12-16",
+    "url": "/effort-view-10012.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10013,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2025-12-16",
+    "end": "2025-12-16",
+    "url": "/effort-view-10013.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10014,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2025-12-17",
+    "end": "2025-12-17",
+    "url": "/effort-view-10014.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10015,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2025-12-18",
+    "end": "2025-12-18",
+    "url": "/effort-view-10015.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10016,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2025-12-19",
+    "end": "2025-12-19",
+    "url": "/effort-view-10016.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10017,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2025-12-22",
+    "end": "2025-12-22",
+    "url": "/effort-view-10017.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10018,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2025-12-22",
+    "end": "2025-12-22",
+    "url": "/effort-view-10018.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10019,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2025-12-23",
+    "end": "2025-12-23",
+    "url": "/effort-view-10019.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10020,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2025-12-23",
+    "end": "2025-12-23",
+    "url": "/effort-view-10020.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10021,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2025-12-23",
+    "end": "2025-12-23",
+    "url": "/effort-view-10021.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10022,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2025-12-24",
+    "end": "2025-12-24",
+    "url": "/effort-view-10022.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10023,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2025-12-24",
+    "end": "2025-12-24",
+    "url": "/effort-view-10023.html?onlybody=yes",
+    "consumed": 1.5
+  },
+  {
+    "id": 10024,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2025-12-24",
+    "end": "2025-12-24",
+    "url": "/effort-view-10024.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10025,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2025-12-24",
+    "end": "2025-12-24",
+    "url": "/effort-view-10025.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10026,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2025-12-24",
+    "end": "2025-12-24",
+    "url": "/effort-view-10026.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10027,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2025-12-25",
+    "end": "2025-12-25",
+    "url": "/effort-view-10027.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10028,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2025-12-25",
+    "end": "2025-12-25",
+    "url": "/effort-view-10028.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10029,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2025-12-25",
+    "end": "2025-12-25",
+    "url": "/effort-view-10029.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10030,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2025-12-25",
+    "end": "2025-12-25",
+    "url": "/effort-view-10030.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10031,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2025-12-26",
+    "end": "2025-12-26",
+    "url": "/effort-view-10031.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10032,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2025-12-26",
+    "end": "2025-12-26",
+    "url": "/effort-view-10032.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10033,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2025-12-26",
+    "end": "2025-12-26",
+    "url": "/effort-view-10033.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10034,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2025-12-26",
+    "end": "2025-12-26",
+    "url": "/effort-view-10034.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10035,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2025-12-26",
+    "end": "2025-12-26",
+    "url": "/effort-view-10035.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10036,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2025-12-29",
+    "end": "2025-12-29",
+    "url": "/effort-view-10036.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10037,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2025-12-29",
+    "end": "2025-12-29",
+    "url": "/effort-view-10037.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10038,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2025-12-29",
+    "end": "2025-12-29",
+    "url": "/effort-view-10038.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10039,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2025-12-29",
+    "end": "2025-12-29",
+    "url": "/effort-view-10039.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10040,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10040.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10041,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10041.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10042,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10042.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10043,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10043.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10044,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10044.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10045,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2025-12-30",
+    "end": "2025-12-30",
+    "url": "/effort-view-10045.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10046,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-01-04",
+    "end": "2026-01-04",
+    "url": "/effort-view-10046.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10047,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10047.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10048,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10048.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10049,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10049.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10050,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10050.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10051,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10051.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10052,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10052.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10053,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10053.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10054,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10054.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10055,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10055.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10056,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10056.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10057,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10057.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10058,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-01-05",
+    "end": "2026-01-05",
+    "url": "/effort-view-10058.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10059,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10059.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10060,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10060.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10061,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10061.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10062,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10062.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10063,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10063.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10064,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10064.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10065,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10065.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10066,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10066.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10067,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10067.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10068,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-06",
+    "end": "2026-01-06",
+    "url": "/effort-view-10068.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10069,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-01-07",
+    "end": "2026-01-07",
+    "url": "/effort-view-10069.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10070,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-01-07",
+    "end": "2026-01-07",
+    "url": "/effort-view-10070.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10071,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-01-07",
+    "end": "2026-01-07",
+    "url": "/effort-view-10071.html?onlybody=yes",
+    "consumed": 0
+  },
+  {
+    "id": 10072,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-01-08",
+    "end": "2026-01-08",
+    "url": "/effort-view-10072.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10073,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-01-08",
+    "end": "2026-01-08",
+    "url": "/effort-view-10073.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10074,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-01-08",
+    "end": "2026-01-08",
+    "url": "/effort-view-10074.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10075,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-01-08",
+    "end": "2026-01-08",
+    "url": "/effort-view-10075.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10076,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-01-09",
+    "end": "2026-01-09",
+    "url": "/effort-view-10076.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10077,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-01-09",
+    "end": "2026-01-09",
+    "url": "/effort-view-10077.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10078,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-01-12",
+    "end": "2026-01-12",
+    "url": "/effort-view-10078.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10079,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-01-12",
+    "end": "2026-01-12",
+    "url": "/effort-view-10079.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10080,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-01-13",
+    "end": "2026-01-13",
+    "url": "/effort-view-10080.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10081,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-01-13",
+    "end": "2026-01-13",
+    "url": "/effort-view-10081.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10082,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-13",
+    "end": "2026-01-13",
+    "url": "/effort-view-10082.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10083,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-01-14",
+    "end": "2026-01-14",
+    "url": "/effort-view-10083.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10084,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-01-14",
+    "end": "2026-01-14",
+    "url": "/effort-view-10084.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10085,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-01-15",
+    "end": "2026-01-15",
+    "url": "/effort-view-10085.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10086,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-15",
+    "end": "2026-01-15",
+    "url": "/effort-view-10086.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10087,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-01-15",
+    "end": "2026-01-15",
+    "url": "/effort-view-10087.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10088,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-01-15",
+    "end": "2026-01-15",
+    "url": "/effort-view-10088.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10089,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-01-16",
+    "end": "2026-01-16",
+    "url": "/effort-view-10089.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10090,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-01-16",
+    "end": "2026-01-16",
+    "url": "/effort-view-10090.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10091,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-01-16",
+    "end": "2026-01-16",
+    "url": "/effort-view-10091.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10092,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-01-19",
+    "end": "2026-01-19",
+    "url": "/effort-view-10092.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10093,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-01-19",
+    "end": "2026-01-19",
+    "url": "/effort-view-10093.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10094,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-01-19",
+    "end": "2026-01-19",
+    "url": "/effort-view-10094.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10095,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-01-19",
+    "end": "2026-01-19",
+    "url": "/effort-view-10095.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10096,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-01-20",
+    "end": "2026-01-20",
+    "url": "/effort-view-10096.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10097,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-01-20",
+    "end": "2026-01-20",
+    "url": "/effort-view-10097.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10098,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-01-20",
+    "end": "2026-01-20",
+    "url": "/effort-view-10098.html?onlybody=yes",
+    "consumed": 6
+  },
+  {
+    "id": 10099,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-01-21",
+    "end": "2026-01-21",
+    "url": "/effort-view-10099.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10100,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-21",
+    "end": "2026-01-21",
+    "url": "/effort-view-10100.html?onlybody=yes",
+    "consumed": 5
+  },
+  {
+    "id": 10101,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-01-21",
+    "end": "2026-01-21",
+    "url": "/effort-view-10101.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10102,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-01-22",
+    "end": "2026-01-22",
+    "url": "/effort-view-10102.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10103,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-01-22",
+    "end": "2026-01-22",
+    "url": "/effort-view-10103.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10104,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-01-22",
+    "end": "2026-01-22",
+    "url": "/effort-view-10104.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10105,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-01-22",
+    "end": "2026-01-22",
+    "url": "/effort-view-10105.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10106,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-01-23",
+    "end": "2026-01-23",
+    "url": "/effort-view-10106.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10107,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-01-23",
+    "end": "2026-01-23",
+    "url": "/effort-view-10107.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10108,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-01-23",
+    "end": "2026-01-23",
+    "url": "/effort-view-10108.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10109,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-01-23",
+    "end": "2026-01-23",
+    "url": "/effort-view-10109.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10110,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-01-26",
+    "end": "2026-01-26",
+    "url": "/effort-view-10110.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10111,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-01-26",
+    "end": "2026-01-26",
+    "url": "/effort-view-10111.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10112,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-01-26",
+    "end": "2026-01-26",
+    "url": "/effort-view-10112.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10113,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-01-27",
+    "end": "2026-01-27",
+    "url": "/effort-view-10113.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10114,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-01-28",
+    "end": "2026-01-28",
+    "url": "/effort-view-10114.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10115,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-01-29",
+    "end": "2026-01-29",
+    "url": "/effort-view-10115.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10116,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-01-30",
+    "end": "2026-01-30",
+    "url": "/effort-view-10116.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10117,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-02-02",
+    "end": "2026-02-02",
+    "url": "/effort-view-10117.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10118,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-02-02",
+    "end": "2026-02-02",
+    "url": "/effort-view-10118.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10119,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-02-02",
+    "end": "2026-02-02",
+    "url": "/effort-view-10119.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10120,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-02-03",
+    "end": "2026-02-03",
+    "url": "/effort-view-10120.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10121,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-02-03",
+    "end": "2026-02-03",
+    "url": "/effort-view-10121.html?onlybody=yes",
+    "consumed": 5
+  },
+  {
+    "id": 10122,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-02-04",
+    "end": "2026-02-04",
+    "url": "/effort-view-10122.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10123,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-02-04",
+    "end": "2026-02-04",
+    "url": "/effort-view-10123.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10124,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-02-05",
+    "end": "2026-02-05",
+    "url": "/effort-view-10124.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10125,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-02-05",
+    "end": "2026-02-05",
+    "url": "/effort-view-10125.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10126,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-02-06",
+    "end": "2026-02-06",
+    "url": "/effort-view-10126.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10127,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-02-06",
+    "end": "2026-02-06",
+    "url": "/effort-view-10127.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10128,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-02-06",
+    "end": "2026-02-06",
+    "url": "/effort-view-10128.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10129,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-02-06",
+    "end": "2026-02-06",
+    "url": "/effort-view-10129.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10130,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-02-09",
+    "end": "2026-02-09",
+    "url": "/effort-view-10130.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10131,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-02-09",
+    "end": "2026-02-09",
+    "url": "/effort-view-10131.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10132,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-02-09",
+    "end": "2026-02-09",
+    "url": "/effort-view-10132.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10133,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-02-10",
+    "end": "2026-02-10",
+    "url": "/effort-view-10133.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10134,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-02-10",
+    "end": "2026-02-10",
+    "url": "/effort-view-10134.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10135,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-02-10",
+    "end": "2026-02-10",
+    "url": "/effort-view-10135.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10136,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-02-11",
+    "end": "2026-02-11",
+    "url": "/effort-view-10136.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10137,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-02-11",
+    "end": "2026-02-11",
+    "url": "/effort-view-10137.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10138,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-02-11",
+    "end": "2026-02-11",
+    "url": "/effort-view-10138.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10139,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-02-11",
+    "end": "2026-02-11",
+    "url": "/effort-view-10139.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10140,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-02-12",
+    "end": "2026-02-12",
+    "url": "/effort-view-10140.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10141,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-02-12",
+    "end": "2026-02-12",
+    "url": "/effort-view-10141.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10142,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-02-13",
+    "end": "2026-02-13",
+    "url": "/effort-view-10142.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10143,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-02-13",
+    "end": "2026-02-13",
+    "url": "/effort-view-10143.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10144,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-02-13",
+    "end": "2026-02-13",
+    "url": "/effort-view-10144.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10145,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-02-13",
+    "end": "2026-02-13",
+    "url": "/effort-view-10145.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10146,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-02-15",
+    "end": "2026-02-15",
+    "url": "/effort-view-10146.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10147,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-02-18",
+    "end": "2026-02-18",
+    "url": "/effort-view-10147.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10148,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-02-19",
+    "end": "2026-02-19",
+    "url": "/effort-view-10148.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10149,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-02-20",
+    "end": "2026-02-20",
+    "url": "/effort-view-10149.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10150,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-02-21",
+    "end": "2026-02-21",
+    "url": "/effort-view-10150.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10151,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-02-22",
+    "end": "2026-02-22",
+    "url": "/effort-view-10151.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10152,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-02-22",
+    "end": "2026-02-22",
+    "url": "/effort-view-10152.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10153,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-02-22",
+    "end": "2026-02-22",
+    "url": "/effort-view-10153.html?onlybody=yes",
+    "consumed": 6
+  },
+  {
+    "id": 10154,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-02-22",
+    "end": "2026-02-22",
+    "url": "/effort-view-10154.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10155,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-02-23",
+    "end": "2026-02-23",
+    "url": "/effort-view-10155.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10156,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-02-26",
+    "end": "2026-02-26",
+    "url": "/effort-view-10156.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10157,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-02-26",
+    "end": "2026-02-26",
+    "url": "/effort-view-10157.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10158,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-02-26",
+    "end": "2026-02-26",
+    "url": "/effort-view-10158.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10159,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-02-28",
+    "end": "2026-02-28",
+    "url": "/effort-view-10159.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10160,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-02-28",
+    "end": "2026-02-28",
+    "url": "/effort-view-10160.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10161,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-02-28",
+    "end": "2026-02-28",
+    "url": "/effort-view-10161.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10162,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-03-02",
+    "end": "2026-03-02",
+    "url": "/effort-view-10162.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10163,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-03-02",
+    "end": "2026-03-02",
+    "url": "/effort-view-10163.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10164,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-03-03",
+    "end": "2026-03-03",
+    "url": "/effort-view-10164.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10165,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-03-03",
+    "end": "2026-03-03",
+    "url": "/effort-view-10165.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10166,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-03-04",
+    "end": "2026-03-04",
+    "url": "/effort-view-10166.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10167,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-03-05",
+    "end": "2026-03-05",
+    "url": "/effort-view-10167.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10168,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-03-05",
+    "end": "2026-03-05",
+    "url": "/effort-view-10168.html?onlybody=yes",
+    "consumed": 6
+  },
+  {
+    "id": 10169,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-03-06",
+    "end": "2026-03-06",
+    "url": "/effort-view-10169.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10170,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-03-06",
+    "end": "2026-03-06",
+    "url": "/effort-view-10170.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10171,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-03-06",
+    "end": "2026-03-06",
+    "url": "/effort-view-10171.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10172,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-03-06",
+    "end": "2026-03-06",
+    "url": "/effort-view-10172.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10173,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-03-09",
+    "end": "2026-03-09",
+    "url": "/effort-view-10173.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10174,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-03-10",
+    "end": "2026-03-10",
+    "url": "/effort-view-10174.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10175,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-03-10",
+    "end": "2026-03-10",
+    "url": "/effort-view-10175.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10176,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-03-10",
+    "end": "2026-03-10",
+    "url": "/effort-view-10176.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10177,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-03-11",
+    "end": "2026-03-11",
+    "url": "/effort-view-10177.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10178,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-03-11",
+    "end": "2026-03-11",
+    "url": "/effort-view-10178.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10179,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-03-11",
+    "end": "2026-03-11",
+    "url": "/effort-view-10179.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10180,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-03-12",
+    "end": "2026-03-12",
+    "url": "/effort-view-10180.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10181,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-03-12",
+    "end": "2026-03-12",
+    "url": "/effort-view-10181.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10182,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-03-12",
+    "end": "2026-03-12",
+    "url": "/effort-view-10182.html?onlybody=yes",
+    "consumed": 3
+  },
+  {
+    "id": 10183,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-03-13",
+    "end": "2026-03-13",
+    "url": "/effort-view-10183.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10184,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-03-13",
+    "end": "2026-03-13",
+    "url": "/effort-view-10184.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10185,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-03-13",
+    "end": "2026-03-13",
+    "url": "/effort-view-10185.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10186,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-03-16",
+    "end": "2026-03-16",
+    "url": "/effort-view-10186.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10187,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-03-16",
+    "end": "2026-03-16",
+    "url": "/effort-view-10187.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10188,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-03-16",
+    "end": "2026-03-16",
+    "url": "/effort-view-10188.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10189,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-03-17",
+    "end": "2026-03-17",
+    "url": "/effort-view-10189.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10190,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-03-17",
+    "end": "2026-03-17",
+    "url": "/effort-view-10190.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10191,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-03-18",
+    "end": "2026-03-18",
+    "url": "/effort-view-10191.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10192,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-03-18",
+    "end": "2026-03-18",
+    "url": "/effort-view-10192.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10193,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-03-18",
+    "end": "2026-03-18",
+    "url": "/effort-view-10193.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10194,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-03-19",
+    "end": "2026-03-19",
+    "url": "/effort-view-10194.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10195,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-03-19",
+    "end": "2026-03-19",
+    "url": "/effort-view-10195.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10196,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-03-20",
+    "end": "2026-03-20",
+    "url": "/effort-view-10196.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10197,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-03-20",
+    "end": "2026-03-20",
+    "url": "/effort-view-10197.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10198,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-03-23",
+    "end": "2026-03-23",
+    "url": "/effort-view-10198.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10199,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-03-23",
+    "end": "2026-03-23",
+    "url": "/effort-view-10199.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10200,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-03-24",
+    "end": "2026-03-24",
+    "url": "/effort-view-10200.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10201,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-03-25",
+    "end": "2026-03-25",
+    "url": "/effort-view-10201.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10202,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-03-26",
+    "end": "2026-03-26",
+    "url": "/effort-view-10202.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10203,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-03-27",
+    "end": "2026-03-27",
+    "url": "/effort-view-10203.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10204,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-03-27",
+    "end": "2026-03-27",
+    "url": "/effort-view-10204.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10205,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-03-28",
+    "end": "2026-03-28",
+    "url": "/effort-view-10205.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10206,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-03-30",
+    "end": "2026-03-30",
+    "url": "/effort-view-10206.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10207,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-03-31",
+    "end": "2026-03-31",
+    "url": "/effort-view-10207.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10208,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-04-01",
+    "end": "2026-04-01",
+    "url": "/effort-view-10208.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10209,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-04-02",
+    "end": "2026-04-02",
+    "url": "/effort-view-10209.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10210,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-04-03",
+    "end": "2026-04-03",
+    "url": "/effort-view-10210.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10211,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-04-06",
+    "end": "2026-04-06",
+    "url": "/effort-view-10211.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10212,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-04-07",
+    "end": "2026-04-07",
+    "url": "/effort-view-10212.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10213,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-04-08",
+    "end": "2026-04-08",
+    "url": "/effort-view-10213.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10214,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-04-09",
+    "end": "2026-04-09",
+    "url": "/effort-view-10214.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10215,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-04-10",
+    "end": "2026-04-10",
+    "url": "/effort-view-10215.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10216,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-04-13",
+    "end": "2026-04-13",
+    "url": "/effort-view-10216.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10217,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-04-14",
+    "end": "2026-04-14",
+    "url": "/effort-view-10217.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10218,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-04-14",
+    "end": "2026-04-14",
+    "url": "/effort-view-10218.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10219,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-04-14",
+    "end": "2026-04-14",
+    "url": "/effort-view-10219.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10220,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-04-15",
+    "end": "2026-04-15",
+    "url": "/effort-view-10220.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10221,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-04-15",
+    "end": "2026-04-15",
+    "url": "/effort-view-10221.html?onlybody=yes",
+    "consumed": 6
+  },
+  {
+    "id": 10222,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-04-16",
+    "end": "2026-04-16",
+    "url": "/effort-view-10222.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10223,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-04-16",
+    "end": "2026-04-16",
+    "url": "/effort-view-10223.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10224,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-04-16",
+    "end": "2026-04-16",
+    "url": "/effort-view-10224.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10225,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-04-16",
+    "end": "2026-04-16",
+    "url": "/effort-view-10225.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10226,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-04-17",
+    "end": "2026-04-17",
+    "url": "/effort-view-10226.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10227,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-04-17",
+    "end": "2026-04-17",
+    "url": "/effort-view-10227.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10228,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-04-17",
+    "end": "2026-04-17",
+    "url": "/effort-view-10228.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10229,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-04-20",
+    "end": "2026-04-20",
+    "url": "/effort-view-10229.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10230,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-04-20",
+    "end": "2026-04-20",
+    "url": "/effort-view-10230.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10231,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-04-21",
+    "end": "2026-04-21",
+    "url": "/effort-view-10231.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10232,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-04-22",
+    "end": "2026-04-22",
+    "url": "/effort-view-10232.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10233,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-04-23",
+    "end": "2026-04-23",
+    "url": "/effort-view-10233.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10234,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-04-24",
+    "end": "2026-04-24",
+    "url": "/effort-view-10234.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10235,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-04-27",
+    "end": "2026-04-27",
+    "url": "/effort-view-10235.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10236,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-04-28",
+    "end": "2026-04-28",
+    "url": "/effort-view-10236.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10237,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-04-28",
+    "end": "2026-04-28",
+    "url": "/effort-view-10237.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10238,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-04-28",
+    "end": "2026-04-28",
+    "url": "/effort-view-10238.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10239,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-04-29",
+    "end": "2026-04-29",
+    "url": "/effort-view-10239.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10240,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-04-30",
+    "end": "2026-04-30",
+    "url": "/effort-view-10240.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10241,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-05-01",
+    "end": "2026-05-01",
+    "url": "/effort-view-10241.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10242,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-05-04",
+    "end": "2026-05-04",
+    "url": "/effort-view-10242.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10243,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-05-05",
+    "end": "2026-05-05",
+    "url": "/effort-view-10243.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10244,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-05-05",
+    "end": "2026-05-05",
+    "url": "/effort-view-10244.html?onlybody=yes",
+    "consumed": 0.1
+  },
+  {
+    "id": 10245,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-05-06",
+    "end": "2026-05-06",
+    "url": "/effort-view-10245.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10246,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-05-07",
+    "end": "2026-05-07",
+    "url": "/effort-view-10246.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10247,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-05-07",
+    "end": "2026-05-07",
+    "url": "/effort-view-10247.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10248,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-05-08",
+    "end": "2026-05-08",
+    "url": "/effort-view-10248.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10249,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-05-08",
+    "end": "2026-05-08",
+    "url": "/effort-view-10249.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10250,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-05-11",
+    "end": "2026-05-11",
+    "url": "/effort-view-10250.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10251,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-05-12",
+    "end": "2026-05-12",
+    "url": "/effort-view-10251.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10252,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-05-13",
+    "end": "2026-05-13",
+    "url": "/effort-view-10252.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10253,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-05-14",
+    "end": "2026-05-14",
+    "url": "/effort-view-10253.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10254,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-05-15",
+    "end": "2026-05-15",
+    "url": "/effort-view-10254.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10255,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-05-16",
+    "end": "2026-05-16",
+    "url": "/effort-view-10255.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10256,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-05-18",
+    "end": "2026-05-18",
+    "url": "/effort-view-10256.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10257,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-05-18",
+    "end": "2026-05-18",
+    "url": "/effort-view-10257.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10258,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-05-19",
+    "end": "2026-05-19",
+    "url": "/effort-view-10258.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10259,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10259.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10260,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10260.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10261,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10261.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10262,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10262.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10263,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10263.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10264,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-05-20",
+    "end": "2026-05-20",
+    "url": "/effort-view-10264.html?onlybody=yes",
+    "consumed": 2
+  },
+  {
+    "id": 10265,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-05-21",
+    "end": "2026-05-21",
+    "url": "/effort-view-10265.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10266,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-05-22",
+    "end": "2026-05-22",
+    "url": "/effort-view-10266.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10267,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-05-22",
+    "end": "2026-05-22",
+    "url": "/effort-view-10267.html?onlybody=yes",
+    "consumed": 4
+  },
+  {
+    "id": 10268,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-05-25",
+    "end": "2026-05-25",
+    "url": "/effort-view-10268.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10269,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-05-26",
+    "end": "2026-05-26",
+    "url": "/effort-view-10269.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10270,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-05-27",
+    "end": "2026-05-27",
+    "url": "/effort-view-10270.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10271,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-05-27",
+    "end": "2026-05-27",
+    "url": "/effort-view-10271.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10272,
+    "title": "[T]Bug 示例-样例",
+    "objectType": "task",
+    "start": "2026-05-28",
+    "end": "2026-05-28",
+    "url": "/effort-view-10272.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10273,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-05-29",
+    "end": "2026-05-29",
+    "url": "/effort-view-10273.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10274,
+    "title": "[T]测试-API 示例",
+    "objectType": "task",
+    "start": "2026-06-01",
+    "end": "2026-06-01",
+    "url": "/effort-view-10274.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10275,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-06-02",
+    "end": "2026-06-02",
+    "url": "/effort-view-10275.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10276,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-06-03",
+    "end": "2026-06-03",
+    "url": "/effort-view-10276.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10277,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-06-04",
+    "end": "2026-06-04",
+    "url": "/effort-view-10277.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10278,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-06-05",
+    "end": "2026-06-05",
+    "url": "/effort-view-10278.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10279,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-06-05",
+    "end": "2026-06-05",
+    "url": "/effort-view-10279.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10280,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-06-08",
+    "end": "2026-06-08",
+    "url": "/effort-view-10280.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10281,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-06-09",
+    "end": "2026-06-09",
+    "url": "/effort-view-10281.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10282,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-06-10",
+    "end": "2026-06-10",
+    "url": "/effort-view-10282.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10283,
+    "title": "[T]样例-API 演示",
+    "objectType": "task",
+    "start": "2026-06-11",
+    "end": "2026-06-11",
+    "url": "/effort-view-10283.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10284,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-06-12",
+    "end": "2026-06-12",
+    "url": "/effort-view-10284.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10285,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-06-14",
+    "end": "2026-06-14",
+    "url": "/effort-view-10285.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10286,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-06-15",
+    "end": "2026-06-15",
+    "url": "/effort-view-10286.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10287,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-06-16",
+    "end": "2026-06-16",
+    "url": "/effort-view-10287.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10288,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-06-17",
+    "end": "2026-06-17",
+    "url": "/effort-view-10288.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10289,
+    "title": "[T]样例-演示",
+    "objectType": "task",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10289.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10290,
+    "title": "[T]Bug 测试-示例",
+    "objectType": "task",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10290.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10291,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10291.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10292,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10292.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10293,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10293.html?onlybody=yes",
+    "consumed": 0.5
+  },
+  {
+    "id": 10294,
+    "title": "[B]演示 Excel 测试",
+    "objectType": "bug",
+    "start": "2026-06-18",
+    "end": "2026-06-18",
+    "url": "/effort-view-10294.html?onlybody=yes",
+    "consumed": 5.5
+  },
+  {
+    "id": 10295,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-06-19",
+    "end": "2026-06-19",
+    "url": "/effort-view-10295.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10296,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-06-22",
+    "end": "2026-06-22",
+    "url": "/effort-view-10296.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10297,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-06-23",
+    "end": "2026-06-23",
+    "url": "/effort-view-10297.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10298,
+    "title": "[T]测试-示例",
+    "objectType": "task",
+    "start": "2026-06-23",
+    "end": "2026-06-23",
+    "url": "/effort-view-10298.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10299,
+    "title": "[T]Bug 样例-演示",
+    "objectType": "task",
+    "start": "2026-06-24",
+    "end": "2026-06-24",
+    "url": "/effort-view-10299.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10300,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-06-25",
+    "end": "2026-06-25",
+    "url": "/effort-view-10300.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10301,
+    "title": "[T]示例-API 样例",
+    "objectType": "task",
+    "start": "2026-06-26",
+    "end": "2026-06-26",
+    "url": "/effort-view-10301.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10302,
+    "title": "[T]演示-测试",
+    "objectType": "task",
+    "start": "2026-06-29",
+    "end": "2026-06-29",
+    "url": "/effort-view-10302.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10303,
+    "title": "[B]示例",
+    "objectType": "bug",
+    "start": "2026-06-30",
+    "end": "2026-06-30",
+    "url": "/effort-view-10303.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10304,
+    "title": "[T]样例",
+    "objectType": "task",
+    "start": "2026-07-01",
+    "end": "2026-07-01",
+    "url": "/effort-view-10304.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10305,
+    "title": "[T]演示",
+    "objectType": "task",
+    "start": "2026-07-02",
+    "end": "2026-07-02",
+    "url": "/effort-view-10305.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10306,
+    "title": "[B]测试",
+    "objectType": "bug",
+    "start": "2026-07-03",
+    "end": "2026-07-03",
+    "url": "/effort-view-10306.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10307,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-07-06",
+    "end": "2026-07-06",
+    "url": "/effort-view-10307.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10308,
+    "title": "[T]Bug 演示-测试",
+    "objectType": "task",
+    "start": "2026-07-07",
+    "end": "2026-07-07",
+    "url": "/effort-view-10308.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10309,
+    "title": "[B]示例 Excel 样例",
+    "objectType": "bug",
+    "start": "2026-07-08",
+    "end": "2026-07-08",
+    "url": "/effort-view-10309.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10310,
+    "title": "[T]演示-API 测试",
+    "objectType": "task",
+    "start": "2026-07-09",
+    "end": "2026-07-09",
+    "url": "/effort-view-10310.html?onlybody=yes",
+    "consumed": 1
+  },
+  {
+    "id": 10311,
+    "title": "[T]示例-样例",
+    "objectType": "task",
+    "start": "2026-07-09",
+    "end": "2026-07-09",
+    "url": "/effort-view-10311.html?onlybody=yes",
+    "consumed": 7
+  },
+  {
+    "id": 10312,
+    "title": "[B]演示",
+    "objectType": "bug",
+    "start": "2026-07-10",
+    "end": "2026-07-10",
+    "url": "/effort-view-10312.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10313,
+    "title": "[T]测试",
+    "objectType": "task",
+    "start": "2026-07-13",
+    "end": "2026-07-13",
+    "url": "/effort-view-10313.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10314,
+    "title": "[T]示例",
+    "objectType": "task",
+    "start": "2026-07-14",
+    "end": "2026-07-14",
+    "url": "/effort-view-10314.html?onlybody=yes",
+    "consumed": 8
+  },
+  {
+    "id": 10315,
+    "title": "[B]样例",
+    "objectType": "bug",
+    "start": "2026-07-15",
+    "end": "2026-07-15",
+    "url": "/effort-view-10315.html?onlybody=yes",
+    "consumed": 8
+  }
+]

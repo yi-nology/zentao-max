@@ -74,3 +74,6 @@ backend/backend
 
 # compiled MCP binary
 backend/zentao-max-mcp
+
+# UI 测试截图（本地运行时重新生成，不入库）
+frontend/tests/ui/screenshots/

@@ -1,0 +1,16 @@
+{
+  "title": "示例V2.0-样例",
+  "sample_key": "releases",
+  "sample": [],
+  "pager": {
+    "recTotal": 0,
+    "recPerPage": 20,
+    "pageCookie": "pagerReleaseBrowse",
+    "pageTotal": 0,
+    "pageID": 1,
+    "moduleName": "release",
+    "methodName": "browse",
+    "params": null,
+    "offset": 0
+  }
+}

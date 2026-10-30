@@ -3,7 +3,6 @@ package zentao
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
@@ -11,10 +10,42 @@ import (
 
 // ---- Users (session mode) ----
 //
-// 受限实例上 /user-browse.json 返回 0 字节（账号无用户管理权限）。
-// 会话模式下：当前用户走 /user-profile.json（拿完整 user 对象）；
-// 用户列表能力受限，GetUsersAll 在权限允许时走 /user-browse.json，
-// 不允许时返回仅含当前用户的单元素列表（保证 dashboard 的 current-user 合成可用）。
+// 用户列表三级回退链（2026-10-30 pm.kylin.com 实地抓包定级）：
+//  1. /user-browse.json —— 权限完整实例，字段最全（gender/phone/status 等）；
+//     受限实例（账号无用户管理权限）返 HTTP 200 + 0 字节。
+//  2. /api.php/v1/users?limit=&page= —— v1 REST，session cookie 即可鉴权，
+//     受限账号也能读全量（实测 3410 用户 limit=5000 单请求返回）；
+//     未登录返 401，不会泄漏。字段少（无 gender/phone/status）。
+//  3. /user-profile.json —— 仅当前用户，最后兜底。
+//
+// 当前用户走 /user-profile.json（拿完整 user 对象）。
+
+// v1UsersPageSize 是 /api.php/v1/users 单页拉取条数。var 便于测试缩小验证翻页。
+var v1UsersPageSize = 5000
+
+// v1UsersMaxPages 是 v1 users 翻页安全上限（5000×5=25000 用户封顶，防异常实例翻页死循环）。
+const v1UsersMaxPages = 5
+
+// v1User 是 /api.php/v1/users 返回的单个用户（字段比 user-browse 少）。
+type v1User struct {
+	ID       int    `json:"id"`
+	Account  string `json:"account"`
+	Realname string `json:"realname"`
+	Role     string `json:"role"`
+	Dept     int    `json:"dept"`
+	Email    string `json:"email"`
+}
+
+func (u v1User) toSDK() zentaosdk.User {
+	return zentaosdk.User{
+		ID:       u.ID,
+		Account:  u.Account,
+		Realname: u.Realname,
+		Role:     u.Role,
+		Dept:     u.Dept,
+		Email:    u.Email,
+	}
+}
 
 type sessionUserProfileResp struct {
 	Title string      `json:"title"`
@@ -61,59 +92,48 @@ func (c *Client) getCurrentUserSession(ctx context.Context) (*zentaosdk.User, er
 	return &u, nil
 }
 
-// isEmptyBodyParseError 判断 err 是否为「HTTP 200 但 body 为空 / 错 shape 导致 JSON 解析失败」类。
-//
-// 受限实例上无用户管理权限的账号访问 /user-browse.json 至少有两种伪装：
-//  1. HTTP 200 + 0 字节 → 解析时 "unexpected end of JSON input"
-//  2. 受限实例 SSO 限流时返了 project list 的 shape（"title":"项目列表" + projectStats 字段），
-//     unmarshal 到 sessionUser 结构体失败：cannot unmarshal string into ... of type sessionUser
-// 两种都本质上是"权限受限"或"限流伪装"，应与 IsSessionAccessDenied 同样走 fallback
-// 到 getCurrentUserSession。
-//
-// 注意：IsSessionAccessDenied 捕获的是 locate=user-deny 触发的 errSessionAccessDenied，
-// 这里是另外两种表现，三种都需要 fallback。
-func isEmptyBodyParseError(err error) bool {
+// getUsersAllSession 获取用户列表，三级回退：
+// /user-browse.json → /api.php/v1/users → 仅当前用户。
+func (c *Client) getUsersAllSession(ctx context.Context) ([]zentaosdk.User, error) {
+	// 1. user-browse：权限完整实例的首选（字段最全）。
+	users, err := c.getUsersByBrowse(ctx)
 	if err == nil {
-		return false
+		return users, nil
 	}
-	msg := err.Error()
-	if strings.Contains(msg, "unexpected end of JSON input") {
-		return true
+	logger.Warn("user-browse 不可用，尝试 v1 REST users", "error", err)
+
+	// 2. v1 REST：受限实例实测可用（session cookie 鉴权，401 保护未泄漏）。
+	if v1users, ok, verr := c.getUsersV1Session(ctx); ok {
+		return v1users, nil
+	} else if verr != nil {
+		logger.Warn("v1 users 不可用，降级为当前用户", "error", verr)
 	}
-	if strings.Contains(msg, "body=") && strings.HasSuffix(strings.TrimSpace(msg), "body=") {
-		return true
+
+	// 3. 最后兜底：仅当前用户（dashboard 的 current-user 合成依赖此路径）。
+	me, merr := c.getCurrentUserSession(ctx)
+	if merr != nil {
+		return nil, fmt.Errorf("获取用户列表失败且降级失败: %w", merr)
 	}
-	// wrong shape 伪装：受限实例限流时 user-browse 端点返 project list 的 schema
-	// （"项目列表" / projectStats），unmarshal sessionUser 失败。
-	if strings.Contains(msg, "of type zentao.sessionUser") {
-		return true
-	}
-	return false
+	return []zentaosdk.User{*me}, nil
 }
 
-// getUsersAllSession 获取用户列表。权限允许时走 /user-browse.json；
-// 否则回退到仅当前用户。前端 dashboard 的 current-user 合成依赖此方法。
-func (c *Client) getUsersAllSession(ctx context.Context) ([]zentaosdk.User, error) {
+// getUsersByBrowse 走经典 /user-browse.json（envelope + users map）。
+// 成功返回非空列表；权限不足（0 字节/deny/错 shape）或列表为空时返回错误，
+// 由调用方继续走 v1 回退（注意：空列表不再直接降级当前用户，v1 可能拿得到全量）。
+func (c *Client) getUsersByBrowse(ctx context.Context) ([]zentaosdk.User, error) {
 	var resp struct {
 		Title   string                 `json:"title"`
 		Users   map[string]sessionUser `json:"users"`
 		Members map[string]sessionUser `json:"memberPairs"`
 		Pager   *sessionPager          `json:"pager"`
 	}
-	// /user-browse.json：权限允许时返回用户列表；不允许时返回空 body 或 deny。
-	// 受限实例实测：账号无用户管理权限时 HTTP 200 + 0 字节，导致 JSON parse fail
-	// （不是 access denied 走 locate=user-deny），需要也 fallback 到 getCurrentUserSession。
-	if err := c.doSessionJSON(ctx, "GetUsersAll", "/user-browse.json", &resp); err != nil {
-		// user-browse 是可选能力：无权限（空 body/deny）、网关偶发截断等都属于
-		// "拿不到完整列表"——一律降级为仅当前用户，而不是把错误抛给上层
-		// （列表/筛选页因此整页报错，指派人下拉这种非关键数据不值得）。
-		// 原条件只识别两种错误形态，分类器文案变化就漏（踩过）。
-		logger.Warn("user-browse 不可用，降级为当前用户", "error", err)
-		me, merr := c.getCurrentUserSession(ctx)
-		if merr != nil {
-			return nil, fmt.Errorf("获取用户列表失败且降级失败: %w", merr)
-		}
-		return []zentaosdk.User{*me}, nil
+	// op 名用 GetUsers（opToEntity → sessionEntityUsers）。
+	// 历史上用 "GetUsersAll"，opToEntity 未命中落到 sessionEntityBugs，
+	// 用户数据被当 bugs 实体缓存（TTL/失效都错位），顺手纠正。
+	if err := c.doSessionJSON(ctx, "GetUsers", "/user-browse.json", &resp); err != nil {
+		// 受限实例实测：无用户管理权限时 HTTP 200 + 0 字节，JSON parse fail
+		//（不是 access denied 走 locate=user-deny）。
+		return nil, err
 	}
 	out := make([]zentaosdk.User, 0, len(resp.Users))
 	for _, u := range resp.Users {
@@ -125,14 +145,52 @@ func (c *Client) getUsersAllSession(ctx context.Context) ([]zentaosdk.User, erro
 		out = append(out, u.toSDK())
 	}
 	if len(out) == 0 {
-		// data 为空（受限实例行为）：回退到当前用户。
-		me, err := c.getCurrentUserSession(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return []zentaosdk.User{*me}, nil
+		return nil, fmt.Errorf("user-browse 返回空列表")
 	}
 	return out, nil
+}
+
+// getUsersV1Session 走 v1 REST /api.php/v1/users 分页拉全量。
+// 返回 ok=false 表示该端点不可用（老实例无 v1 / 403 / 空数据），调用方继续兜底。
+func (c *Client) getUsersV1Session(ctx context.Context) ([]zentaosdk.User, bool, error) {
+	var out []zentaosdk.User
+	total := 0
+	for page := 1; page <= v1UsersMaxPages; page++ {
+		var resp struct {
+			Total int      `json:"total"`
+			Users []v1User `json:"users"`
+		}
+		path := fmt.Sprintf("/api.php/v1/users?limit=%d&page=%d", v1UsersPageSize, page)
+		if err := c.doV1JSON(ctx, "GetUsers", path, &resp); err != nil {
+			if page == 1 {
+				// 首页失败 = 该端点整体不可用，交给调用方走下一级回退。
+				return nil, false, err
+			}
+			// 后续页失败：已拉到的部分数据仍有效，停止翻页。
+			logger.Warn("v1 users 后续页拉取失败，使用部分数据", "page", page, "error", err)
+			break
+		}
+		if len(resp.Users) == 0 {
+			if page == 1 {
+				return nil, false, fmt.Errorf("v1 users 首页为空")
+			}
+			break
+		}
+		for _, u := range resp.Users {
+			if u.ID == 0 && u.Account == "" {
+				continue
+			}
+			out = append(out, u.toSDK())
+		}
+		total = resp.Total
+		if len(resp.Users) < v1UsersPageSize || (total > 0 && len(out) >= total) {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil, false, fmt.Errorf("v1 users 无数据")
+	}
+	return out, true, nil
 }
 
 // getUsersSession 分页包装 GetUsersAll（内存分页，与 Token 模式行为一致）。

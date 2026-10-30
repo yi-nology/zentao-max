@@ -421,7 +421,17 @@ func callMCPAction(c *app.RequestContext, transport *mcp.HTTPTransport, action s
 	}
 	if len(c.Request.Body()) > 0 {
 		if err := json.Unmarshal(c.Request.Body(), &body); err != nil {
-			body.Params = nil // 容忍非 JSON body，走 query
+			// 客户端明确声明 JSON 却解析失败 → 直接报错而非静默当无参执行：
+			// 静默容忍会让拼错的 JSON 变成无参调用（列表工具全量拉取、必参工具
+			// 报出误导性的「缺少必填参数」——正是 test_mcp.sh 踩过的坑）。
+			if strings.Contains(strings.ToLower(string(c.Request.Header.ContentType())), "application/json") {
+				c.JSON(http.StatusBadRequest, mcp.MCPResponse{
+					Status:  "error",
+					Message: "请求体不是合法 JSON: " + err.Error(),
+				})
+				return
+			}
+			body.Params = nil // 非 JSON body（表单等）容忍，走 query
 		}
 	}
 	if len(body.Params) > 0 {

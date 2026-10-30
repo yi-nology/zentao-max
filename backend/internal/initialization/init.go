@@ -86,8 +86,14 @@ func (s *InitService) loadOrCreateKeyFile() string {
 		return deriveLegacyMachineKey()
 	}
 	key := hex.EncodeToString(keyBytes)
-	if err := os.WriteFile(path, []byte(key+"\n"), 0600); err != nil {
-		log.Println("WARNING: failed to write key file, falling back to machine-derived key:", err)
+	// auth.db 同目录（如 ./data/）在全新安装时还不存在；不建目录会导致密钥文件
+	// 写失败并回退到 hostname 派生密钥，重新引入机器名漂移即解密失败的老问题。
+	var werr error
+	if werr = os.MkdirAll(filepath.Dir(path), 0o755); werr == nil {
+		werr = os.WriteFile(path, []byte(key+"\n"), 0600)
+	}
+	if werr != nil {
+		log.Println("WARNING: failed to write key file, falling back to machine-derived key:", werr)
 		return deriveLegacyMachineKey()
 	}
 	log.Printf("Generated managed encryption key file: %s", path)

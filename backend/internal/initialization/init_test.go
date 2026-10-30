@@ -3,6 +3,7 @@ package initialization
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -107,6 +108,45 @@ func TestManagedKeyFileStableAcrossInstances(t *testing.T) {
 		t.Fatalf("load with fresh instance failed: %v", err)
 	}
 	if loaded.Username != original.Username || loaded.Realm != original.Realm {
+		t.Errorf("roundtrip mismatch: %+v", loaded)
+	}
+}
+
+// TestManagedKeyFileCreatesMissingDir 全新安装时 auth.db 父目录（如 ./data/）尚不存在，
+// 密钥文件写入必须自动建目录；否则回退机器派生密钥，重新引入 hostname 漂移解密失败。
+func TestManagedKeyFileCreatesMissingDir(t *testing.T) {
+	base := t.TempDir()
+	dbPath := filepath.Join(base, "data", "nested", "auth.db") // 中间目录全部缺失
+
+	svc := NewInitService(dbPath, "")
+	keyPath := filepath.Join(filepath.Dir(dbPath), keyFileName)
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("encryption.key not created under missing dir: %v", err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("encryption.key perm = %v, want 0600", info.Mode().Perm())
+	}
+
+	// 密钥可用：roundtrip 走的是密钥文件而非机器派生回退
+	original := &AuthConfig{Username: "u", Password: "p", Domain: "https://x.example.com"}
+	if err := svc.StoreAuthConfigFromStruct(original); err != nil {
+		t.Fatalf("store failed: %v", err)
+	}
+	// 主密钥必须等于磁盘上密钥文件的内容——若相等不成立说明回退了机器派生密钥
+	keyOnDisk, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("read key file: %v", err)
+	}
+	if strings.TrimSpace(string(keyOnDisk)) != svc.encryptionKey {
+		t.Error("primary key != key file content — fell back to machine-derived key")
+	}
+	svc2 := NewInitService(dbPath, "")
+	loaded, _, err := svc2.LoadAuthConfig()
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+	if loaded.Username != original.Username {
 		t.Errorf("roundtrip mismatch: %+v", loaded)
 	}
 }

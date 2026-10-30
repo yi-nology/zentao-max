@@ -21,7 +21,10 @@ PASS=0; FAIL=0; SKIP=0
 
 # run_tool <action> [params_json] — 简化协议冒烟，按 status 字段判定
 run_tool() {
-  local action="$1" params="${2:-{}}"
+  local action="$1" params="$2"
+  # 不能写 local params="${2:-{}}"：bash 把默认值里的 { 解析掉后残留一个字面 }，
+  # 所有带参调用都会拼出多一个 } 的坏 JSON（后端曾静默当无参执行）。
+  if [ -z "$params" ]; then params='{}'; fi
   local resp
   resp=$(curl -s -m 120 -X POST "${BASE_URL}/mcp/${action}" \
     -H "Content-Type: application/json" \

@@ -375,10 +375,10 @@ func (m *Manager) RegisterRoutes(r *route.RouterGroup) {
 	r.GET("/auth/status", m.StatusHandler)
 	// sso/status 恒注册（匿名 GET，仅暴露启用布尔值）：登录页据此选择默认登录方式
 	r.GET("/auth/sso/status", m.SSOStatusHandler)
-	if m.sso != nil {
-		r.POST("/auth/sso/send-code", m.SSOSendCodeHandler)
-		r.POST("/auth/sso/login", m.SSOLoginHandler)
-	}
+	// send-code / login 恒注册：SSO 配置支持运行时热切换（设置页保存即生效），
+	// 未启用时 handler 内统一报「SSO 登录未启用」（不注册的话启用后要重启才通）。
+	r.POST("/auth/sso/send-code", m.SSOSendCodeHandler)
+	r.POST("/auth/sso/login", m.SSOLoginHandler)
 }
 
 // SSOStatusHandler GET /api/auth/sso/status → {"enabled": bool}

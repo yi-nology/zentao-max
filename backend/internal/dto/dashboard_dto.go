@@ -7,6 +7,8 @@ type DashboardQuery struct {
 	ProductID int    `form:"productId" json:"productId"`
 	StartDate string `form:"startDate" json:"startDate"` // 起始日期（含），格式 YYYY-MM-DD，为空表示不限
 	EndDate   string `form:"endDate" json:"endDate"`     // 截止日期（含），格式 YYYY-MM-DD，为空表示不限
+	// Refresh 为 true 时跳过缓存读取直接回源（显式刷新按钮），结果仍写回缓存
+	Refresh bool `form:"refresh" json:"refresh"`
 }
 
 // Validate 校验查询参数：日期格式必须是 YYYY-MM-DD（如果提供）

@@ -359,11 +359,13 @@ export interface DashboardTimeRange {
 
 export const getDashboard = (
   productId: number,
-  timeRange?: { startDate?: string; endDate?: string }
+  timeRange?: { startDate?: string; endDate?: string },
+  opts?: { refresh?: boolean }
 ): Promise<ApiResponse<DashboardData>> => {
   const params: Record<string, any> = { productId }
   if (timeRange?.startDate) params.startDate = timeRange.startDate
   if (timeRange?.endDate) params.endDate = timeRange.endDate
+  if (opts?.refresh) params.refresh = 1 // 跳过后端缓存直接回源
   return api.get('/dashboard', { params })
 }
 

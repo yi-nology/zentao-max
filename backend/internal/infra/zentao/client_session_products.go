@@ -464,30 +464,45 @@ func pagerInt(n json.Number) int {
 }
 
 // executionsByProductSession 供 dashboard_service 的 GetExecutionsByProductContext 使用。
-// 它先取所有项目，再按项目取 executions，组装成 ExecutionContext。
+// 产品→项目→执行 三级过滤：项目集合走真过滤的 getProjectsByProductSession
+// （bug 反推，两个源列表都有 L2 缓存），执行按 e.Project 归属筛选，无需额外请求。
+//
+// 2026-10-30 修复：原实现无视 productID 返回全实例执行（2726 个），导致
+// dashboard 任务统计 1) 逐执行发任务列表请求（8rps 限流 ≈ 340s，恒被 90s 预算
+// 掐断——冷路径永远 90s），2) 统计混入其它产品的任务（产品 1029 显示全实例
+// tasks.total=3957 的错误数据）。产品维度过滤不允许"由上层完成"——上层（dashboard）
+// 拿到执行列表后就是直接遍历，没有过滤环节。
 func (c *Client) executionsByProductSession(ctx context.Context, productID int) ([]ExecutionContext, error) {
 	allExecs, err := c.getAllExecutionsSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-	projects, err := c.getAllProjectsSession(ctx)
+	projects, err := c.getProjectsByProductSession(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
+	return filterExecutionContexts(allExecs, projects), nil
+}
+
+// filterExecutionContexts 按项目集合筛选执行并组装 ExecutionContext（纯函数，便于单测）。
+func filterExecutionContexts(allExecs []zentaosdk.Execution, projects []zentaosdk.Project) []ExecutionContext {
 	projName := make(map[int]string, len(projects))
 	for _, p := range projects {
 		projName[p.ID] = p.Name
 	}
 	out := make([]ExecutionContext, 0, len(allExecs))
 	for _, e := range allExecs {
+		name, ok := projName[e.Project]
+		if !ok {
+			continue
+		}
 		out = append(out, ExecutionContext{
 			Exec:     e,
-			ProjName: projName[e.Project],
+			ProjName: name,
 			ExecName: e.Name,
 		})
 	}
-	_ = productID // 会话模式下产品维度过滤由上层（bugs/stories/tasks）完成
-	return out, nil
+	return out
 }
 
 // strconv 辅助：从 map[string]T 里取键对应的 int 值（用于 productID 等）。

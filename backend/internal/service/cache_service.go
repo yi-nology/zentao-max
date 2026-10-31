@@ -70,8 +70,55 @@ func (s *CacheService) GetOrLoad(
 			CachedAt:  cachedAt,
 		}, nil
 	}
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
+}
 
-	// 2. 回源（singleflight 击穿保护：并发同 entityType+productID 的请求
+// GetOrLoadSWR 带 stale-while-revalidate 语义的查询（大成本回源场景专用，
+// 如 dashboard 的逐执行任务遍历——产品 1029 实测冷加载 60-90s）：
+//   - 新鲜缓存命中 → 直接返回（与 GetOrLoad 一致）；
+//   - 缓存已过期但有过期数据 → 立即返回过期数据（Stale=true）+ 后台异步回源刷新
+//     （singleflight 防重复打禅道）——用户零等待，刷新完成后下一次请求拿到新数据；
+//   - 完全无数据 → 阻塞回源（首次冷加载仍需等待，无法避免）。
+func (s *CacheService) GetOrLoadSWR(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+) (*CacheResult, error) {
+	if ttl <= 0 {
+		ttl = DefaultCacheTTL
+	}
+
+	// 1. 新鲜命中
+	cachedData, cachedAt, err := s.store.Get(ctx, entityType, productID)
+	if err == nil && cachedData != nil {
+		return &CacheResult{Data: cachedData, FromCache: true, CachedAt: cachedAt}, nil
+	}
+
+	// 2. 过期数据 → SWR：立即返回 + 后台刷新
+	if staleData, staleAt, serr := s.store.GetStale(ctx, entityType, productID); serr == nil && staleData != nil {
+		logger.Info("SWR: serving stale while refreshing in background",
+			"entityType", entityType,
+			"productID", productID,
+			"cachedAt", staleAt)
+		s.triggerBackgroundRefresh(entityType, productID, ttl, loader)
+		return &CacheResult{Data: staleData, FromCache: true, CachedAt: staleAt, Stale: true}, nil
+	}
+
+	// 3. 冷加载（阻塞，与 GetOrLoad 同路径）
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
+}
+
+// blockingLoad 冷加载：singleflight 回源 → 写缓存 → 失败时 stale 兜底。
+func (s *CacheService) blockingLoad(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+) (*CacheResult, error) {
+	// 回源（singleflight 击穿保护：并发同 entityType+productID 的请求
 	// 只有一个真正调 loader 打禅道，其余共享结果）
 	key := fmt.Sprintf("%s:%d", entityType, productID)
 	freshData, loadErr := s.inflight.Do(ctx, key, func(ctx context.Context) ([]byte, error) {
@@ -98,7 +145,7 @@ func (s *CacheService) GetOrLoad(
 		}, nil
 	}
 
-	// 3. 回源失败，尝试用过期缓存兜底
+	// 回源失败，尝试用过期缓存兜底
 	staleData, staleAt, staleErr := s.store.GetStale(ctx, entityType, productID)
 	if staleErr == nil && staleData != nil {
 		logger.Warn("loader failed, serving stale cache as fallback",
@@ -114,8 +161,63 @@ func (s *CacheService) GetOrLoad(
 		}, nil
 	}
 
-	// 4. 完全无数据，返回 loader 的原始错误
+	// 完全无数据，返回 loader 的原始错误
 	return nil, fmt.Errorf("loader 失败且无可用缓存: %w", loadErr)
+}
+
+// swrRefreshBudget SWR 后台刷新的独立预算。要大于 fetchDashboard 内部的 90s
+// 总预算，保证刷新能跑到预算边界而不是被外层先掐断。
+const swrRefreshBudget = 150 * time.Second
+
+// triggerBackgroundRefresh 后台单飞刷新。ctx 独立于 HTTP 请求（Background+超时），
+// 请求结束后刷新继续进行；in-flight 时重复触发共享同一次回源，不会加倍打禅道。
+func (s *CacheService) triggerBackgroundRefresh(entityType string, productID int, ttl time.Duration, loader func(context.Context) ([]byte, error)) {
+	key := fmt.Sprintf("%s:%d", entityType, productID)
+	async.GoSafe(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshBudget)
+		defer cancel()
+		data, err := s.inflight.Do(ctx, key, func(ctx context.Context) ([]byte, error) {
+			// 双检：排队等 in-flight 期间可能已被前一次刷新写新鲜
+			if d, _, gerr := s.store.Get(ctx, entityType, productID); gerr == nil && d != nil {
+				return d, nil
+			}
+			return loader(ctx)
+		})
+		if err != nil {
+			logger.Warn("SWR background refresh failed (keeping stale data)",
+				"entityType", entityType,
+				"productID", productID,
+				"error", err)
+			return
+		}
+		writeCtx, wcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer wcancel()
+		if werr := s.store.Set(writeCtx, entityType, productID, data, ttl); werr != nil {
+			logger.Warn("SWR background refresh cache write failed",
+				"entityType", entityType,
+				"productID", productID,
+				"error", werr)
+		} else {
+			logger.Info("SWR background refresh completed",
+				"entityType", entityType,
+				"productID", productID)
+		}
+	})
+}
+
+// GetOrLoadBypass 显式刷新：跳过缓存读取直接回源（成功后写缓存供后续请求命中；
+// 失败仍走 stale 兜底）。供"刷新按钮"类语义使用。
+func (s *CacheService) GetOrLoadBypass(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+) (*CacheResult, error) {
+	if ttl <= 0 {
+		ttl = DefaultCacheTTL
+	}
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
 }
 
 // Invalidate 使指定缓存失效

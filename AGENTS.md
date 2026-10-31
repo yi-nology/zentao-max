@@ -109,7 +109,11 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   验证码登录（移植自 freedom/ky-work-mcp 的实测实现）。成功后签发平台会话令牌（与本地登录
   同一会话体系）。配置：`auth.sso.enabled`（默认 false）+ `auth.sso.base_url`（启用时必填，
   未配置则 SSO 入口自动关闭并启动告警）+ `auth.sso.auth_page_url`（Referer，留空回退
-  `{base_url}/sso/auth`）。`GET /api/auth/sso/status` 恒注册（匿名 GET），返回 `{enabled}`
+  `{base_url}/sso/auth`）。设置页「SSO 登录配置」可在线修改（GET/POST `/api/v1/sso-config`，
+  预检→热切换 SetSSO→合并持久化 auth.db，`ssoManaged=true` 后重启以数据库为准，
+  yaml 退化为首次部署 bootstrap；SSO 热切换同步 `MCPServer.SetSSOClient`）。
+  **auth.db 单条加密记录：连接配置与 SSO 配置的保存端点都必须走
+  `InitService.UpdateAuthConfig` 读改写合并，禁止整记录覆盖（会互删字段）**。`GET /api/auth/sso/status` 恒注册（匿名 GET），返回 `{enabled}`
   供登录页选择默认表单。
 - **本地管理员（API 备用）**：`auth.admin.username/password`（默认 admin/admin，env
   `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。**登录页 UI 已无切换入口（SSO 表单常显，

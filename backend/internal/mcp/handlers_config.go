@@ -58,11 +58,12 @@ func (s *MCPServer) handleUpdateZentaoConfig(params map[string]interface{}) (int
 			"server", server, "account", account, "realm", realm, "error", err)
 		return nil, fmt.Errorf("连接验证失败: %w", err)
 	}
-	if err := s.initService.StoreAuthConfigFromStruct(&initialization.AuthConfig{
-		Username: account,
-		Password: password,
-		Domain:   server,
-		Realm:    realm,
+	// 读改写合并：保留 auth.db 里的 SSO 登录配置等其它字段（整记录覆盖会静默抹掉）
+	if err := s.initService.UpdateAuthConfig(func(cfg *initialization.AuthConfig) {
+		cfg.Username = account
+		cfg.Password = password
+		cfg.Domain = server
+		cfg.Realm = realm
 	}); err != nil {
 		logger.Error("MCP 持久化禅道连接配置失败", "error", err)
 		return nil, fmt.Errorf("登录成功但保存配置失败: %w", err)
@@ -165,12 +166,13 @@ func (s *MCPServer) handleSSOLogin(params map[string]interface{}) (interface{}, 
 	}, nil
 }
 
-// ssoClientOrError SSO 通道未注入（auth.sso.enabled=false）时的统一报错。
+// ssoClientOrError SSO 通道未注入（未启用或被运行时停用）时的统一报错。
 func (s *MCPServer) ssoClientOrError() (*auth.SSOClient, error) {
-	if s.ssoClient == nil {
-		return nil, fmt.Errorf("SSO 登录未启用（auth.sso.enabled=false 或未配置 base_url），请改用禅道账号密码直接配置连接")
+	sso := s.ssoClientSnapshot()
+	if sso == nil {
+		return nil, fmt.Errorf("SSO 登录未启用（auth.sso.enabled=false、未配置 base_url 或已在设置页停用），请改用禅道账号密码直接配置连接")
 	}
-	return s.ssoClient, nil
+	return sso, nil
 }
 
 // realmDisplay 认证域的展示语义（空 = 标准 REST Token 模式）。

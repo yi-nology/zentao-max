@@ -48,17 +48,29 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey),
 	)
 	// SSO 登录（统一认证平台，用户名+密码+短信验证码）；客户端同时供 MCP sso_* 工具使用。
-	// 平台地址全部来自配置（auth.sso.base_url/auth_page_url），未配置时 SSO 入口自动关闭
+	// 生效配置解析：auth.db 有页面保存记录（ssoManaged，设置页「SSO 登录配置」）
+	// → 以数据库为准（含显式停用）；否则回退 config.yaml（首次部署 bootstrap）。
+	// 运行时可热切换：设置页保存 → SSOConfigHandler.UpdateConfig。
 	var ssoClient *auth.SSOClient
-	if cfg.Auth.SSO.Enabled {
-		if strings.TrimSpace(cfg.Auth.SSO.BaseURL) == "" {
-			logger.GetLogger().Warn("auth.sso.enabled=true 但未配置 auth.sso.base_url，SSO 登录入口不可用",
-				"config_key", "auth.sso.base_url")
+	ssoCfgHandler := handlers.NewSSOConfigHandler(
+		initService,
+		authManager,
+		nil, // onSSOChange 在 mcpServer 创建后接线（见下方 WithConfigDeps 之后）
+		cfg.Auth.SSO.Enabled,
+		cfg.Auth.SSO.BaseURL,
+		cfg.Auth.SSO.AuthPageURL,
+	)
+	if eff := ssoCfgHandler.Effective(); eff.Enabled {
+		if strings.TrimSpace(eff.BaseURL) == "" {
+			logger.GetLogger().Warn("SSO 登录已启用但未配置统一认证平台地址，SSO 登录入口不可用",
+				"source", eff.Source, "config_key", "auth.sso.base_url")
 		} else {
-			ssoClient = auth.NewSSOClient(cfg.Auth.SSO.BaseURL, cfg.Auth.SSO.AuthPageURL)
+			ssoClient = auth.NewSSOClient(eff.BaseURL, eff.AuthPageURL)
 			authManager.SetSSO(ssoClient)
 		}
 	}
+	logger.GetLogger().Info("SSO 登录配置解析完成",
+		"enabled", ssoClient != nil, "source", ssoCfgHandler.Effective().Source)
 	// panic 防护与 trace_id 由 oekit/middleware 提供；Recovery 的响应体保持
 	// 项目 errors.Response 结构（前端按 code/message/data 解析）
 	hertzServer.Use(mw.RecoveryMiddleware(mw.WithRecoveryErrorHandler(func(c *app.RequestContext, _ any, _ string) {
@@ -104,6 +116,12 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		// MCP 改配置后清业务缓存（与设置页同语义）
 		return registry.ClearAllCaches(context.Background())
 	})
+	// SSO 热切换同步：设置页保存 SSO 配置后，MCP 的 sso_* 工具与 Web 端同用新客户端
+	ssoCfgHandler.SetOnSSOChange(func(c *auth.SSOClient) {
+		mcpServer.SetSSOClient(c)
+	})
+	hertzServer.GET("/api/v1/sso-config", ssoCfgHandler.GetConfig)
+	hertzServer.POST("/api/v1/sso-config", ssoCfgHandler.UpdateConfig)
 	mcpTransport := mcp.NewHTTPTransport(mcpServer)
 
 	// 初始化 MCP 模式管理器：从配置加载，HTTP 入口标记传输模式为 http

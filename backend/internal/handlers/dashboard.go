@@ -27,7 +27,7 @@ func (h *DashboardHandler) GetDashboard(ctx context.Context, c *app.RequestConte
 		errors.BadRequest(c, err.Error())
 		return
 	}
-	result, err := h.dashboardService.GetDashboardContext(ctx, query.ProductID, query.StartDate, query.EndDate)
+	result, err := h.dashboardService.GetDashboardContext(ctx, query.ProductID, query.StartDate, query.EndDate, query.Refresh)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))
 		return

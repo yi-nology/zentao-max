@@ -3,6 +3,7 @@ package zentao
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
@@ -83,10 +84,19 @@ func (u sessionUser) toSDK() zentaosdk.User {
 }
 
 // getCurrentUserSession 通过 /user-profile.json 获取当前登录用户。
+// 该端点是受限实例上最稳的轻端点（账号定位/工时/连接检测都依赖它），
+// 偶发空响应（网关连发软风控）时退避重试一次。
 func (c *Client) getCurrentUserSession(ctx context.Context) (*zentaosdk.User, error) {
 	var resp sessionUserProfileResp
-	if err := c.doSessionJSON(ctx, "GetCurrentUser", "/user-profile.json", &resp); err != nil {
-		return nil, err
+	fetch := func() error {
+		return c.doSessionJSON(ctx, "GetCurrentUser", "/user-profile.json", &resp)
+	}
+	err := fetch()
+	if err != nil {
+		time.Sleep(1200 * time.Millisecond)
+		if err2 := fetch(); err2 != nil {
+			return nil, err2
+		}
 	}
 	u := resp.User.toSDK()
 	return &u, nil

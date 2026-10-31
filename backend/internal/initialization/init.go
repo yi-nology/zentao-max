@@ -26,6 +26,15 @@ type AuthConfig struct {
 	// 数据访问走禅道 PHP *.json 端点；空表示默认 Token 模式（REST API）。
 	// 适用于禁用 REST API 的禅道实例（如受限实例 your-zentao-server.com）。
 	Realm string `json:"realm,omitempty"`
+
+	// ---- 平台 SSO 登录配置（设置页「SSO 登录配置」，2026-10-30 起）----
+	// SSOManaged 标记用户是否在页面保存过 SSO 配置。auth.db 里该标记为 true 时
+	// 启动解析以数据库为准（含显式停用——否则停用后重启会被 config.yaml 复活）；
+	// false（历史记录无此字段）时回退 config.yaml 作为 bootstrap。
+	SSOManaged     bool   `json:"ssoManaged,omitempty"`
+	SSOEnabled     bool   `json:"ssoEnabled,omitempty"`
+	SSOBaseURL     string `json:"ssoBaseUrl,omitempty"`
+	SSOAuthPageURL string `json:"ssoAuthPageUrl,omitempty"`
 }
 
 // EncryptedAuthConfig 加密的认证配置结构
@@ -250,6 +259,25 @@ func (s *InitService) StoreAuthConfigFromStruct(cfg *AuthConfig) error {
 		return fmt.Errorf("failed to marshal encrypted config: %w", err)
 	}
 	return s.StoreAuthConfig(data)
+}
+
+// UpdateAuthConfig 读改写 auth.db：加载现有记录（无/不可解密则从空记录开始）
+// → mutate 回调就地改字段 → 加密落盘。
+//
+// 必须——auth.db 是单条加密记录，连接配置与 SSO 登录配置同住一处；任何一方的
+// 保存端点都禁止「新建只含自己字段的记录整体覆盖」，否则另一方字段被静默抹掉
+//（踩过：两处 update_zentao_config 都是整记录覆盖式写法，SSO 字段上线的当天
+// 就会被下一次连接配置保存清掉）。
+func (s *InitService) UpdateAuthConfig(mutate func(*AuthConfig)) error {
+	if mutate == nil {
+		return errors.New("mutate is nil")
+	}
+	cfg := &AuthConfig{}
+	if existing, _, err := s.LoadAuthConfig(); err == nil && existing != nil {
+		cfg = existing
+	}
+	mutate(cfg)
+	return s.StoreAuthConfigFromStruct(cfg)
 }
 
 // LoadAuthConfig 从数据库加载认证配置

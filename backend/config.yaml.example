@@ -44,7 +44,9 @@ auth:
     username: "admin"
     password: "admin"       # 生产务必修改！环境变量 ZENTAO_MAX_AUTH_ADMIN_PASSWORD
   # SSO 统一认证平台登录（用户名+密码+短信验证码协议）。默认关闭；
-  # 对接自有统一认证平台时启用并配置地址（代码不内置任何平台地址）
+  # 对接自有统一认证平台时启用并配置地址（代码不内置任何平台地址）。
+  # 也可在登录后于设置页「SSO 登录配置」在线修改（保存即生效并存入 auth.db，
+  # 优先于本文件；本文件仅作为首次部署 bootstrap）
   sso:
     enabled: false
     # 认证平台根地址（启用 SSO 时必填）
@@ -97,10 +99,17 @@ mcp:
 update:
   # 启动注册检查 + 每 24h 定期检查（关闭后设置页仍可手动检查）
   enabled: true
+  # 版本发布管理服务基地址（GET /api/v1/products/{slug}/upgrade-check：
+  # 服务端版本比较 + force_update + 发布说明 Markdown + 渠道台账）。
+  # 配置后作为首选检查源，优先于 check_url 与 GitHub Releases。
+  # 环境变量：ZENTAO_MAX_UPDATE_RELEASE_URL
+  release_url: ""
+  # 产品标识（版本发布管理服务注册的 slug）。环境变量 ZENTAO_MAX_UPDATE_SLUG
+  slug: "zentao-max"
   # 自建更新服务地址（POST JSON {app,version,os,arch}；响应
-  # {latest_version,download_url,notes}）。留空则回退查询 GitHub Releases
+  # {latest_version,download_url,notes}）。release_url 为空时的检查源。
   check_url: ""
-  # GitHub 仓库（check_url 为空时的默认检查源）
+  # GitHub 仓库（release_url/check_url 均为空时的默认检查源）
   github_repo: "yi-nology/zentao-max"
   # 定期检查间隔（小时）
   interval_hours: 24

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
@@ -25,6 +26,20 @@ func NewUpdateHandler(svc *update.Service) *UpdateHandler {
 // GetStatus 返回版本检查状态快照。
 func (h *UpdateHandler) GetStatus(ctx context.Context, c *app.RequestContext) {
 	errors.Success(c, h.svc.Status())
+}
+
+// GetChangelog 返回历史更新日志（版本发布管理服务 changelog 代理，匿名 GET）。
+func (h *UpdateHandler) GetChangelog(ctx context.Context, c *app.RequestContext) {
+	limit := 0
+	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
+		limit = v
+	}
+	items, err := h.svc.Changelog(limit)
+	if err != nil {
+		errors.BadRequest(c, err.Error())
+		return
+	}
+	errors.Success(c, items)
 }
 
 // CheckNow 手动触发一次检查。

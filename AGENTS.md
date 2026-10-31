@@ -149,14 +149,27 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
 
 ## 版本检查/更新 与 系统服务安装
 
-- **版本检查**（`internal/update`）：启动注册检查（POST {app,version,os,arch} 到
-  `update.check_url` 自建服务；留空回退 GitHub Releases）+ 24h 定期复查 + 手动检查。
-  响应 `{latest_version,download_url,notes}`；下载到 `update.download_dir`
-  （独立 15min 超时 client + 进度上报）；Apply 从 zip/tar.gz 提取二进制**原子替换
-  os.Executable()**（Windows 无法替换运行中 exe → 新二进制留下载目录手动换）；
-  重启：已装系统服务走服务管理器 restart，否则 unix syscall.Exec 原位换进程映像
-  （restart_unix/windows.go 平台文件，update.go 主文件不得直接 import syscall）。
-  版本比较 isNewer：semver 三段 + 非数字段退化为字符串不等。隐私仅 app/version/os/arch。
+- **版本检查**（`internal/update`）：启动注册检查（三数据源按优先级：
+  `update.release_url` 版本发布管理服务（GET
+  `/api/v1/products/{slug}/upgrade-check`，slug 默认 `zentao-max`；服务端判版本
+  `has_update`/`force_update`，`note_md` 发布说明 Markdown，`channels[].url`
+  官方升级入口——GitHub 发布页会解析出当前平台安装包直链以保住自更新管线）→
+  `update.check_url` 自建服务（POST {app,version,os,arch}，响应
+  `{latest_version,download_url,notes}`）→ GitHub Releases）+ 24h 定期复查 +
+  手动检查；另有更新日志代理 GET /api/update/changelog（changelog 接口，
+  匿名 GET，limit 默认 20 上限 50）。下载到 `update.download_dir`
+  （独立 15min 超时 client + 进度上报；下载地址是发布页 HTML 时拒绝并提示走浏览器）；
+  Apply 从 zip/tar.gz 提取二进制**原子替换 os.Executable()**（Windows 无法替换
+  运行中 exe → 新二进制留下载目录手动换）；重启：已装系统服务走服务管理器
+  restart，否则 unix syscall.Exec 原位换进程映像（restart_unix/windows.go 平台文件，
+  update.go 主文件不得直接 import syscall）。版本比较 isNewer：semver 三段 +
+  非数字段退化为字符串不等（release 源不本地比较，直接采信服务端 has_update）。
+  前端 App.vue 挂全局 UpdateDialog（force_update=不可关闭模态、普通更新=可关闭
+  弹窗渲染 note_md，`utils/markdown.ts` 转义+DOMPurify 安全渲染；说明为空显示
+  "本次更新未提供说明"）+ ChangelogDialog（What's New 历史，Settings 与弹窗入口）；
+  设置页更新面板同构渲染。检查失败保留上次快照（含 force）静默重试；CheckNow
+  防重入旗标必须复位（曾有旗标永不复位导致手动/定期复查全部返回旧快照的 bug，
+  单测覆盖）。隐私仅 app/version/os/arch。
 - **系统服务安装**（`internal/sysinstall`）：一键注册开机自启——macOS LaunchAgent
   plist / Linux systemd user unit（+loginctl enable-linger）/ Windows 计划任务
   （run.bat 包装保证工作目录）。**三不变量**：工作目录继承安装时 cwd（数据是相对

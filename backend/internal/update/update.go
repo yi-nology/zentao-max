@@ -4,8 +4,10 @@
 //   - 启动注册检查：服务启动后带 {app, version, os, arch} 请求检查地址，
 //     自建更新服务可据此统计活跃实例并返回最新版本信息；
 //   - 定期复查（默认 24h）；检查失败静默（离线/VPN 场景不打扰）；
-//   - 双数据源：check_url 配置自建服务（POST JSON）；留空回退 GitHub
-//     Releases（GET latest，query 附带 version/os/arch 供透传统计）；
+//   - 三数据源：release_url 配置版本发布管理服务（GET upgrade-check，服务端
+//     版本比较 + force_update + 发布说明 Markdown + 渠道台账，优先采用）；
+//     check_url 自建服务（POST JSON）；均未配置回退 GitHub Releases
+//     （GET latest，query 附带 version/os/arch 供透传统计）；
 //   - 更新动作 = 下载更新包到本地（不做自替换/自动重启——单二进制自更新
 //     在 Windows 上无法替换运行中的 exe，跨平台风险高），下载完成后
 //     提示用户替换二进制并重启。
@@ -22,9 +24,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +44,12 @@ type Info struct {
 	HasUpdate    bool       `json:"hasUpdate"`
 	DownloadURL  string     `json:"downloadUrl"`
 	Notes        string     `json:"notes"`
-	Source       string     `json:"source"` // github | custom
+	Source       string     `json:"source"` // github | custom | release
+	// 版本发布管理服务（source=release）专属字段
+	ForceUpdate  bool       `json:"forceUpdate"` // 当前版本低于 min_supported，应阻断使用
+	MinSupported string     `json:"minSupported,omitempty"`
+	ReleasedAt   string     `json:"releasedAt,omitempty"`
+	ChannelURL   string     `json:"channelUrl,omitempty"` // 官方升级入口（发布页，无直链时前端跳此）
 	CheckedAt    *time.Time `json:"checkedAt"`
 	LastError    string     `json:"lastError"`
 	Checking     bool       `json:"checking"`
@@ -104,6 +113,12 @@ func (s *Service) CheckNow() Info {
 	}
 	s.checking = true
 	s.mu.Unlock()
+	// 旗标必须复位，否则首次检查后手动/定期复查全部退化为返回旧快照
+	defer func() {
+		s.mu.Lock()
+		s.checking = false
+		s.mu.Unlock()
+	}()
 
 	info := s.doCheck()
 	s.mu.Lock()
@@ -140,79 +155,99 @@ func (s *Service) doCheck() Info {
 	info.CheckedAt = ptrTime(time.Now())
 	info.LastError = ""
 
-	latest, dl, notes, source, err := s.queryLatest()
+	res, err := s.queryLatest()
 	if err != nil {
+		// 检查失败保留上次成功快照（含 force 状态），仅刷新检查时间与错误
 		info.LastError = err.Error()
 		return info
 	}
-	info.Latest = latest
-	info.DownloadURL = dl
-	info.Notes = notes
-	info.Source = source
-	info.HasUpdate = isNewer(latest, info.Current)
+	info.Latest = res.latest
+	info.DownloadURL = res.downloadURL
+	info.Notes = res.notes
+	info.Source = res.source
+	if res.hasUpdate != nil {
+		// 版本比较交给服务端（release-service 协议），客户端不自行比大小
+		info.HasUpdate = *res.hasUpdate
+	} else {
+		info.HasUpdate = isNewer(res.latest, info.Current)
+	}
+	info.ForceUpdate = res.forceUpdate
+	info.MinSupported = res.minSupported
+	info.ReleasedAt = res.releasedAt
+	info.ChannelURL = res.channelURL
 	return info
 }
 
-// queryLatest 双数据源查询。
-func (s *Service) queryLatest() (latest, downloadURL, notes, source string, err error) {
+// remoteCheck 检查源的归一结果。hasUpdate 非 nil 表示由服务端判定（直接采信），
+// nil 时由本地 isNewer 判定。
+type remoteCheck struct {
+	latest       string
+	downloadURL  string
+	notes        string
+	source       string
+	hasUpdate    *bool
+	forceUpdate  bool
+	minSupported string
+	releasedAt   string
+	channelURL   string
+}
+
+// queryLatest 按优先级查询：版本发布管理服务 → 自建更新服务 → GitHub Releases。
+func (s *Service) queryLatest() (remoteCheck, error) {
+	if s.cfg.ReleaseURL != "" {
+		return s.queryReleaseService()
+	}
 	if s.cfg.CheckURL != "" {
 		return s.queryCustom()
 	}
 	if s.cfg.GitHubRepo == "" {
-		return "", "", "", "", fmt.Errorf("未配置 update.check_url 且 update.github_repo 为空")
+		return remoteCheck{}, fmt.Errorf("未配置 update.release_url/update.check_url 且 update.github_repo 为空")
 	}
 	return s.queryGitHub()
 }
 
 // queryGitHub GitHub Releases 模式：GET /repos/{repo}/releases/latest。
-func (s *Service) queryGitHub() (string, string, string, string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest?version=%s&os=%s&arch=%s",
-		s.cfg.GitHubRepo, s.info.Current, runtime.GOOS, runtime.GOARCH)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+func (s *Service) queryGitHub() (remoteCheck, error) {
+	endpoint := fmt.Sprintf("%s/repos/%s/releases/latest?version=%s&os=%s&arch=%s",
+		githubAPIBase, s.cfg.GitHubRepo, s.info.Current, runtime.GOOS, runtime.GOARCH)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
 	if err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := s.hc.Do(req)
 	if err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", "", "", "", fmt.Errorf("GitHub API HTTP %d", resp.StatusCode)
+		return remoteCheck{}, fmt.Errorf("GitHub API HTTP %d", resp.StatusCode)
 	}
 	var body struct {
-		TagName string `json:"tag_name"`
-		Name    string `json:"name"`
-		Body    string `json:"body"`
-		HTMLURL string `json:"html_url"`
-		Assets  []struct {
-			Name               string `json:"name"`
-			BrowserDownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
+		TagName string    `json:"tag_name"`
+		Name    string    `json:"name"`
+		Body    string    `json:"body"`
+		HTMLURL string    `json:"html_url"`
+		Assets  []ghAsset `json:"assets"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	dl := body.HTMLURL
-	// 选取匹配当前平台地更新包资产（zentao-max-<os>-<arch>.*）
-	want := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
-	for _, a := range body.Assets {
-		if strings.Contains(a.Name, want) {
-			dl = a.BrowserDownloadURL
-			break
-		}
+	// 优先选取匹配当前平台的更新包资产（zentao-max-<os>-<arch>.*）
+	if u := pickPlatformAsset(body.Assets); u != "" {
+		dl = u
 	}
 	notes := body.Body
 	if len(notes) > 2000 {
 		notes = notes[:2000]
 	}
-	return body.TagName, dl, notes, "github", nil
+	return remoteCheck{latest: body.TagName, downloadURL: dl, notes: notes, source: "github"}, nil
 }
 
 // queryCustom 自建更新服务模式：POST JSON 注册/检查（约定响应
 // {latest_version, download_url, notes}）。
-func (s *Service) queryCustom() (string, string, string, string, error) {
+func (s *Service) queryCustom() (remoteCheck, error) {
 	payload := map[string]interface{}{
 		"app":     "zentao-max",
 		"version": s.info.Current,
@@ -222,16 +257,16 @@ func (s *Service) queryCustom() (string, string, string, string, error) {
 	buf, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.cfg.CheckURL, strings.NewReader(string(buf)))
 	if err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.hc.Do(req)
 	if err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", "", "", "", fmt.Errorf("更新服务 HTTP %d", resp.StatusCode)
+		return remoteCheck{}, fmt.Errorf("更新服务 HTTP %d", resp.StatusCode)
 	}
 	var body struct {
 		LatestVersion string `json:"latest_version"`
@@ -239,12 +274,241 @@ func (s *Service) queryCustom() (string, string, string, string, error) {
 		Notes         string `json:"notes"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", "", "", "", err
+		return remoteCheck{}, err
 	}
 	if body.LatestVersion == "" {
-		return "", "", "", "", fmt.Errorf("更新服务响应缺少 latest_version")
+		return remoteCheck{}, fmt.Errorf("更新服务响应缺少 latest_version")
 	}
-	return body.LatestVersion, body.DownloadURL, body.Notes, "custom", nil
+	return remoteCheck{latest: body.LatestVersion, downloadURL: body.DownloadURL, notes: body.Notes, source: "custom"}, nil
+}
+
+// checkLocale 发布说明语言。应用 UI 为纯中文，固定请求 zh-CN；
+// 服务端无该语言文案时自行回退，note_md 仍可能为空（前端有兜底文案）。
+const checkLocale = "zh-CN"
+
+// queryReleaseService 版本发布管理服务模式：GET
+// {release_url}/api/v1/products/{slug}/upgrade-check?current=&locale=。
+// 响应 {has_update, force_update, latest, note_md, min_supported, released_at,
+// channels:[{url,status}]}；版本比较在服务端完成，客户端直接采信。
+func (s *Service) queryReleaseService() (remoteCheck, error) {
+	base := strings.TrimRight(s.cfg.ReleaseURL, "/")
+	q := url.Values{}
+	q.Set("current", s.info.Current)
+	q.Set("locale", checkLocale)
+	endpoint := fmt.Sprintf("%s/api/v1/products/%s/upgrade-check?%s",
+		base, url.PathEscape(s.cfg.Slug), q.Encode())
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
+	if err != nil {
+		return remoteCheck{}, err
+	}
+	req.Header.Set("User-Agent", "zentao-max/"+s.info.Current)
+	req.Header.Set("X-Client-Version", s.info.Current)
+	resp, err := s.hc.Do(req)
+	if err != nil {
+		return remoteCheck{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return remoteCheck{}, fmt.Errorf("发布服务 HTTP %d", resp.StatusCode)
+	}
+	var body struct {
+		HasUpdate    bool   `json:"has_update"`
+		ForceUpdate  bool   `json:"force_update"`
+		Latest       string `json:"latest"`
+		LatestStatus string `json:"latest_status"`
+		NoteMD       string `json:"note_md"`
+		ReleasedAt   string `json:"released_at"`
+		MinSupported string `json:"min_supported"`
+		Channels     []struct {
+			Key    string `json:"key"`
+			Name   string `json:"name"`
+			URL    string `json:"url"`
+			Status string `json:"status"`
+		} `json:"channels"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return remoteCheck{}, err
+	}
+	if body.Latest == "" {
+		return remoteCheck{}, fmt.Errorf("发布服务响应缺少 latest（该产品可能没有已发布状态的版本）")
+	}
+	res := remoteCheck{
+		latest:       body.Latest,
+		notes:        truncateRunes(body.NoteMD, 4000),
+		source:       "release",
+		hasUpdate:    &body.HasUpdate,
+		forceUpdate:  body.ForceUpdate,
+		minSupported: body.MinSupported,
+		releasedAt:   body.ReleasedAt,
+	}
+	// 渠道：优先已发布（published）的渠道，否则取最后一个非空渠道
+	for _, ch := range body.Channels {
+		if ch.URL == "" {
+			continue
+		}
+		res.channelURL = ch.URL
+		if ch.Status == "published" {
+			break
+		}
+	}
+	// 渠道若是 GitHub 发布页，解析当前平台安装包直链，保住 下载→应用→重启
+	// 自更新管线；解析不出（非 GitHub 链接/无匹配资产）时 DownloadURL 为空，
+	// 前端退化为跳转发布页。
+	res.downloadURL = s.resolveGitHubAsset(res.channelURL)
+	return res, nil
+}
+
+// ghAsset GitHub Release 资产（zentao-max-<os>-<arch>.* 命名）。
+type ghAsset struct {
+	Name string `json:"name"`
+	URL  string `json:"browser_download_url"`
+}
+
+// githubAPIBase GitHub API 基址（单测替换为 httptest 地址）。
+var githubAPIBase = "https://api.github.com"
+
+// pickPlatformAsset 选取匹配当前平台的更新包资产，无匹配返回 ""。
+func pickPlatformAsset(assets []ghAsset) string {
+	want := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+	for _, a := range assets {
+		if strings.Contains(a.Name, want) {
+			return a.URL
+		}
+	}
+	return ""
+}
+
+// resolveGitHubAsset 从 GitHub Releases 页面链接解析当前平台安装包直链。
+// 支持 /releases/tag/{tag}、/releases/latest 与裸 /releases（均取对应 release）。
+// 非 GitHub 链接或解析失败返回 ""，调用方退化为跳转发布页。
+func (s *Service) resolveGitHubAsset(pageURL string) string {
+	u, err := url.Parse(pageURL)
+	if err != nil || u.Host != "github.com" {
+		return ""
+	}
+	// 用 EscapedPath 切分：tag 含 "/" 时在 URL 中是 %2F，不能提前解码
+	parts := strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
+	if len(parts) < 3 || parts[0] == "" || parts[1] == "" || parts[2] != "releases" {
+		return ""
+	}
+	// 渠道直接给出安装包直链时原样返回
+	if strings.Contains(u.EscapedPath(), "/releases/download/") {
+		return pageURL
+	}
+	apiURL := fmt.Sprintf("%s/repos/%s/%s/releases/", githubAPIBase, parts[0], parts[1])
+	switch {
+	case len(parts) == 3 || parts[3] == "latest" || parts[3] == "":
+		apiURL += "latest"
+	case parts[3] == "tag" && len(parts) >= 5 && parts[4] != "":
+		apiURL += "tags/" + parts[4]
+	default:
+		// 旧式 /releases/{tag} 直链形式
+		apiURL += "tags/" + parts[3]
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := s.hc.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var body struct {
+		Assets []ghAsset `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return ""
+	}
+	return pickPlatformAsset(body.Assets)
+}
+
+// isReleasePageURL 判断链接是否 GitHub Releases 页面（HTML）而非安装包直链。
+func isReleasePageURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host != "github.com" {
+		return false
+	}
+	p := u.EscapedPath()
+	if strings.Contains(p, "/releases/download/") {
+		return false
+	}
+	return strings.Contains(p, "/releases")
+}
+
+// truncateRunes 按 rune 截断长文本（发布说明 4000 rune 上限，防超长 token 浪费）。
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "…"
+}
+
+// ChangelogEntry 更新日志条目（changelog 接口 items 元素的归一形态）。
+type ChangelogEntry struct {
+	Version    string `json:"version"`
+	ReleasedAt string `json:"releasedAt"`
+	NoteMD     string `json:"noteMd"`
+}
+
+// Changelog 拉取历史更新日志（What's New 列表）。该能力仅版本发布管理服务
+// 提供（changelog 接口，服务端自带缓存），未配置 release_url 时报错；
+// limit 默认 20、上限 50。
+func (s *Service) Changelog(limit int) ([]ChangelogEntry, error) {
+	if s.cfg.ReleaseURL == "" {
+		return nil, fmt.Errorf("未配置 update.release_url，无更新日志源")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	base := strings.TrimRight(s.cfg.ReleaseURL, "/")
+	q := url.Values{}
+	q.Set("locale", checkLocale)
+	q.Set("limit", strconv.Itoa(limit))
+	endpoint := fmt.Sprintf("%s/api/v1/products/%s/changelog?%s",
+		base, url.PathEscape(s.cfg.Slug), q.Encode())
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "zentao-max/"+s.info.Current)
+	req.Header.Set("X-Client-Version", s.info.Current)
+	resp, err := s.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("更新日志 HTTP %d", resp.StatusCode)
+	}
+	var body struct {
+		Slug  string `json:"slug"`
+		Items []struct {
+			Version    string `json:"version"`
+			ReleasedAt string `json:"released_at"`
+			NoteMD     string `json:"note_md"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	out := make([]ChangelogEntry, 0, len(body.Items))
+	for _, it := range body.Items {
+		out = append(out, ChangelogEntry{
+			Version:    it.Version,
+			ReleasedAt: it.ReleasedAt,
+			NoteMD:     truncateRunes(it.NoteMD, 4000),
+		})
+	}
+	return out, nil
 }
 
 // Download 下载更新包到 download_dir。异步执行，进度经 Status() 轮询。
@@ -284,6 +548,10 @@ func (s *Service) Download() error {
 func (s *Service) doDownload(rawURL, version string) (string, error) {
 	if err := os.MkdirAll(s.cfg.DownloadDir, 0755); err != nil {
 		return "", err
+	}
+	// 渠道台账可能给出 HTML 发布页而非安装包直链——下载只会存下无用文件
+	if isReleasePageURL(rawURL) {
+		return "", fmt.Errorf("下载地址是发布页面而非安装包，请在浏览器打开后手动下载")
 	}
 	// 下载用独立长超时 client——检查用的 20s client 对几 MB 的更新包不够
 	dl := &http.Client{Timeout: 15 * time.Minute}

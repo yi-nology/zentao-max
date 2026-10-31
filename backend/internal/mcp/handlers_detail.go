@@ -95,6 +95,13 @@ func (s *MCPServer) handleGetEffortCalendar(params map[string]interface{}) (inte
 		}
 	}
 	if userID == 0 {
+		// 当前登录账号走 /user-profile.json 快路径（最轻、网关风控期最稳）；
+		// 只有查他人才回退全量用户列表映射（2.1MB 重端点，连发压力下易失败）。
+		if me, err := s.client.GetCurrentUser(); err == nil && me != nil && me.Account == account {
+			userID = me.ID
+		}
+	}
+	if userID == 0 {
 		users, err := s.userService.GetUsersAll()
 		if err != nil {
 			return nil, fmt.Errorf("用户列表查询失败（用于账号→ID 映射）: %w", err)

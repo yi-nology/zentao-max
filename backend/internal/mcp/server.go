@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,8 +26,10 @@ type MCPServer struct {
 	client *myzentao.Client
 	// 基础配置/认证能力（可选注入，见 WithConfigDeps）：
 	// initService 供 update_zentao_config 持久化 auth.db；ssoClient 供麒麟 SSO 短信登录两步；
-	// cacheClear 供配置变更后清业务缓存（HTTP 模式注入，stdio 无业务缓存传 nil）
+	// cacheClear 供配置变更后清业务缓存（HTTP 模式注入，stdio 无业务缓存传 nil）。
+	// ssoClient 可运行时热切换（设置页 SSO 配置保存），读写走 ssoMu。
 	initService *initialization.InitService
+	ssoMu       sync.RWMutex
 	ssoClient   *auth.SSOClient
 	cacheClear  func() error
 	// ssoLastSend 上次触发 SSO 短信发送的时间（UnixNano）；60s 冷却窗防 AI 循环重试
@@ -92,9 +95,24 @@ func NewMCPServerFromServices(client *myzentao.Client,
 // HTTP 与 stdio 两个入口都需要接线，否则 update_zentao_config / sso 工具不可用。
 func (s *MCPServer) WithConfigDeps(initService *initialization.InitService, ssoClient *auth.SSOClient, cacheClear func() error) *MCPServer {
 	s.initService = initService
-	s.ssoClient = ssoClient
+	s.SetSSOClient(ssoClient)
 	s.cacheClear = cacheClear
 	return s
+}
+
+// SetSSOClient 运行时热切换 SSO 客户端（设置页保存 SSO 配置后调用）。
+// nil = 停用，send_verify_code / sso_login 工具随之明确报错。
+func (s *MCPServer) SetSSOClient(c *auth.SSOClient) {
+	s.ssoMu.Lock()
+	defer s.ssoMu.Unlock()
+	s.ssoClient = c
+}
+
+// ssoClientSnapshot 并发安全的 ssoClient 读取。
+func (s *MCPServer) ssoClientSnapshot() *auth.SSOClient {
+	s.ssoMu.RLock()
+	defer s.ssoMu.RUnlock()
+	return s.ssoClient
 }
 
 // HandleAction 统一入口，处理所有 MCP action.

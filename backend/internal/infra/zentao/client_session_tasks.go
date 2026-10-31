@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 )
@@ -178,8 +179,17 @@ func (c *Client) GetMyWorkTasks(ctx context.Context) ([]zentaosdk.Task, error) {
 	var resp struct {
 		Tasks []sessionTask `json:"tasks"`
 	}
-	if err := c.doSessionJSONUncached(ctx, "GetMyWorkTasks", "/my-work-task.json", &resp); err != nil {
-		return nil, err
+	fetch := func() error {
+		return c.doSessionJSONUncached(ctx, "GetMyWorkTasks", "/my-work-task.json", &resp)
+	}
+	err := fetch()
+	if err != nil {
+		// 受限实例网关在连发压力下会间歇性返回 200 + 空 data（软风控，实测
+		// MCP 全量扫描时触发）——单次退避重试即可恢复；仍失败才透传。
+		time.Sleep(1200 * time.Millisecond)
+		if err2 := fetch(); err2 != nil {
+			return nil, fmt.Errorf("%w（已自动重试一次）", err2)
+		}
 	}
 	out := make([]zentaosdk.Task, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {

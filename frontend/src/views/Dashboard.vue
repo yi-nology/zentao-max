@@ -5,7 +5,7 @@
       <div class="toolbar-left">
         <div v-if="data?.fromCache" class="cache-chip" :class="{ 'is-stale': data?.stale }">
           <span class="cache-dot"></span>
-          <span>{{ data?.stale ? '离线模式 · 过期缓存' : '缓存数据' }}</span>
+          <span>{{ data?.stale ? '统计更新中 · 当前为上次结果' : '缓存数据' }}</span>
         </div>
         <div v-else-if="data" class="cache-chip is-live">
           <span class="cache-dot"></span>
@@ -21,6 +21,14 @@
           <el-radio-button value="all">全部</el-radio-button>
           <el-radio-button value="custom">自定义</el-radio-button>
         </el-radio-group>
+        <el-tooltip content="跳过缓存，立即回源统计（大实例约需 1 分钟）" placement="top">
+          <el-button size="default" :loading="refreshing" @click="fetchData({ refresh: true })">
+            <svg v-if="!refreshing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-right:4px">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+            </svg>
+            刷新
+          </el-button>
+        </el-tooltip>
         <el-date-picker
           v-if="timeRange === 'custom'"
           v-model="customDateRange"
@@ -53,6 +61,9 @@
 
     <template v-else-if="data">
       <!-- Stat Cards -->
+      <div v-if="data?.incomplete" class="cold-load-hint">
+        ⚠️ 本次统计未在时限内完成（大实例逐执行遍历耗时较长），部分数字可能偏小。30 分钟窗口内会自动后台更新，或点击"刷新"立即重算。
+      </div>
       <div class="stats-grid">
         <div class="stat-card stat-card--bug">
           <div class="stat-accent"></div>
@@ -124,7 +135,10 @@
             <span class="stat-value">{{ animatedTasks }}</span>
             <span class="stat-suffix">总数</span>
           </div>
-          <div class="stat-dist">
+          <div v-if="data?.tasksUnattributed" class="stat-unattributed-hint">
+            该产品无关联执行，任务统计不可用（受限实例的产品-执行关联链可能不完整）
+          </div>
+          <div v-else class="stat-dist">
             <div class="dist-row" v-for="(seg, idx) in taskDist" :key="idx">
               <span class="dist-label">{{ seg.label }}</span>
               <div class="dist-bar">
@@ -583,16 +597,20 @@ const destroyCharts = () => {
   charts = []
 }
 
-const fetchData = async (): Promise<void> => {
+const refreshing = ref(false)
+
+const fetchData = async (opts?: { refresh?: boolean }): Promise<void> => {
   const pid = globalSelection.product
   if (!pid) {
     data.value = null
     return
   }
-  loading.value = true
+  if (opts?.refresh) refreshing.value = true
+  else loading.value = true
   error.value = ''
   try {
-    const res = await getDashboard(pid, timeRangeParams.value)
+    const res = await getDashboard(pid, timeRangeParams.value, { refresh: opts?.refresh })
+    if (opts?.refresh) ElMessage.success('已刷新为最新统计')
     const newData = res.data
     data.value = newData
     // count-up 动画
@@ -613,10 +631,11 @@ const fetchData = async (): Promise<void> => {
     const msg = e instanceof Error ? e.message : '未知错误'
     console.error('获取仪表盘数据失败:', e)
     error.value = msg
-    data.value = null
     ElMessage.error('获取仪表盘数据失败')
+    if (!opts?.refresh) data.value = null
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -946,6 +965,16 @@ const getTaskStatusLabel = (status: string): string => {
   font-weight: 500;
 }
 
+.stat-unattributed-hint {
+  margin-top: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-secondary, #F8FAFC);
+  border: 1px dashed var(--color-border-light);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
 .stat-dist {
   display: flex;
   flex-direction: column;
@@ -1098,6 +1127,10 @@ const getTaskStatusLabel = (status: string): string => {
   padding: 18px 20px 14px;
   border: 1px solid var(--color-border-light);
   transition: box-shadow var(--transition-normal);
+  /* 网格子项默认 min-width:auto，canvas 初始位图宽度会把 1fr 轨道最小尺寸撑破——
+     窄窗口（1025-1280px）下第三张卡被顶出视口裁掉（右侧空白条+图表截断）。
+     min-width:0 允许轨道收缩，Chart.js 的 ResizeObserver 接管宽度适配 */
+  min-width: 0;
 }
 .chart-card:hover {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
@@ -1287,6 +1320,11 @@ const getTaskStatusLabel = (status: string): string => {
 @media screen and (max-width: 1280px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* 与统计卡断点对齐：1025-1280px 区间 3 列图表会挤爆内容区
+     （第三张卡被顶出视口，右侧空白条+图例截断），降为 2 列换行 */
+  .charts-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 @media screen and (max-width: 1024px) {

@@ -153,7 +153,7 @@ type MockDashboardService struct {
 	EndDateArg      string
 }
 
-func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
+func (m *MockDashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string, forceRefresh bool) (*vo.DashboardVO, error) {
 	m.DashboardCalled = true
 	m.ProductIDArg = productID
 	m.StartDateArg = startDate

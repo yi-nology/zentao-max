@@ -56,7 +56,7 @@ type TimelogServicer interface {
 }
 
 type DashboardServicer interface {
-	GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error)
+	GetDashboardContext(ctx context.Context, productID int, startDate, endDate string, forceRefresh bool) (*vo.DashboardVO, error)
 	GetProjectOverviewContext(ctx context.Context, projectID int) (*vo.ProjectOverviewVO, error)
 	GetPersonalTimelogContext(ctx context.Context, account string, productID int, dateFrom, dateTo, groupBy string) (*vo.PersonalTimelogVO, error)
 	SearchContext(ctx context.Context, keyword string, productID, page, pageSize int) (*vo.SearchVO, error)

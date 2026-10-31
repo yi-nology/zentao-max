@@ -42,3 +42,31 @@ export const ssoLogin = (username: string, password: string, code: string): Prom
 export const logout = (): Promise<ApiResponse<unknown>> => {
   return api.post('/auth/logout')
 }
+
+// ---- SSO 登录配置（设置页「SSO 登录配置」，保存即热生效） ----
+
+export interface SSOConfigData {
+  enabled: boolean
+  /** 统一认证平台根地址 */
+  baseUrl: string
+  /** 登录页完整地址；空串 = 回退 {baseUrl}/sso/auth */
+  authPageUrl: string
+  /** true = 数据库保存过（重启仍生效）；false = 来自 config.yaml bootstrap */
+  managed: boolean
+  /** 'db' | 'yaml' */
+  source: 'db' | 'yaml'
+}
+
+export const getSSOConfig = (): Promise<ApiResponse<SSOConfigData>> => {
+  return api.get('/v1/sso-config')
+}
+
+export interface SSOConfigPayload {
+  enabled: boolean
+  baseUrl: string
+  authPageUrl: string
+}
+
+export const updateSSOConfig = (payload: SSOConfigPayload): Promise<ApiResponse<SSOConfigData>> => {
+  return api.post('/v1/sso-config', payload)
+}

@@ -12,6 +12,10 @@ type DashboardVO struct {
 	// 缓存元信息（前端用于显示"离线/缓存"徽标）
 	FromCache bool `json:"fromCache,omitempty"` // 数据是否来自本地缓存
 	Stale     bool `json:"stale,omitempty"`     // 是否来自过期缓存（离线兜底）
+
+	// 数据质量语义（2026-10-30 深加工）：
+	TasksUnattributed bool `json:"tasksUnattributed,omitempty"` // true=产品无关联执行,任务统计结构性不可用（受限实例关联链断裂），0 是"无法统计"而非"没有任务"
+	Incomplete        bool `json:"incomplete,omitempty"`        // true=回源在预算内未完成（大实例逐执行遍历被掐断），数字可能偏小
 }
 
 // BugStatsVO Bug 统计

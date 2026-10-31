@@ -36,7 +36,7 @@ func (s *DashboardService) SetCacheService(cs *CacheService) {
 
 // GetDashboard 获取仪表盘数据
 func (s *DashboardService) GetDashboard(productID int) (*vo.DashboardVO, error) {
-	return s.GetDashboardContext(context.Background(), productID, "", "")
+	return s.GetDashboardContext(context.Background(), productID, "", "", false)
 }
 
 // GetProjectOverview 获取项目概览
@@ -193,25 +193,40 @@ func toWeekKey(dateStr string) string {
 
 // ========== Context-aware Dashboard 方法 ==========
 
+// DashboardCacheTTL dashboard 新鲜缓存窗口（30 分钟）。
+// dashboard 回源是大成本遍历（任务统计需逐执行拉任务列表，产品 1029 实测 60-90s），
+// 配合 GetOrLoadSWR：过期后立即返回上次数据（Stale 标志）+ 后台静默刷新，
+// 用户侧零等待；数据实时性由后台刷新周期保证。
+const DashboardCacheTTL = 30 * time.Minute
+
 // GetDashboardContext 获取仪表盘数据（支持 context 取消和日期范围过滤）
 // startDate/endDate 为空表示不过滤；格式 YYYY-MM-DD
-// 若注入了 CacheService，优先走缓存：缓存未命中回源后写入；回源失败有过期缓存时 fallback
-//
-// 缓存 key 必须把 (startDate, endDate) 编进 entityType，否则不同日期范围的请求
-// 会共享同一份 cache，前端切日期看到的"过滤后数据"实际是第一次请求时的日期
-// 过滤过的旧数据（V040+ 教训：date filter 在 cache 命中后被静默跳过）。
-func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
+// forceRefresh=true（刷新按钮）跳过缓存读取直接回源，结果仍写回缓存。
+// 常规路径走 GetOrLoadSWR：新鲜直接返；过期立即返旧数据并后台刷新（大成本回源
+// 不阻塞用户）；首次冷加载无缓存仍阻塞（无法避免）。缓存 key 必须把
+// (startDate, endDate) 编进 entityType，否则不同日期范围的请求会共享同一份
+// cache，前端切日期看到的"过滤后数据"实际是第一次请求时的日期过滤过的旧数据
+// （V040+ 教训）。
+func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string, forceRefresh bool) (*vo.DashboardVO, error) {
+	loader := func(ctx context.Context) ([]byte, error) {
+		d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(d)
+	}
 	if s.cache != nil && productID > 0 {
 		// 缓存键含日期范围（不同时间范围不共享缓存）
 		cacheKey := fmt.Sprintf("%s:%s:%s", storage.EntityDashboard, startDate, endDate)
-		result, err := s.cache.GetOrLoad(ctx, cacheKey, productID, DefaultCacheTTL,
-			func(ctx context.Context) ([]byte, error) {
-				d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
-				if err != nil {
-					return nil, err
-				}
-				return json.Marshal(d)
-			})
+		var (
+			result *CacheResult
+			err    error
+		)
+		if forceRefresh {
+			result, err = s.cache.GetOrLoadBypass(ctx, cacheKey, productID, DashboardCacheTTL, loader)
+		} else {
+			result, err = s.cache.GetOrLoadSWR(ctx, cacheKey, productID, DashboardCacheTTL, loader)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -321,7 +336,14 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		dashboard.Stories = calcStoryStats(stories)
 	}
 
-	if execCtxs != nil {
+	if len(execCtxs) == 0 {
+		// 产品过滤后没有任何关联执行：任务统计结构性不可用（受限实例的
+		// 产品→项目→执行关联链可能断裂，实测 zentao.example.com 产品 1029 的
+		// 关联项目合计仅 1 个空执行）。0 是"无法统计"而不是"没有任务"，
+		// 明确标记让前端展示说明，而不是误导性的全 0。
+		dashboard.TasksUnattributed = true
+	}
+	if len(execCtxs) > 0 {
 		allTasks := collectTasksContext(bgCtx, s.client, execCtxs)
 		allTasks = filterTasksByDateRange(allTasks, startDate, endDate)
 		dashboard.Tasks = calcTaskStats(allTasks)
@@ -330,6 +352,12 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 			n = 5
 		}
 		dashboard.RecentTasks = convertTasks(allTasks[:n])
+	}
+
+	// 回源预算耗尽：数据残缺（部分板块为 0）。标记随 VO 进缓存，
+	// 前端展示"统计不完整"提示，避免残缺数据被无声当成完整数据。
+	if bgCtx.Err() != nil {
+		dashboard.Incomplete = true
 	}
 
 	return dashboard, nil

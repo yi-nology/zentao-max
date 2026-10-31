@@ -80,6 +80,44 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-title">SSO 登录配置</h3>
+      <div class="settings-card">
+        <div class="config-hint">
+          配置本平台的登录方式（麒麟统一认证：账号密码 + 短信验证码）。先验证可达再保存，保存后立即生效（无需重启）。
+          注意：这里的 SSO 是「平台登录」，与上方连接配置的认证域（禅道侧会话模式）无关。修改需要平台管理员登录。
+        </div>
+        <div v-if="ssoLoading" class="loading-text">加载中...</div>
+        <div v-else class="config-form">
+          <div class="form-item">
+            <label class="form-label">启用 SSO 登录</label>
+            <el-switch v-model="ssoForm.enabled" />
+            <el-tag v-if="ssoInfo" :type="ssoInfo.source === 'db' ? 'success' : 'info'" size="small" style="margin-left:8px">
+              {{ ssoInfo.source === 'db' ? '已保存配置（重启仍生效）' : '当前来自 config.yaml' }}
+            </el-tag>
+          </div>
+          <div class="form-item">
+            <label class="form-label">统一认证平台地址</label>
+            <el-input v-model="ssoForm.baseUrl" placeholder="https://sso.example.com" clearable :disabled="!ssoForm.enabled" />
+          </div>
+          <div class="form-item">
+            <label class="form-label">登录页地址（可选）</label>
+            <el-input
+              v-model="ssoForm.authPageUrl"
+              placeholder="留空回退 {平台地址}/sso/auth"
+              clearable
+              :disabled="!ssoForm.enabled"
+            />
+          </div>
+          <div class="form-actions">
+            <el-button type="primary" size="small" :loading="ssoSaving" @click="saveSSOConfig">
+              保存并检测
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-title">显示设置</h3>
       <div class="settings-card">
         <div class="info-row">
@@ -269,6 +307,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue'
 import { getAccountInfo, updateZentaoConfig } from '@/api/zentao'
+import { getSSOConfig, updateSSOConfig, type SSOConfigData } from '@/api/auth'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
@@ -420,6 +459,71 @@ const saveZentaoConfig = async () => {
     // api.ts 拦截器已展示后端错误（401 会引导跳登录页）
   } finally {
     configSaving.value = false
+  }
+}
+
+// ─── SSO 登录配置 ───
+
+const ssoForm = reactive({
+  enabled: false,
+  baseUrl: '',
+  authPageUrl: ''
+})
+const ssoInfo = ref<SSOConfigData | null>(null)
+const ssoLoading = ref(true)
+const ssoSaving = ref(false)
+
+const fetchSSOConfig = async () => {
+  ssoLoading.value = true
+  try {
+    const res = await getSSOConfig()
+    if (res.code === 200 && res.data) {
+      ssoInfo.value = res.data
+      ssoForm.enabled = res.data.enabled
+      ssoForm.baseUrl = res.data.baseUrl || ''
+      ssoForm.authPageUrl = res.data.authPageUrl || ''
+    }
+  } catch {
+    // 加载失败保持表单可编辑，保存时后端会校验
+  } finally {
+    ssoLoading.value = false
+  }
+}
+
+const saveSSOConfig = async () => {
+  if (ssoForm.enabled && !ssoForm.baseUrl.trim()) {
+    ElMessage.warning('启用 SSO 登录必须填写统一认证平台地址')
+    return
+  }
+  // 停用是敏感操作：登录页会失去 SSO 入口，明确让操作者确认
+  if (!ssoForm.enabled && ssoInfo.value?.enabled) {
+    try {
+      await ElMessageBox.confirm(
+        '停用后登录页将不再展示 SSO 登录入口（本地管理员登录仍可通过 /api/auth/login 接口使用）。确定停用？',
+        '停用 SSO 登录',
+        { type: 'warning' }
+      )
+    } catch {
+      return
+    }
+  }
+  ssoSaving.value = true
+  try {
+    const res = await updateSSOConfig({
+      enabled: ssoForm.enabled,
+      baseUrl: ssoForm.baseUrl.trim().replace(/\/+$/, ''),
+      authPageUrl: ssoForm.authPageUrl.trim()
+    })
+    if (res.code === 200) {
+      ElMessage.success(res.message || 'SSO 配置已保存并即时生效')
+      fetchSSOConfig()
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch {
+    // api.ts 拦截器已展示后端错误（401 会引导跳登录页）
+  } finally {
+    ssoSaving.value = false
   }
 }
 
@@ -616,6 +720,7 @@ onMounted(() => {
   fetchCacheStatus()
   fetchUpdateStatus()
   fetchSvcStatus()
+  fetchSSOConfig()
 })
 </script>
 

@@ -288,6 +288,10 @@ export interface DashboardData {
   // 缓存元信息
   fromCache?: boolean
   stale?: boolean
+  /** 产品无关联执行：任务统计结构性不可用（0 是"无法统计"而非"没有任务"） */
+  tasksUnattributed?: boolean
+  /** 回源预算内未完成，数字可能偏小 */
+  incomplete?: boolean
 }
 
 export interface SearchItem {

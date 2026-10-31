@@ -227,7 +227,7 @@ func registerCustomRoutes(r *server.Hertz, registry *handlers.HandlerRegistry, t
 }
 
 // registerUpdateRoutes 注册软件版本检查/更新端点。
-// GET status 匿名可读；POST check/download 由平台认证中间件要求管理员。
+// GET status/changelog 匿名可读；POST check/download 由平台认证中间件要求管理员。
 // 检查服务同时在启动时自动拉起（HTTPApp.Start → StartAutoCheck）。
 func registerUpdateRoutes(r *server.Hertz) {
 	updCfg := config.Get().Update
@@ -235,6 +235,7 @@ func registerUpdateRoutes(r *server.Hertz) {
 	updateHandler := handlers.NewUpdateHandler(updateSvc)
 
 	r.GET("/api/update/status", updateHandler.GetStatus)
+	r.GET("/api/update/changelog", updateHandler.GetChangelog)
 	r.POST("/api/update/check", updateHandler.CheckNow)
 	r.POST("/api/update/download", updateHandler.Download)
 	r.POST("/api/update/apply", updateHandler.Apply)

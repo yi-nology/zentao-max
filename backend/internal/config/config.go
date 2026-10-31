@@ -25,8 +25,14 @@ type Config struct {
 type UpdateConfig struct {
 	// 是否启用版本检查（启动注册 + 定期检查；关闭后设置页仍可手动检查）
 	Enabled bool `yaml:"enabled"`
+	// 版本发布管理服务基地址（GET /api/v1/products/{slug}/upgrade-check 协议：
+	// 服务端版本比较 + force_update + 发布说明 Markdown + 渠道台账）。
+	// 配置后优先于 check_url 与 GitHub Releases 查询。
+	ReleaseURL string `yaml:"release_url"`
+	// 产品标识（版本发布管理服务注册的产品 slug）
+	Slug string `yaml:"slug"`
 	// 自建更新服务地址（POST JSON：{app,version,os,arch}；响应：
-	// {latest_version,download_url,notes}）。留空则回退 GitHub Releases 查询。
+	// {latest_version,download_url,notes}）。release_url 为空时的检查源。
 	CheckURL string `yaml:"check_url"`
 	// GitHub 仓库（owner/name），check_url 为空时的默认检查源
 	GitHubRepo string `yaml:"github_repo"`
@@ -196,6 +202,8 @@ func DefaultConfig() *Config {
 		},
 		Update: UpdateConfig{
 			Enabled:       true,
+			ReleaseURL:    "",
+			Slug:          "zentao-max",
 			CheckURL:      "",
 			GitHubRepo:    "yi-nology/zentao-max",
 			IntervalHours: 24,

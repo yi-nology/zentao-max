@@ -222,7 +222,10 @@
         <div class="info-row">
           <span class="info-label">当前版本</span>
           <span class="info-value">v{{ appVersion }}
-            <el-tag v-if="updateInfo?.hasUpdate" type="warning" size="small" style="margin-left:6px">
+            <el-tag v-if="updateInfo?.forceUpdate" type="danger" size="small" style="margin-left:6px">
+              版本过旧，必须升级（最低 {{ updateInfo.minSupported || '—' }}）
+            </el-tag>
+            <el-tag v-else-if="updateInfo?.hasUpdate" type="warning" size="small" style="margin-left:6px">
               可更新至 {{ updateInfo.latest }}
             </el-tag>
           </span>
@@ -233,7 +236,7 @@
         </div>
         <div class="info-row" v-if="updateInfo?.notes">
           <span class="info-label">更新说明</span>
-          <span class="info-value update-notes">{{ updateInfo.notes }}</span>
+          <span class="info-value update-notes update-note-md" v-html="updateNotesHtml"></span>
         </div>
         <div class="info-row" v-if="updateInfo?.downloadState === 'downloading'">
           <span class="info-label">下载进度</span>
@@ -279,7 +282,8 @@
           >
             重启应用
           </el-button>
-          <el-button v-if="updateInfo?.downloadUrl" size="small" @click="openDownloadPage">在浏览器打开</el-button>
+          <el-button v-if="updateInfo?.channelUrl || updateInfo?.downloadUrl" size="small" @click="openDownloadPage">在浏览器打开</el-button>
+          <el-button v-if="updateInfo?.source === 'release'" size="small" @click="changelogVisible = true">更新日志</el-button>
         </div>
       </div>
     </div>
@@ -302,13 +306,16 @@
       </div>
     </div>
   </div>
+  <ChangelogDialog v-model="changelogVisible" />
 </template>
 
 <script setup lang="ts">
+import ChangelogDialog from '@/components/ChangelogDialog.vue'
 import { computed, reactive, ref, onMounted } from 'vue'
 import { getAccountInfo, updateZentaoConfig } from '@/api/zentao'
 import { getSSOConfig, updateSSOConfig, type SSOConfigData } from '@/api/auth'
 import api from '@/api/api'
+import { renderMarkdown } from '@/utils/markdown'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
 import {
@@ -572,6 +579,10 @@ interface UpdateInfo {
   current: string
   latest: string
   hasUpdate: boolean
+  forceUpdate?: boolean
+  minSupported?: string
+  releasedAt?: string
+  channelUrl?: string
   downloadUrl: string
   notes: string
   source: string
@@ -629,6 +640,8 @@ const svcDo = async (action: string): Promise<void> => {
 }
 
 const updateInfo = ref<UpdateInfo | null>(null)
+const updateNotesHtml = computed(() => renderMarkdown(updateInfo.value?.notes || ''))
+const changelogVisible = ref(false)
 const checking = ref(false)
 
 const fetchUpdateStatus = async (): Promise<void> => {
@@ -709,7 +722,8 @@ const restartApp = async (): Promise<void> => {
 }
 
 const openDownloadPage = (): void => {
-  if (updateInfo.value?.downloadUrl) window.open(updateInfo.value.downloadUrl, '_blank')
+  const url = updateInfo.value?.channelUrl || updateInfo.value?.downloadUrl
+  if (url) window.open(url, '_blank')
 }
 
 onMounted(() => {
@@ -777,6 +791,28 @@ onMounted(() => {
   font-weight: 400;
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+/* 发布说明 Markdown 渲染态（v-html），行间距由元素标签承担 */
+.update-note-md {
+  white-space: normal;
+}
+.update-note-md :deep(h1),
+.update-note-md :deep(h2),
+.update-note-md :deep(h3) {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 8px 0 4px;
+}
+.update-note-md :deep(ul) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.update-note-md :deep(code) {
+  background: var(--el-fill-color);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12px;
 }
 
 .notif-controls {

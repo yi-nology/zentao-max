@@ -21,6 +21,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,16 @@ import (
 	"github.com/yi-nology/zentao-max/backend/internal/config"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
+
+// errSilentUpdate 版本发布管理服务的检查失败标记（网络错误/非 200/响应异常）。
+// 该接口面向公网网关，任何失败都不对外暴露：doCheck 捕获此标记后保留上次
+// 快照、LastError 置空（状态接口与 UI 无感知），细节只进内部日志。
+var errSilentUpdate = errors.New("release service check failed")
+
+// silentErr 给发布服务源的任意失败打上静默标记。
+func silentErr(err error) error {
+	return fmt.Errorf("%w: %v", errSilentUpdate, err)
+}
 
 // Info 版本检查结果的快照（/api/update/status 返回形态）。
 type Info struct {
@@ -157,7 +168,12 @@ func (s *Service) doCheck() Info {
 
 	res, err := s.queryLatest()
 	if err != nil {
-		// 检查失败保留上次成功快照（含 force 状态），仅刷新检查时间与错误
+		if errors.Is(err, errSilentUpdate) {
+			// 发布服务失败（网络/非 200/响应异常）：不对外暴露错误——
+			// 保留上次快照（info 来自 Status()，LastError 已清空），仅内部日志
+			logger.Warn("版本检查失败（静默降级，保留上次结果）", "error", err)
+			return info
+		}
 		info.LastError = err.Error()
 		return info
 	}
@@ -286,30 +302,33 @@ func (s *Service) queryCustom() (remoteCheck, error) {
 // 服务端无该语言文案时自行回退，note_md 仍可能为空（前端有兜底文案）。
 const checkLocale = "zh-CN"
 
-// queryReleaseService 版本发布管理服务模式：GET
-// {release_url}/api/v1/products/{slug}/upgrade-check?current=&locale=。
+// queryReleaseService 版本发布管理服务模式。release_url 为 API 前缀
+//（含版本段，如 https://api.murphyyi.com/vms/v1），业务路径由客户端拼接：
+// {release_url}/products/{slug}/upgrade-check?current=&locale=。
 // 响应 {has_update, force_update, latest, note_md, min_supported, released_at,
 // channels:[{url,status}]}；版本比较在服务端完成，客户端直接采信。
+// 本源任何失败（网络/非 200/响应异常）都带 errSilentUpdate 标记返回，
+// 调用方静默降级、不对外暴露。
 func (s *Service) queryReleaseService() (remoteCheck, error) {
 	base := strings.TrimRight(s.cfg.ReleaseURL, "/")
 	q := url.Values{}
 	q.Set("current", s.info.Current)
 	q.Set("locale", checkLocale)
-	endpoint := fmt.Sprintf("%s/api/v1/products/%s/upgrade-check?%s",
+	endpoint := fmt.Sprintf("%s/products/%s/upgrade-check?%s",
 		base, url.PathEscape(s.cfg.Slug), q.Encode())
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
 	if err != nil {
-		return remoteCheck{}, err
+		return remoteCheck{}, silentErr(err)
 	}
 	req.Header.Set("User-Agent", "zentao-max/"+s.info.Current)
 	req.Header.Set("X-Client-Version", s.info.Current)
 	resp, err := s.hc.Do(req)
 	if err != nil {
-		return remoteCheck{}, err
+		return remoteCheck{}, silentErr(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return remoteCheck{}, fmt.Errorf("发布服务 HTTP %d", resp.StatusCode)
+		return remoteCheck{}, silentErr(fmt.Errorf("HTTP %d", resp.StatusCode))
 	}
 	var body struct {
 		HasUpdate    bool   `json:"has_update"`
@@ -327,10 +346,10 @@ func (s *Service) queryReleaseService() (remoteCheck, error) {
 		} `json:"channels"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return remoteCheck{}, err
+		return remoteCheck{}, silentErr(err)
 	}
 	if body.Latest == "" {
-		return remoteCheck{}, fmt.Errorf("发布服务响应缺少 latest（该产品可能没有已发布状态的版本）")
+		return remoteCheck{}, silentErr(fmt.Errorf("响应缺少 latest"))
 	}
 	res := remoteCheck{
 		latest:       body.Latest,
@@ -473,7 +492,7 @@ func (s *Service) Changelog(limit int) ([]ChangelogEntry, error) {
 	q := url.Values{}
 	q.Set("locale", checkLocale)
 	q.Set("limit", strconv.Itoa(limit))
-	endpoint := fmt.Sprintf("%s/api/v1/products/%s/changelog?%s",
+	endpoint := fmt.Sprintf("%s/products/%s/changelog?%s",
 		base, url.PathEscape(s.cfg.Slug), q.Encode())
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
 	if err != nil {

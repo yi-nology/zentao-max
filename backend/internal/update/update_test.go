@@ -1,16 +1,25 @@
 package update
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/yi-nology/zentao-max/backend/internal/config"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
+
+func TestMain(m *testing.M) {
+	// 静默降级路径会打内部日志；生产由 bootstrap 初始化，测试需自备
+	_ = logger.Init(&config.LogConfig{Level: "warn", Format: "console"})
+	os.Exit(m.Run())
+}
 
 func TestIsNewer(t *testing.T) {
 	cases := []struct {
@@ -86,7 +95,7 @@ func TestQueryReleaseService(t *testing.T) {
 		t.Fatalf("queryReleaseService: %v", err)
 	}
 	m := *seen
-	if m["path"] != "/api/v1/products/zentao-max/upgrade-check" {
+	if m["path"] != "/products/zentao-max/upgrade-check" {
 		t.Errorf("path = %q", m["path"])
 	}
 	if m["query"] != "current=0.5.0&locale=zh-CN" {
@@ -164,16 +173,18 @@ func TestQueryReleaseServiceErrors(t *testing.T) {
 	t.Run("缺少latest", func(t *testing.T) {
 		payload := `{"has_update": true}`
 		base, _ := releaseTestServer(t, &payload, nil)
-		if _, err := newReleaseSvc(base, "zentao-max", "0.5.0").queryReleaseService(); err == nil || !strings.Contains(err.Error(), "latest") {
-			t.Errorf("want latest 缺失错误, got %v", err)
+		_, err := newReleaseSvc(base, "zentao-max", "0.5.0").queryReleaseService()
+		if err == nil || !strings.Contains(err.Error(), "latest") || !errors.Is(err, errSilentUpdate) {
+			t.Errorf("want 带静默标记的 latest 缺失错误, got %v", err)
 		}
 	})
 	t.Run("HTTP404", func(t *testing.T) {
 		payload := `{"code":40404,"message":"资源不存在"}`
 		code := http.StatusNotFound
 		base, _ := releaseTestServer(t, &payload, &code)
-		if _, err := newReleaseSvc(base, "no-such", "0.5.0").queryReleaseService(); err == nil || !strings.Contains(err.Error(), "404") {
-			t.Errorf("want HTTP 404 错误, got %v", err)
+		_, err := newReleaseSvc(base, "no-such", "0.5.0").queryReleaseService()
+		if err == nil || !strings.Contains(err.Error(), "404") || !errors.Is(err, errSilentUpdate) {
+			t.Errorf("want 带静默标记的 HTTP 404 错误, got %v", err)
 		}
 	})
 }
@@ -187,14 +198,20 @@ func TestDoCheckStaleOnFailure(t *testing.T) {
 	if info := svc.CheckNow(); info.Latest != "1.0.0" || !info.ForceUpdate {
 		t.Fatalf("首次检查失败: %+v", info)
 	}
-	// 服务端故障后：保留上次成功快照（含 force），只刷新错误
+	// 发布服务非 200：静默降级——不对外暴露错误（LastError 为空），
+	// 保留上次成功快照（含 force/notes），仅刷新检查时间
 	code = http.StatusInternalServerError
 	info := svc.CheckNow()
-	if info.LastError == "" {
-		t.Errorf("应记录检查错误")
+	if info.LastError != "" {
+		t.Errorf("非 200 不得对外暴露错误, lastError = %q", info.LastError)
 	}
-	if info.Latest != "1.0.0" || !info.ForceUpdate || !info.HasUpdate {
+	if info.Latest != "1.0.0" || !info.ForceUpdate || !info.HasUpdate || info.Source != "release" {
 		t.Errorf("故障时快照应保留: %+v", info)
+	}
+	// 恢复后正常刷新
+	code = http.StatusOK
+	if info := svc.CheckNow(); info.LastError != "" || !info.HasUpdate {
+		t.Errorf("恢复后应正常检查: %+v", info)
 	}
 }
 
@@ -313,7 +330,7 @@ func TestChangelog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Changelog: %v", err)
 		}
-		if gotPath != "/api/v1/products/zentao-max/changelog" {
+		if gotPath != "/products/zentao-max/changelog" {
 			t.Errorf("path = %q", gotPath)
 		}
 		if gotQuery != "limit=20&locale=zh-CN" {

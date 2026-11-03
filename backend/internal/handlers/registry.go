@@ -3,11 +3,14 @@ package handlers
 import (
 	"context"
 	"log"
+	"path/filepath"
 
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	"github.com/yi-nology/zentao-max/backend/internal/initialization"
 	"github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
 	"github.com/yi-nology/zentao-max/backend/internal/service"
+
+	"github.com/yi-nology/zentao-max/backend/internal/config"
 )
 
 // HandlerRegistry Handler注册表
@@ -133,9 +136,15 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	// effort 批量创建
 	registry.effortBatchHandler = NewEffortBatchHandler(client)
 
-	// daily-note：构造 SQLite，失败时降级（store=nil 时路由不注册）。
-	// 用空 prefix → 走 NewDailyNoteStore 默认路径 ~/.zentao-max/cache-notes.db。
-	if store, err := myzentao.NewDailyNoteStore(""); err != nil {
+	// daily-note / 离线缓存：SQLite 本地库，位置来自 config.yaml cache.dir
+	//（基础部署配置统一走配置文件；空 = ~/.zentao-max 历史默认）。
+	// 失败时降级（store=nil 时对应路由不注册），不影响主功能。
+	cacheDir := config.Get().Cache.Dir
+	notesPrefix := "" // 空 prefix → NewDailyNoteStore 默认 ~/.zentao-max/cache-notes.db
+	if cacheDir != "" {
+		notesPrefix = filepath.Join(cacheDir, "cache") // → <dir>/cache-notes.db
+	}
+	if store, err := myzentao.NewDailyNoteStore(notesPrefix); err != nil {
 		log.Printf("Warning: failed to init daily note store: %v (daily note disabled)", err)
 	} else {
 		registry.dailyNoteStore = store
@@ -146,7 +155,11 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 	}
 
 	// 初始化 SQLite 缓存层（离线模式用）
-	cacheStore, err := storage.NewSQLiteStore("")
+	cacheDBPath := "" // 空 → NewSQLiteStore 默认 ~/.zentao-max/cache.db
+	if cacheDir != "" {
+		cacheDBPath = filepath.Join(cacheDir, "cache.db")
+	}
+	cacheStore, err := storage.NewSQLiteStore(cacheDBPath)
 	if err != nil {
 		log.Printf("Warning: failed to init SQLite cache store: %v (offline mode disabled)", err)
 	} else {

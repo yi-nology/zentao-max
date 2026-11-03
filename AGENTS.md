@@ -82,7 +82,10 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
 ## Key Conventions & Gotchas
 
 - **装配**：`backend/internal/svc/assembly.go` 是**手写**装配——凭据解析
-  （ldflags/config/env → auth.db 回退）→ 禅道 client → Dependencies → HTTPApp。
+  （按字段取第一个非空源：设置页 auth.db > env 裸前缀 > ldflags/config.yaml；
+  残缺 auth.db 记录的空字段自动回退，不再整记录盖掉 yaml——2026-11-03 修复
+  main.go 未把 cfg.Zentao.* 接入 AppConfig 导致 yaml zentao 段从未生效的接线 bug）
+  → 禅道 client → Dependencies → HTTPApp。
   google/wire 已移除，改依赖关系直接编辑该函数
 - **hz 生成层**：`backend/biz/` 由 `idl/` 生成；业务实现在 `internal/handlers/`，
   biz handler 只是转发。不要手改 biz 生成骨架
@@ -90,7 +93,8 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   ⚠️ 脚本是普通 `cp -r` 非 mirror——先 `rm -rf backend/static` 再跑，否则已删除页面的
   旧 chunk 会残留在嵌入产物里
 - **Config priority**: 设置页热更新 / auth.db > env（凭据走 `ZENTAO_SERVER/ACCOUNT/PASSWORD`
-  及 `ZENTAO_MAX_` 前缀双形式）> config.yaml > 内置默认值
+  及 `ZENTAO_MAX_` 前缀双形式）> config.yaml > 内置默认值。凭据按**字段**逐项比较——
+  高优先级源里某字段为空时落到下一级（auth.db 残缺记录不会盖掉 config.yaml）
 - **Default HTTP port**: `12345`（`server.port`）
 - **前端 env**：本地 `.env` 需 `VITE_API_BASE_URL=/api`（vite 代理同源 cookie）；
   `.env.wails` 为历史遗留，无脚本引用
@@ -115,6 +119,19 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   **auth.db 单条加密记录：连接配置与 SSO 配置的保存端点都必须走
   `InitService.UpdateAuthConfig` 读改写合并，禁止整记录覆盖（会互删字段）**。`GET /api/auth/sso/status` 恒注册（匿名 GET），返回 `{enabled}`
   供登录页选择默认表单。
+- **auth.db 存储边界（存什么/不存什么，2026-11-03 定稿）**：auth.db 只存
+  「用户在设置页/MCP 明确保存过」的运行时状态，且每段必须带 managed 标记——
+  连接配置（Domain/Username/Password/Realm + `connManaged`，保存端点置位）、
+  SSO（`ssoManaged` + 三字段）。无标记的历史遗留记录：字段完整的自动补标记
+  迁移（保持原行为），残缺的忽略（引导归 config.yaml/env）。**不进 auth.db 的**：
+  未被页面保存过的任何配置（端口/日志/限流/update/MCP 默认值 → config.yaml/env）、
+  调度任务与运行日志（cron.db，明文 JSON，位置随 auth.db 目录）、
+  离线缓存（cache.db / cache-notes.db，sqlite，位置 `cache.dir` 可配，默认
+  ~/.zentao-max——2026-11-03 起进 config.yaml，此前硬编码够不着）、
+  zentaosid 注入（~/.zentao-max/zentaosid.json，env 可改路径）。凭据生效优先级（按字段）：
+  auth.db(managed) > env 裸前缀 > config.yaml > ldflags > 默认。
+  已知缺口：MCP 热重载（/api/v1/mcp/config 的 enabled/readOnly/token）纯内存，
+  重启回退 config.yaml——如需持久化应另立状态文件而非塞进 auth.db。
 - **本地管理员（API 备用）**：`auth.admin.username/password`（默认 admin/admin，env
   `ZENTAO_MAX_AUTH_ADMIN_USERNAME/PASSWORD`）。**登录页 UI 已无切换入口（SSO 表单常显，
   2026-10-29 用户要求删除）**——本地登录仅可经 API（POST /api/auth/login）供脚本/自动化使用。
@@ -150,10 +167,14 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
 ## 版本检查/更新 与 系统服务安装
 
 - **版本检查**（`internal/update`）：启动注册检查（三数据源按优先级：
-  `update.release_url` 版本发布管理服务（GET
-  `/api/v1/products/{slug}/upgrade-check`，slug 默认 `zentao-max`；服务端判版本
+  `update.release_url` 版本发布管理服务（API 前缀含版本段，默认
+  `https://api.murphyyi.com/vms/v1`，业务路径客户端拼接
+  `{prefix}/products/{slug}/upgrade-check`，slug 默认 `zentao-max`；服务端判版本
   `has_update`/`force_update`，`note_md` 发布说明 Markdown，`channels[].url`
-  官方升级入口——GitHub 发布页会解析出当前平台安装包直链以保住自更新管线）→
+  官方升级入口——GitHub 发布页会解析出当前平台安装包直链以保住自更新管线；
+  **该源任何失败（网络/非 200/响应异常）一律静默降级：保留上次快照，
+  LastError 置空，状态接口与 UI 不暴露错误，仅内部日志——公网网关
+  errSilentUpdate 标记，2026-11-03**）→
   `update.check_url` 自建服务（POST {app,version,os,arch}，响应
   `{latest_version,download_url,notes}`）→ GitHub Releases）+ 24h 定期复查 +
   手动检查；另有更新日志代理 GET /api/update/changelog（changelog 接口，

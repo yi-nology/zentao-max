@@ -94,12 +94,14 @@ func (h *InitHandler) UpdateZentaoConfig(ctx context.Context, c *app.RequestCont
 	}
 
 	// 读改写合并：保留 auth.db 里的 SSO 登录配置等其它字段（整记录覆盖会把
-	// 它们静默抹掉），见 UpdateAuthConfig 注释。
+	// 它们静默抹掉），见 UpdateAuthConfig 注释。ConnManaged 置位：此后连接
+	// 配置以数据库为准（设置页保存语义，见 LoadZentaoConfigWithRealm）。
 	if err := h.initService.UpdateAuthConfig(func(cfg *initialization.AuthConfig) {
 		cfg.Username = req.Account
 		cfg.Password = req.Password
 		cfg.Domain = req.Domain
 		cfg.Realm = req.Realm
+		cfg.ConnManaged = true
 	}); err != nil {
 		logger.Error("持久化禅道连接配置失败", "error", err)
 		errors.InternalError(c, "保存连接配置失败")

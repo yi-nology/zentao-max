@@ -26,6 +26,11 @@ type AuthConfig struct {
 	// 数据访问走禅道 PHP *.json 端点；空表示默认 Token 模式（REST API）。
 	// 适用于禁用 REST API 的禅道实例（如受限实例 your-zentao-server.com）。
 	Realm string `json:"realm,omitempty"`
+	// ConnManaged 标记连接配置是否由设置页/MCP 保存端点写入（2026-11-03 起）。
+	// auth.db 只存「用户明确保存过」的状态：无标记的记录视作历史遗留——
+	// 字段完整的自动补标记迁移（保持原行为），残缺的（如 ~/.zentao-max 旧记录）
+	// 在凭据解析时忽略，让 config.yaml/env 引导生效。与 SSOManaged 同模式。
+	ConnManaged bool `json:"connManaged,omitempty"`
 
 	// ---- 平台 SSO 登录配置（设置页「SSO 登录配置」，2026-10-30 起）----
 	// SSOManaged 标记用户是否在页面保存过 SSO 配置。auth.db 里该标记为 true 时
@@ -437,12 +442,30 @@ func LoadZentaoConfig(initService *InitService) (string, string, string) {
 
 // LoadZentaoConfigWithRealm 加载禅道配置，额外返回 realm。
 // realm 非空表示会话模式（kydc），空表示 Token 模式。
-// 优先级：数据库 > 环境变量（ZENTAO_REALM / ZENTAO_MAX_REALM）。
+// 只认「设置页/MCP 明确保存过」的记录（connManaged=true，由保存端点写入）；
+// 无标记的历史遗留记录：字段完整的自动补标记迁移（行为不变，一次写盘），
+// 残缺的忽略并回退环境变量——config.yaml/env 引导不会被来历不明的
+// auth.db 静默盖掉（2026-11-03 存储边界收紧）。
 func LoadZentaoConfigWithRealm(initService *InitService) (server, account, password, realm string) {
 	log.Println("Loading zentao config...")
 
 	authConfig, _, err := initService.LoadAuthConfig()
 	if err == nil && authConfig != nil {
+		if !authConfig.ConnManaged {
+			if authConfig.Domain != "" && authConfig.Username != "" && authConfig.Password != "" {
+				authConfig.ConnManaged = true
+				if merr := initService.StoreAuthConfigFromStruct(authConfig); merr != nil {
+					log.Printf("WARNING: connManaged migration failed (will retry on next load): %v", merr)
+				} else {
+					log.Println("auth.db: legacy connection record migrated (connManaged=true)")
+				}
+			} else {
+				log.Println("auth.db record has no connManaged flag and incomplete fields; ignoring it (bootstrap from env/config.yaml)")
+				authConfig = nil
+			}
+		}
+	}
+	if authConfig != nil {
 		log.Println("Config loaded from database successfully")
 		log.Printf("Using database config: Domain=%s, Username=%s, Realm=%s", authConfig.Domain, authConfig.Username, authConfig.Realm)
 		return authConfig.Domain, authConfig.Username, authConfig.Password, authConfig.Realm

@@ -18,7 +18,9 @@ server:
 
 # ==================== 禅道配置 ====================
 # 运行时可在设置页「连接配置」卡片热更新（平台登录后，POST /api/v1/zentao-config）。
-# 此处/环境变量/ldflags 优先级高于 auth.db 加密存储。
+# 生效优先级（按字段逐项比较，非整记录）：设置页保存(auth.db) > 环境变量 >
+# 本文件 > ldflags > 内置默认值——auth.db 记录里为空的字段自动回退到下一级，
+# 历史遗留的残缺记录不会盖掉本文件的配置。
 zentao:
   # 禅道服务器地址，如 https://zentao.example.com
   # 环境变量：ZENTAO_MAX_ZENTAO_SERVER（或无前缀 ZENTAO_SERVER）
@@ -99,11 +101,13 @@ mcp:
 update:
   # 启动注册检查 + 每 24h 定期检查（关闭后设置页仍可手动检查）
   enabled: true
-  # 版本发布管理服务基地址（GET /api/v1/products/{slug}/upgrade-check：
-  # 服务端版本比较 + force_update + 发布说明 Markdown + 渠道台账）。
-  # 配置后作为首选检查源，优先于 check_url 与 GitHub Releases。
+  # 版本发布管理服务 API 前缀（含版本段），业务路径由客户端拼接：
+  # {release_url}/products/{slug}/upgrade-check（服务端版本比较 + force_update
+  # + 发布说明 Markdown + 渠道台账）。作为首选检查源，优先于 check_url 与
+  # GitHub Releases。该源任何失败（网络/非 200/响应异常）一律静默降级：
+  # 保留上次检查结果，状态接口与 UI 不暴露错误，仅内部日志。
   # 环境变量：ZENTAO_MAX_UPDATE_RELEASE_URL
-  release_url: ""
+  release_url: "https://api.murphyyi.com/vms/v1"
   # 产品标识（版本发布管理服务注册的 slug）。环境变量 ZENTAO_MAX_UPDATE_SLUG
   slug: "zentao-max"
   # 自建更新服务地址（POST JSON {app,version,os,arch}；响应
@@ -115,3 +119,11 @@ update:
   interval_hours: 24
   # 更新包下载目录
   download_dir: "./data/updates"
+
+# ==================== 离线缓存 ====================
+cache:
+  # 缓存库目录（cache.db 离线缓存、cache-notes.db「这天我干了什么」笔记）。
+  # 空 = ~/.zentao-max（历史默认）。与 auth.db_path 一样属于基础部署配置，
+  # 建议显式指定到应用数据目录，避免散落在用户主目录。
+  # 环境变量：ZENTAO_MAX_CACHE_DIR
+  dir: ""

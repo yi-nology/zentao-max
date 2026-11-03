@@ -19,6 +19,15 @@ type Config struct {
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	MCP       MCPConfig       `yaml:"mcp"`
 	Update    UpdateConfig    `yaml:"update"`
+	Cache     CacheConfig     `yaml:"cache"`
+}
+
+// CacheConfig 离线缓存/本地状态库存储位置.
+// 基础部署配置统一进 config.yaml（2026-11-03 收口）：此前 cache.db /
+// cache-notes.db 的位置硬编码在 ~/.zentao-max，配置层够不着。
+type CacheConfig struct {
+	// 缓存库目录（cache.db、cache-notes.db）。空 = ~/.zentao-max（历史默认）。
+	Dir string `yaml:"dir"`
 }
 
 // UpdateConfig 软件版本检查/更新配置.
@@ -201,8 +210,11 @@ func DefaultConfig() *Config {
 			ReadOnly:  false,
 		},
 		Update: UpdateConfig{
-			Enabled:       true,
-			ReleaseURL:    "",
+			Enabled: true,
+			// 版本发布管理服务 API 前缀（含版本段），业务路径由客户端拼接：
+			// {release_url}/products/{slug}/upgrade-check 等。
+			// 服务不可达/非 200 一律静默降级（不对外暴露错误）。
+			ReleaseURL:    "https://api.murphyyi.com/vms/v1",
 			Slug:          "zentao-max",
 			CheckURL:      "",
 			GitHubRepo:    "yi-nology/zentao-max",

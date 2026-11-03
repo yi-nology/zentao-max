@@ -64,6 +64,7 @@ func (s *MCPServer) handleUpdateZentaoConfig(params map[string]interface{}) (int
 		cfg.Password = password
 		cfg.Domain = server
 		cfg.Realm = realm
+		cfg.ConnManaged = true
 	}); err != nil {
 		logger.Error("MCP 持久化禅道连接配置失败", "error", err)
 		return nil, fmt.Errorf("登录成功但保存配置失败: %w", err)

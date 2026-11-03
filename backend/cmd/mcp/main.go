@@ -98,13 +98,21 @@ func main() {
 	// 构造 MCP Server（直接从 client，无需 HTTP/handler 依赖）
 	// 注入基础配置能力：auth.db 持久化（update_zentao_config）+ 统一认证平台 SSO 登录（send_verify_code/sso_login）
 	mcpServer := mcp.NewMCPServer(client)
+	// SSO 生效解析与 HTTP 入口 SSOConfigHandler.Effective 同规则：
+	// auth.db 有页面保存记录（ssoManaged）→ 以数据库为准（含显式停用）；
+	// 否则回退 config.yaml bootstrap。此前 stdio 只看 yaml，页面停用后
+	// stdio 里 SSO 工具仍启用的不一致（2026-11-03 修复）。
+	ssoEnabled, ssoBase, ssoPage := cfg.Auth.SSO.Enabled, cfg.Auth.SSO.BaseURL, cfg.Auth.SSO.AuthPageURL
+	if dbCfg, _, err := initSvc.LoadAuthConfig(); err == nil && dbCfg != nil && dbCfg.SSOManaged {
+		ssoEnabled, ssoBase, ssoPage = dbCfg.SSOEnabled, dbCfg.SSOBaseURL, dbCfg.SSOAuthPageURL
+	}
 	var ssoClient *auth.SSOClient
-	if cfg.Auth.SSO.Enabled {
-		if strings.TrimSpace(cfg.Auth.SSO.BaseURL) == "" {
-			logger.Warn("auth.sso.enabled=true but auth.sso.base_url is empty; sso MCP tools unavailable",
+	if ssoEnabled {
+		if strings.TrimSpace(ssoBase) == "" {
+			logger.Warn("auth.sso.enabled=true but base_url is empty; sso MCP tools unavailable",
 				"config_key", "auth.sso.base_url")
 		} else {
-			ssoClient = auth.NewSSOClient(cfg.Auth.SSO.BaseURL, cfg.Auth.SSO.AuthPageURL)
+			ssoClient = auth.NewSSOClient(ssoBase, ssoPage)
 		}
 	}
 	mcpServer.WithConfigDeps(initSvc, ssoClient, nil) // stdio 无业务缓存，无需清理回调

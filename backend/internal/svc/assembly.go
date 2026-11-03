@@ -8,8 +8,8 @@ import (
 	"github.com/yi-nology/zentao-max/backend/internal/initialization"
 )
 
-// InitializeHTTPApp 装配应用：凭据解析（ldflags/config/env → auth.db 回退）
-// → 禅道 client（含 zentaosid 注入）→ 依赖容器 → HTTPApp。
+// InitializeHTTPApp 装配应用：凭据解析（按字段：设置页 auth.db > env >
+// ldflags/config.yaml）→ 禅道 client（含 zentaosid 注入）→ 依赖容器 → HTTPApp。
 // 原 wire 生成层删除：装配对象仅 4 个，手写直读比生成代码更可读
 // （对齐 octopus svc.InitServiceContext 手写装配模式）。
 // 文件原名 wire_gen.go（wire 时代遗留），google/wire 移除后更名消除误导。
@@ -21,37 +21,27 @@ func InitializeHTTPApp(config *AppConfig) (*HTTPApp, error) {
 	return NewHTTPApp(config, deps), nil
 }
 
-// provideZentaoClient 禅道 client 装配：凭据优先级
-// ldflags/config（AppConfig）→ env（ZENTAO_SERVER/ACCOUNT/PASSWORD，
-// 兼容 ZENTAO_MAX_ 前缀）→ auth.db 加密存储（LoadZentaoConfigWithRealm）。
+// provideZentaoClient 禅道 client 装配。凭据按字段取第一个非空源：
+// 设置页保存（auth.db，热更新最高）→ env（ZENTAO_SERVER/ACCOUNT/PASSWORD/REALM
+// 裸前缀；ZENTAO_MAX_ 前缀已由 config 层 overlay 进 AppConfig）→
+// AppConfig（ldflags 注入 / config.yaml zentao 段）。
+// 按字段而非整记录比较：历史遗留 auth.db 里某字段为空时自动回退下一级，
+// 不再出现「旧空记录把 config.yaml 整段盖成空」的静默失效（2026-11-03）。
 func provideZentaoClient(config *AppConfig, initService *initialization.InitService) *zentao.Client {
-	zentaoServer, zentaoAccount, zentaoPassword, realm := initialization.LoadZentaoConfigWithRealm(initService)
+	dbServer, dbAccount, dbPassword, dbRealm := initialization.LoadZentaoConfigWithRealm(initService)
 
-	if config.ZentaoServer != "" {
-		zentaoServer = config.ZentaoServer
-	}
-	if config.ZentaoAccount != "" {
-		zentaoAccount = config.ZentaoAccount
-	}
-	if config.ZentaoPassword != "" {
-		zentaoPassword = config.ZentaoPassword
-	}
-	if zentaoServer == "" {
-		zentaoServer = os.Getenv("ZENTAO_SERVER")
-	}
-	if zentaoAccount == "" {
-		zentaoAccount = os.Getenv("ZENTAO_ACCOUNT")
-	}
-	if zentaoPassword == "" {
-		zentaoPassword = os.Getenv("ZENTAO_PASSWORD")
-	}
-	if realm == "" {
-		if r := os.Getenv("ZENTAO_MAX_REALM"); r != "" {
-			realm = r
-		} else if r := os.Getenv("ZENTAO_REALM"); r != "" {
-			realm = r
+	pick := func(vals ...string) string {
+		for _, v := range vals {
+			if v != "" {
+				return v
+			}
 		}
+		return ""
 	}
+	zentaoServer := pick(dbServer, os.Getenv("ZENTAO_SERVER"), config.ZentaoServer)
+	zentaoAccount := pick(dbAccount, os.Getenv("ZENTAO_ACCOUNT"), config.ZentaoAccount)
+	zentaoPassword := pick(dbPassword, os.Getenv("ZENTAO_PASSWORD"), config.ZentaoPassword)
+	realm := pick(dbRealm, os.Getenv("ZENTAO_REALM"), os.Getenv("ZENTAO_MAX_REALM"), config.ZentaoRealm)
 
 	// 统一走 session 模式（PHP *.json 端点）。
 	// realm 可选：非空（如 "kydc"）走受限实例 SSO；空走禅道本地（md5 混淆）。

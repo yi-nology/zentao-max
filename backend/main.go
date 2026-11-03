@@ -84,14 +84,25 @@ func main() {
 		port = cfg.Server.Port
 	}
 
+	// ldflags 显式注入优先于 config.yaml 同名字段（构建期指定 > 部署引导文件）。
+	// ⚠️ cfg.Zentao.* 必须接进 AppConfig：此前这里只喂 ldflags 变量（常态为空），
+	// config.yaml 的 zentao 段被解析但从未生效——「禅道服务器地址为空」类故障
+	// 的根因（2026-11-03 修复）。
+	pick := func(a, b string) string {
+		if a != "" {
+			return a
+		}
+		return b
+	}
 	appConfig := &svc.AppConfig{
 		Type:           "http",
 		Port:           port,
 		AuthDBPath:     resolvedAuthDBPath,
 		EncryptionKey:  encryptionKey,
-		ZentaoServer:   zentaoServer,
-		ZentaoAccount:  zentaoAccount,
-		ZentaoPassword: zentaoPassword,
+		ZentaoServer:   pick(zentaoServer, cfg.Zentao.Server),
+		ZentaoAccount:  pick(zentaoAccount, cfg.Zentao.Account),
+		ZentaoPassword: pick(zentaoPassword, cfg.Zentao.Password),
+		ZentaoRealm:    cfg.Zentao.Realm,
 		StaticPath:     *staticDir,
 	}
 	switch *staticDir {

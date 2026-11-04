@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
-	
+
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	"github.com/yi-nology/zentao-max/backend/pkg/utils"
@@ -23,12 +25,16 @@ const (
 // 负责处理任务相关的业务逻辑
 type TaskService struct {
 	client *myzentao.Client
+	cache  *CacheService // 可选；nil = 无 SWR 缓存直连
 }
 
 // NewTaskService 创建任务服务
 func NewTaskService(client *myzentao.Client) *TaskService {
 	return &TaskService{client: client}
 }
+
+// SetCache 注入 SWR 缓存（registry 在缓存层就绪后回调装配）。
+func (s *TaskService) SetCache(c *CacheService) { s.cache = c }
 
 // GetTasks 获取任务列表
 // 业务逻辑：
@@ -91,18 +97,32 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 	} else if query.ProductID > 0 {
 		// 按 product 维度收集：受限 session 模式下，如果 product 范围内确实有
 		// project/execution/task，filter 之后能看到；否则 fallback 到全 execution。
-		// ⚠️ product 维度直接走单次全执行遍历（60s 总闸）。此前按"产品→项目→
-		// 逐项目 GetExecutions"收集，而 session 模式 GetExecutions 内部是
-		// 全执行遍历再按项目过滤——N 个项目 = N 次全量遍历，永远跑不完
-		//（堆栈实锤卡在 getAllExecutionsSession）。单次全量遍历的执行→任务
-		// 集合适用于任意产品（任务挂在执行下，产品维度靠业务过滤）。
-		overallDeadline := time.Now().Add(60 * time.Second)
-		cacheKey := "tasks:all:product:" + fmt.Sprint(query.ProductID)
-		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentaosdk.Task, error) {
-			return s.fetchAllTasksAcrossExecutions(overallDeadline)
-		})
-		if err != nil {
-			return nil, err
+		// ⚠️ product 维度走单次全执行遍历（60s 总闸）+ SWR 缓存：首拉慢
+		//（全执行遍历+并发爬任务），之后秒回过期数据 + 后台刷新。
+		// 此前逐项目 GetExecutions 收集 = N × 全执行遍历永远跑不完；
+		// 又因服务层缓存是空壳（getTasksWithCache 直接透传），每次请求都
+		// 121s 全量重走（实测）。
+		const tasksSWRTTL = 30 * time.Minute
+		if s.cache != nil {
+			loader := func(ctx context.Context) ([]byte, error) {
+				tasks, err := s.fetchAllTasksAcrossExecutions(time.Now().Add(60 * time.Second))
+				if err != nil {
+					return nil, err
+				}
+				return json.Marshal(tasks)
+			}
+			res, err := s.cache.GetOrLoadSWR(context.Background(), "tasks:product", query.ProductID, tasksSWRTTL, loader)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(res.Data, &allTasks); err != nil {
+				return nil, fmt.Errorf("解析缓存任务失败: %w", err)
+			}
+		} else {
+			allTasks, err = s.fetchAllTasksAcrossExecutions(time.Now().Add(60 * time.Second))
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else if query.AssignedTo != "" && query.AssignedTo == s.client.GetAccount() {
 		// 查"我的任务"：/my-work-task.json 直达当前用户，不遍历全执行。
@@ -214,30 +234,72 @@ func (s *TaskService) getTasksWithCache(_ string, loadFunc func() ([]zentaosdk.T
 // deadline 为零值时使用独立 60s（dashboard 等直接调用方）；product 分支传入
 // 共享总闸。遍历超时返回已收集部分，避免请求无限 pending（调用方有持久缓存兜底）。
 func (s *TaskService) fetchAllTasksAcrossExecutions(deadline time.Time) ([]zentaosdk.Task, error) {
-	// 用纯执行列表（GetAllExecutionsContext）：此前走 GetExecutionsByProductContext，
-	// 它会额外做全项目翻页（万级项目 ~60s，无时间闸）只为填项目名——任务遍历
-	// 不需要名字，白吃该成本导致 60s 总闸形同虚设（实测 121s）。
-	allExecs, err := s.client.GetAllExecutionsContext(context.Background())
+	t0 := time.Now()
+	allExecs, err := allExecutionsViaSWR(s.cache, s.client)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("任务遍历：执行列表就绪",
+		"elapsed", time.Since(t0).Round(time.Millisecond),
+		"executions", len(allExecs),
+	)
 	if deadline.IsZero() {
 		deadline = time.Now().Add(60 * time.Second)
 	}
-	var allTasks []zentaosdk.Task
+	// 并行爬取（此前串行一个执行接一个，客户端读池 cap 4 闲着）：
+	// 信号量限 8 并发 + ctx 截止。deadline 必须拦在「进池排队之前」——
+	// 否则全部 goroutine 堵在池队列里，wg.Wait 按池 cap 4 排干整条队列
+	//（实测 60s 闸变 120s）。
+	const workers = 8
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		allTasks []zentaosdk.Task
+	)
+	sem := make(chan struct{}, workers)
+	tasksFor := func(execID int) {
+		defer wg.Done()
+		// ctx 先查 + 获取信号量后复查：select 在 sem/ctx.Done 双就绪时随机
+		// 选择，超时后排队者仍会抢到 sem 去发请求，把 60s 闸拖成 120s+
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+		case <-ctx.Done():
+			return
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		// ctx 打进 HTTP 请求：截止一到，在途请求直接取消，
+		// wg.Wait 在预算边界确定性收口（此前 GetTasks 无 ctx，
+		// 个别慢请求拖到 60s+，60s 预算实际跑到 137s）
+		tasks, err := s.client.GetTasksContext(ctx, execID, 1, 10000)
+		if err != nil {
+			logger.Error("Failed to fetch tasks for execution", "executionID", execID, "error", err)
+			return
+		}
+		mu.Lock()
+		allTasks = append(allTasks, tasks...)
+		mu.Unlock()
+	}
 	for _, e := range allExecs {
-		if time.Now().After(deadline) {
+		if ctx.Err() != nil {
 			logger.Warn("跨执行任务遍历超时，返回已收集部分", "executions", len(allExecs))
 			break
 		}
-		tasks, err := s.client.GetTasks(e.ID, 1, 10000)
-		if err != nil {
-			logger.Error("Failed to fetch tasks for execution",
-				"executionID", e.ID,
-				"error", err)
-			continue
-		}
-		allTasks = append(allTasks, tasks...)
+		wg.Add(1)
+		go tasksFor(e.ID)
 	}
+	wg.Wait()
+	logger.Info("跨执行任务遍历完成",
+		"tasks", len(allTasks),
+		"elapsed_total", time.Since(t0).Round(time.Millisecond),
+		"crawl_budget", time.Until(deadline).Round(time.Second),
+	)
 	return allTasks, nil
 }

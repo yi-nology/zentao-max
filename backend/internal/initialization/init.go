@@ -434,12 +434,6 @@ func (s *InitService) Encrypt(config *AuthConfig, salt string) (string, string, 
 	return base64.StdEncoding.EncodeToString(ciphertext), hex.EncodeToString(iv), nil
 }
 
-// LoadZentaoConfig 加载禅道配置
-func LoadZentaoConfig(initService *InitService) (string, string, string) {
-	server, account, password, _ := LoadZentaoConfigWithRealm(initService)
-	return server, account, password
-}
-
 // LoadZentaoConfigWithRealm 加载禅道配置，额外返回 realm。
 // realm 非空表示会话模式（kydc），空表示 Token 模式。
 // 只认「设置页/MCP 明确保存过」的记录（connManaged=true，由保存端点写入）；

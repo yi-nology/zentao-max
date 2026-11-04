@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -236,23 +235,4 @@ func (s *CacheService) ClearAll(ctx context.Context) error {
 // Status 返回缓存状态
 func (s *CacheService) Status(ctx context.Context) (*storage.CacheStatus, error) {
 	return s.store.Status(ctx)
-}
-
-// GetJSON 通用 JSON 反序列化缓存读取（语法糖）
-func GetJSON[T any](ctx context.Context, s *CacheService, entityType string, productID int, ttl time.Duration, loader func(ctx context.Context) (*T, error)) (*T, bool, error) {
-	result, err := s.GetOrLoad(ctx, entityType, productID, ttl, func(ctx context.Context) ([]byte, error) {
-		v, err := loader(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return json.Marshal(v)
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	var v T
-	if err := json.Unmarshal(result.Data, &v); err != nil {
-		return nil, false, err
-	}
-	return &v, result.FromCache, nil
 }

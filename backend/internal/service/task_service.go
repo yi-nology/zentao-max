@@ -95,23 +95,26 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 			return nil, err
 		}
 	} else if query.ProductID > 0 {
-		// 按 product 维度收集：受限 session 模式下，如果 product 范围内确实有
-		// project/execution/task，filter 之后能看到；否则 fallback 到全 execution。
-		// ⚠️ product 维度走单次全执行遍历（60s 总闸）+ SWR 缓存：首拉慢
-		//（全执行遍历+并发爬任务），之后秒回过期数据 + 后台刷新。
-		// 此前逐项目 GetExecutions 收集 = N × 全执行遍历永远跑不完；
-		// 又因服务层缓存是空壳（getTasksWithCache 直接透传），每次请求都
-		// 121s 全量重走（实测）。
-		const tasksSWRTTL = 30 * time.Minute
+		// 产品维度：任务挂在执行下，按「产品→项目集合」过滤——与 executions
+		// 的产品诚实语义一致。此前不过滤返回全实例任务（产品 1029 执行为 0
+		// 但任务页显示全实例任务，自相矛盾）。
+		// 全量爬取走共享 SWR 条目 tasks:all（30min，一次 60s 预算的全执行
+		// 遍历 + 8 并发爬取），之后各产品即时内存过滤，不再每产品缓存一份
+		// 相同的全量数据。
 		if s.cache != nil {
 			loader := func(ctx context.Context) ([]byte, error) {
 				tasks, err := s.fetchAllTasksAcrossExecutions(time.Now().Add(60 * time.Second))
 				if err != nil {
 					return nil, err
 				}
+				if len(tasks) == 0 {
+					// 实例级空列表 = 疑似会话失效/实例异常：按错误处理，
+					// SWR 会回退旧缓存而不是把空结果当合法数据缓存（防毒化）
+					return nil, fmt.Errorf("任务全量遍历为空（疑似会话失效），不缓存空结果")
+				}
 				return json.Marshal(tasks)
 			}
-			res, err := s.cache.GetOrLoadSWR(context.Background(), "tasks:product", query.ProductID, tasksSWRTTL, loader)
+			res, err := s.cache.GetOrLoadSWR(context.Background(), "tasks:all", 0, 30*time.Minute, loader)
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +127,24 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 				return nil, err
 			}
 		}
+		// 按产品项目集合过滤
+		projSet, perr := s.productProjectSet(query.ProductID)
+		if perr != nil {
+			return nil, perr
+		}
+		filtered := make([]zentaosdk.Task, 0, len(allTasks)/4)
+		for _, t := range allTasks {
+			if _, ok := projSet[t.Project]; ok {
+				filtered = append(filtered, t)
+			}
+		}
+		logger.Info("产品维度任务过滤",
+			"productID", query.ProductID,
+			"projects", len(projSet),
+			"allTasks", len(allTasks),
+			"filtered", len(filtered),
+		)
+		allTasks = filtered
 	} else if query.AssignedTo != "" && query.AssignedTo == s.client.GetAccount() {
 		// 查"我的任务"：/my-work-task.json 直达当前用户，不遍历全执行。
 		// （大实例上千执行的全遍历 20s+ 仍取不全，池降级后返回空表。）
@@ -302,4 +323,39 @@ func (s *TaskService) fetchAllTasksAcrossExecutions(deadline time.Time) ([]zenta
 		"crawl_budget", time.Until(deadline).Round(time.Second),
 	)
 	return allTasks, nil
+}
+
+// productProjectSet 产品→项目 ID 集合（SWR 30min 缓存，产品维度任务/执行
+// 过滤共用）。
+func (s *TaskService) productProjectSet(productID int) (map[int]struct{}, error) {
+	projSet := map[int]struct{}{}
+	if s.cache != nil {
+		loader := func(ctx context.Context) ([]byte, error) {
+			projects, err := s.client.GetProjectsByProduct(productID, 1, 10000)
+			if err != nil {
+				return nil, err
+			}
+			return json.Marshal(projects)
+		}
+		res, err := s.cache.GetOrLoadSWR(context.Background(), "projects:product", productID, 30*time.Minute, loader)
+		if err != nil {
+			return nil, err
+		}
+		var projects []zentaosdk.Project
+		if err := json.Unmarshal(res.Data, &projects); err != nil {
+			return nil, fmt.Errorf("解析缓存项目列表失败: %w", err)
+		}
+		for _, p := range projects {
+			projSet[p.ID] = struct{}{}
+		}
+		return projSet, nil
+	}
+	projects, err := s.client.GetProjectsByProduct(productID, 1, 10000)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		projSet[p.ID] = struct{}{}
+	}
+	return projSet, nil
 }

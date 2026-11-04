@@ -214,6 +214,11 @@ func allExecutionsViaSWR(cache *CacheService, client *myzentao.Client) ([]zentao
 		if err != nil {
 			return nil, err
 		}
+		if len(execs) == 0 {
+			// 实例级空列表 = 疑似会话失效/实例异常：按错误处理让 SWR 回退
+			// 旧缓存，不把空结果当合法数据缓存（防毒化，2026-11-04）
+			return nil, fmt.Errorf("全执行列表为空（疑似会话失效），不缓存空结果")
+		}
 		return json.Marshal(execs)
 	}
 	res, err := cache.GetOrLoadSWR(context.Background(), "executions:all", 0, 30*time.Minute, loader)

@@ -382,3 +382,17 @@ robfig/cron（多任务同表达式）、分页 start/end 契约（禅道 API �
   跨机器搬迁未带密钥文件（连同 `encryption.key` 一起拷贝，或固定 `ZENTAO_ENCRYPTION_KEY`）；
   历史 hostname 漂移致败的问题已由托管密钥文件根治（legacy 回退兼容旧文件）
 - `go:embed static/*` 要求嵌入构建前先跑 copy-static，且先清空 `backend/static`
+
+## 服务层统一原语（2026-11-04 深度迭代，新增链路必须走这套）
+
+- **`swrLoadJSON[T]`**（service/swr.go）：SWR JSON 缓存唯一入口——nil cache 直通、
+  过期秒回旧数据+后台刷新、`isEmpty` 非空策略拒绝缓存空结果（实例级列表防毒化；
+  产品级空列表合法传 nil）。禁止在服务里手写 GetOrLoadSWR 包装（dashboard 因
+  日期键+force 语义豁免）。
+- **`crawlAcrossExecutions[T]`**（service/crawl.go）：跨执行并行爬取唯一入口——
+  共享 executions:all 列表 → **oekit fanout.Map** 有界并发（8）→ ctx 打进每个
+  HTTP 请求、预算确定性收口（fanout 排队项超时按 Canceled 记入失败清单，
+  不存在手搓 sem/wg/select 随机选择拖爆预算的 bug 类）。tasks/stories 已迁移
+  （fetchTasksAcrossExecutions/fetchStoriesAcrossExecutions 薄封装）。
+- **熔断分类**：调用方预算截断（req ctx deadline <100s）不计入熔断失败样本，
+  httpClient.Timeout(120s) 到期仍计入（client_session.go httpDo acceptable）。

@@ -2,15 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
-	"github.com/yi-nology/zentao-max/backend/pkg/utils"
-	"github.com/yi-nology/zentao-max/backend/internal/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/vo"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // BugService Bug业务逻辑服务
@@ -31,25 +30,12 @@ func (s *BugService) SetCache(c *CacheService) { s.cache = c }
 // bugsByProductViaSWR 产品维度 Bug 全量（SWR 30min）。GetAllBugs 自动翻页，
 // 第 2+ 页客户端缓存设计上不走缓存——服务层 SWR 让重复请求秒回。
 func (s *BugService) bugsByProductViaSWR(productID int) ([]zentaosdk.Bug, error) {
-	if s.cache == nil {
-		return s.client.GetAllBugs(productID)
-	}
-	loader := func(ctx context.Context) ([]byte, error) {
-		bugs, err := s.client.GetAllBugs(productID)
-		if err != nil {
-			return nil, err
-		}
-		return json.Marshal(bugs)
-	}
-	res, err := s.cache.GetOrLoadSWR(context.Background(), "bugs:product", productID, 30*time.Minute, loader)
-	if err != nil {
-		return nil, err
-	}
-	var bugs []zentaosdk.Bug
-	if err := json.Unmarshal(res.Data, &bugs); err != nil {
-		return nil, err
-	}
-	return bugs, nil
+	bugs, _, err := swrLoadJSON[[]zentaosdk.Bug](s.cache, "bugs:product", productID, 30*time.Minute,
+		func(ctx context.Context) ([]zentaosdk.Bug, error) {
+			return s.client.GetAllBugs(productID)
+		},
+		nil, "")
+	return bugs, err
 }
 
 // GetBugs 获取Bug列表

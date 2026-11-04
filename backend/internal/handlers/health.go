@@ -1,17 +1,19 @@
 package handlers
 
 import (
-	"sync"
 	"context"
 	"fmt"
+	"sync"
 	"time"
+
+	"github.com/oekit/concurrency/singleflight"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
-	"github.com/yi-nology/zentao-max/backend/pkg/errors"
-	"github.com/yi-nology/zentao-max/backend/internal/service"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/service"
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 )
 
 type HealthHandler struct {
@@ -23,10 +25,12 @@ type HealthHandler struct {
 	taskService      TaskServicer
 	userService      UserServicer
 	schedulerService *service.SchedulerService
-	// healthz 聚合结果短缓存（90s）：心跳页重复访问秒开
+	// healthz 聚合结果短缓存（90s）：心跳页重复访问秒开；
+	// 未命中时经 oekit singleflight 收敛并发重算（只有一个真算，其余共享）
 	cacheMu     sync.Mutex
 	cachedResp  *HealthCheckResponse
 	cachedAt    time.Time
+	recomputeFl *singleflight.Flight[*HealthCheckResponse]
 }
 
 func NewHealthHandler(
@@ -84,7 +88,7 @@ type SummaryInfo struct {
 func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 	// 90s 内存缓存：healthz 聚合 7 项检查（单次 20s 上限），心跳页每次访问
 	// 都全量重跑会让页面反复等 20s——短缓存让重复访问秒开，到期后下一次
-	// 访问触发重算（2026-11-04）。
+	// 访问触发重算；未命中经 oekit singleflight 收敛并发重算（2026-11-04）。
 	h.cacheMu.Lock()
 	if h.cachedResp != nil && time.Since(h.cachedAt) < 90*time.Second {
 		cached := *h.cachedResp
@@ -96,6 +100,23 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 	}
 	h.cacheMu.Unlock()
 
+	// 背景化 ctx：重算与请求生命周期解耦（共享结果不随首个请求断开而中断），
+	// 并发未命中只有一个真算，其余共享结果
+	resp, sfErr := h.recomputeFl.Do(context.Background(), "healthz", func(ctx context.Context) (*HealthCheckResponse, error) {
+		return h.recomputeHealth(ctx)
+	})
+	if sfErr != nil {
+		errors.InternalError(c, sfErr.Error())
+		return
+	}
+	h.cacheMu.Lock()
+	resp.Cached = false
+	h.cacheMu.Unlock()
+	errors.Success(c, *resp)
+}
+
+// recomputeHealth 全量重算 7 项检查（singleflight 回调；只算不写 HTTP）。
+func (h *HealthHandler) recomputeHealth(ctx context.Context) (*HealthCheckResponse, error) {
 	start := time.Now()
 	resp := HealthCheckResponse{
 		Timestamp: start.Format(time.RFC3339),
@@ -122,8 +143,7 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 		resp.Checks = []CheckItem{}
 		resp.Summary = SummaryInfo{Total: 1, Fail: 1, Healthy: false}
 		h.storeCache(&resp)
-		errors.Success(c, resp)
-		return
+		return &resp, nil
 	}
 
 	type checkFn struct {
@@ -219,7 +239,7 @@ collect:
 	}
 
 	h.storeCache(&resp)
-	errors.Success(c, resp)
+	return &resp, nil
 }
 
 func (h *HealthHandler) checkZentao() CheckItem {

@@ -173,6 +173,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		registry.taskService.SetCache(registry.cacheService)
 		registry.executionService.SetCache(registry.cacheService)
 		registry.storyService.SetCache(registry.cacheService)
+		registry.bugService.SetCache(registry.cacheService)
 	}
 
 	registry.initHandler = NewInitHandler(initService, client, registry.cacheService)

@@ -1,6 +1,10 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
+	"time"
+
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
@@ -13,11 +17,39 @@ import (
 // 负责处理Bug相关的业务逻辑
 type BugService struct {
 	client *myzentao.Client
+	cache  *CacheService // 可选；nil = 无 SWR 缓存直连
 }
 
 // NewBugService 创建Bug服务
 func NewBugService(client *myzentao.Client) *BugService {
 	return &BugService{client: client}
+}
+
+// SetCache 注入 SWR 缓存（registry 在缓存层就绪后回调装配）。
+func (s *BugService) SetCache(c *CacheService) { s.cache = c }
+
+// bugsByProductViaSWR 产品维度 Bug 全量（SWR 30min）。GetAllBugs 自动翻页，
+// 第 2+ 页客户端缓存设计上不走缓存——服务层 SWR 让重复请求秒回。
+func (s *BugService) bugsByProductViaSWR(productID int) ([]zentaosdk.Bug, error) {
+	if s.cache == nil {
+		return s.client.GetAllBugs(productID)
+	}
+	loader := func(ctx context.Context) ([]byte, error) {
+		bugs, err := s.client.GetAllBugs(productID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(bugs)
+	}
+	res, err := s.cache.GetOrLoadSWR(context.Background(), "bugs:product", productID, 30*time.Minute, loader)
+	if err != nil {
+		return nil, err
+	}
+	var bugs []zentaosdk.Bug
+	if err := json.Unmarshal(res.Data, &bugs); err != nil {
+		return nil, err
+	}
+	return bugs, nil
 }
 
 // GetBugs 获取Bug列表
@@ -34,7 +66,7 @@ func (s *BugService) GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error) {
 	// 此前默认分支走 GetBugs（禅道默认 browseType 部分集合），导致
 	// 列表"共 100 条"与统计分段卡（全量 1000）对不上。
 	if query.ProductID != 0 {
-		bugs, err = s.client.GetAllBugs(query.ProductID)
+		bugs, err = s.bugsByProductViaSWR(query.ProductID)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +179,7 @@ func (s *BugService) GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.Pagina
 		return empty, counts, nil
 	}
 
-	bugs, err := s.client.GetAllBugs(query.ProductID)
+	bugs, err := s.bugsByProductViaSWR(query.ProductID)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -87,10 +87,7 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 	var err error
 
 	if query.ExecutionID != 0 {
-		cacheKey := fmt.Sprintf("tasks:execution:%d", query.ExecutionID)
-		allTasks, err = s.getTasksWithCache(cacheKey, func() ([]zentaosdk.Task, error) {
-			return s.client.GetTasks(query.ExecutionID, 1, 10000)
-		})
+		allTasks, err = s.client.GetTasks(query.ExecutionID, 1, 10000)
 		if err != nil {
 			return nil, err
 		}
@@ -243,11 +240,6 @@ func (s *TaskService) convertToVO(tasks []zentaosdk.Task) []vo.TaskVO {
 		})
 	}
 	return result
-}
-
-// getTasksWithCache 直接调 loadFunc（已删除 zentao 包级 GlobalCache，缓存由 service 层 SQLite/其他层提供）。
-func (s *TaskService) getTasksWithCache(_ string, loadFunc func() ([]zentaosdk.Task, error)) ([]zentaosdk.Task, error) {
-	return loadFunc()
 }
 
 // fetchAllTasksAcrossExecutions 直接遍历全 execution 收集 task（dashboard 同款）。

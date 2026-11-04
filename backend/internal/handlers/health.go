@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"sync"
 	"context"
 	"fmt"
 	"time"
@@ -22,6 +23,10 @@ type HealthHandler struct {
 	taskService      TaskServicer
 	userService      UserServicer
 	schedulerService *service.SchedulerService
+	// healthz 聚合结果短缓存（90s）：心跳页重复访问秒开
+	cacheMu     sync.Mutex
+	cachedResp  *HealthCheckResponse
+	cachedAt    time.Time
 }
 
 func NewHealthHandler(
@@ -64,6 +69,8 @@ type HealthCheckResponse struct {
 	Zentao    *CheckItem  `json:"zentao"`
 	Checks    []CheckItem `json:"checks"`
 	Summary   SummaryInfo `json:"summary"`
+	// Cached 标记本次结果来自 90s 内存缓存（前端可据此弱化刷新频率）
+	Cached bool `json:"cached,omitempty"`
 }
 
 type SummaryInfo struct {
@@ -75,6 +82,20 @@ type SummaryInfo struct {
 }
 
 func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
+	// 90s 内存缓存：healthz 聚合 7 项检查（单次 20s 上限），心跳页每次访问
+	// 都全量重跑会让页面反复等 20s——短缓存让重复访问秒开，到期后下一次
+	// 访问触发重算（2026-11-04）。
+	h.cacheMu.Lock()
+	if h.cachedResp != nil && time.Since(h.cachedAt) < 90*time.Second {
+		cached := *h.cachedResp
+		cached.Cached = true
+		cached.Timestamp = time.Now().Format(time.RFC3339)
+		h.cacheMu.Unlock()
+		errors.Success(c, cached)
+		return
+	}
+	h.cacheMu.Unlock()
+
 	start := time.Now()
 	resp := HealthCheckResponse{
 		Timestamp: start.Format(time.RFC3339),
@@ -100,6 +121,7 @@ func (h *HealthHandler) Check(ctx context.Context, c *app.RequestContext) {
 	if zentaoCheck.Status != "ok" {
 		resp.Checks = []CheckItem{}
 		resp.Summary = SummaryInfo{Total: 1, Fail: 1, Healthy: false}
+		h.storeCache(&resp)
 		errors.Success(c, resp)
 		return
 	}
@@ -196,6 +218,7 @@ collect:
 		Healthy: failCount == 0,
 	}
 
+	h.storeCache(&resp)
 	errors.Success(c, resp)
 }
 
@@ -358,4 +381,13 @@ func (h *HealthHandler) checkScheduler() CheckItem {
 		Message:   "正常",
 		LatencyMs: time.Since(start).Milliseconds(),
 	}
+}
+
+// storeCache 写入 healthz 聚合结果缓存（90s TTL，锁内快照拷贝）。
+func (h *HealthHandler) storeCache(resp *HealthCheckResponse) {
+	snap := *resp
+	h.cacheMu.Lock()
+	h.cachedResp = &snap
+	h.cachedAt = time.Now()
+	h.cacheMu.Unlock()
 }

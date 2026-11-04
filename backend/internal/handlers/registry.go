@@ -172,6 +172,7 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		// 此前这两条产品路径零缓存，每次请求 56s/121s 全量重走（实测）
 		registry.taskService.SetCache(registry.cacheService)
 		registry.executionService.SetCache(registry.cacheService)
+		registry.storyService.SetCache(registry.cacheService)
 	}
 
 	registry.initHandler = NewInitHandler(initService, client, registry.cacheService)

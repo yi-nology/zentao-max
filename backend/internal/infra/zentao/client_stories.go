@@ -23,6 +23,12 @@ func (c *Client) GetStoriesByExecution(executionID int, page, pageSize int) ([]z
 	return c.getStoriesByExecutionSession(context.Background(), executionID, page, pageSize)
 }
 
+// GetStoriesByExecutionContext 获取执行的需求列表（支持 context 取消；
+// 供跨执行并行爬取的预算收口使用，2026-11-04）。
+func (c *Client) GetStoriesByExecutionContext(ctx context.Context, executionID int, page, pageSize int) ([]zentaosdk.Story, error) {
+	return c.getStoriesByExecutionSession(ctx, executionID, page, pageSize)
+}
+
 // GetAllStories 获取产品全部需求（自动翻页）
 func (c *Client) GetAllStories(productID int) ([]zentaosdk.Story, error) {
 	return c.getAllStoriesSession(context.Background(), productID)

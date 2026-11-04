@@ -301,11 +301,9 @@ func (c *Client) doV1JSONCached(
 	out interface{},
 ) error {
 	loader := func(ctx context.Context) ([]byte, error) {
-		raw, err := c.session.GetRawJSON(ctx, path)
-		if err != nil {
-			return nil, err
-		}
-		return raw, nil
+		return c.withReloginRetryRaw(ctx, path, func() ([]byte, error) {
+			return c.session.GetRawJSON(ctx, path)
+		})
 	}
 	safeLoader := func(ctx context.Context) (data []byte, err error) {
 		defer func() {
@@ -393,6 +391,25 @@ func (c *Client) serveFromStaleCacheV1(
 // doSessionJSONCached 是 cache+pool 集成的主路径。
 // pool 内的 fn 走 cache.GetOrLoad；cache 命中由 singleflight 保证只一个 goroutine 真正回源。
 // pool 满 / 排队超时的 cacheFallback 直接查 cache 的 stale（不再调 loader）。
+// withReloginRetryRaw 会话鉴权失效时重新登录后重试一次（raw 字节级包装）。
+// 与 doSessionJSONWithRetry 同语义，供缓存路径的 loader 使用——此前只有
+// 非缓存路径有重登重试，缓存路径会话被踢时错误直接外抛（2026-11-04 补齐）。
+func (c *Client) withReloginRetryRaw(ctx context.Context, path string, fetch func() ([]byte, error)) ([]byte, error) {
+	raw, err := fetch()
+	if err == nil || !IsSessionAuthError(err) {
+		return raw, err
+	}
+	logger.Warn("Zentao session expired, re-login and retry (cached loader)",
+		"path", path,
+		"error", err,
+	)
+	c.session.invalidateForRelogin()
+	if loginErr := c.session.ensureLoggedIn(); loginErr != nil {
+		return nil, fmt.Errorf("重新登录失败: %w，原始错误: %v", loginErr, err)
+	}
+	return fetch()
+}
+
 func (c *Client) doSessionJSONCached(
 	ctx context.Context,
 	operation, path string,
@@ -401,11 +418,9 @@ func (c *Client) doSessionJSONCached(
 	out interface{},
 ) error {
 	loader := func(ctx context.Context) ([]byte, error) {
-		raw, err := c.session.DoJSONRaw(ctx, path)
-		if err != nil {
-			return nil, err
-		}
-		return raw, nil
+		return c.withReloginRetryRaw(ctx, path, func() ([]byte, error) {
+			return c.session.DoJSONRaw(ctx, path)
+		})
 	}
 
 	// 包装 loader 捕获 panic 转为 error，避免污染 pool worker

@@ -168,6 +168,10 @@ func NewHandlerRegistry(client *myzentao.Client, initService *initialization.Ini
 		registry.cacheHandler = NewCacheHandler(registry.cacheService)
 		// 把缓存注入到 DashboardService（支持离线查看仪表盘）
 		registry.dashboardService.SetCacheService(registry.cacheService)
+		// 注入到产品维度任务/执行服务（SWR：过期秒回旧数据 + 后台刷新），
+		// 此前这两条产品路径零缓存，每次请求 56s/121s 全量重走（实测）
+		registry.taskService.SetCache(registry.cacheService)
+		registry.executionService.SetCache(registry.cacheService)
 	}
 
 	registry.initHandler = NewInitHandler(initService, client, registry.cacheService)

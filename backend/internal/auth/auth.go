@@ -13,8 +13,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	ratelimit "github.com/oekit/concurrency/ratelimit"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol"
@@ -36,8 +37,10 @@ type Manager struct {
 	secret   []byte
 	ttl      time.Duration
 
-	mu       sync.Mutex
-	failures map[string]*failureInfo
+	// loginLockout 登录防爆破锁（oekit ratelimit.Lockout，fail2ban 形态）：
+	// 窗口内失败达阈值 → 该 IP 进入锁定拒绝态。替代手搓 failures map
+	//（滑动窗口/锁定剩余时长/空闲回收/容量护栏 fail-open 全部由原语钉死）
+	loginLockout *ratelimit.LockoutOf[string]
 
 	// sso 麒麟统一认证登录（用户名+密码+短信验证码）；nil = 未启用
 	sso *SSOClient
@@ -48,11 +51,6 @@ func (m *Manager) SetSSO(client *SSOClient) {
 	m.sso = client
 }
 
-type failureInfo struct {
-	count     int
-	resetTime time.Time
-}
-
 // NewManager 创建认证管理器。secret 用于会话令牌签名，
 // 建议传入部署时稳定的随机串（如加密密钥派生值），重启后会话不失效。
 func NewManager(username, password, secret string) *Manager {
@@ -61,7 +59,13 @@ func NewManager(username, password, secret string) *Manager {
 		password: password,
 		secret:   []byte(secret),
 		ttl:      defaultSessionTTL,
-		failures: make(map[string]*failureInfo),
+		loginLockout: ratelimit.NewLockoutOf[string](ratelimit.LockoutConfig{
+			Window:       time.Minute,
+			Threshold:    loginFailuresPerMinute,
+			LockDuration: time.Minute,
+			IdleTTL:      10 * time.Minute,
+			MaxEntries:   4096,
+		}),
 	}
 }
 
@@ -147,26 +151,20 @@ func (m *Manager) verifyToken(token string) (string, bool) {
 	return user, true
 }
 
-// loginAllowed 供测试断言内部状态
+// loginAllowed 供测试断言内部状态（生产路径走 CheckLocked）。
 func (m *Manager) loginAllowed(ip string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	info, exists := m.failures[ip]
-	if !exists || time.Now().After(info.resetTime) {
-		return true
-	}
-	return info.count < loginFailuresPerMinute
+	locked, _ := m.loginLockout.CheckLocked(ip)
+	return !locked
 }
 
+// recordLoginFailure 记一次登录失败（窗口内达阈值自动进入锁定态）。
 func (m *Manager) recordLoginFailure(ip string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	info, exists := m.failures[ip]
-	if !exists || time.Now().After(info.resetTime) {
-		m.failures[ip] = &failureInfo{count: 1, resetTime: time.Now().Add(time.Minute)}
-		return
-	}
-	info.count++
+	m.loginLockout.RecordFailure(ip)
+}
+
+// resetLoginFailures 登录成功后清零该 IP 的失败计数（fail2ban Reset 语义）。
+func (m *Manager) resetLoginFailures(ip string) {
+	m.loginLockout.Reset(ip)
 }
 
 // Middleware 返回 Hertz 中间件：
@@ -247,6 +245,7 @@ func (m *Manager) LoginHandler(ctx context.Context, c *app.RequestContext) {
 		errors.Unauthorized(c, "用户名或密码错误")
 		return
 	}
+	m.resetLoginFailures(ip)
 	token = m.signTokenWithUser(m.username, time.Now().Add(m.ttl))
 
 	c.SetCookie(sessionCookieName, token, int(m.ttl.Seconds()), "/", "", protocol.CookieSameSiteLaxMode, false, true)

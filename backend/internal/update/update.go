@@ -34,6 +34,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oekit/concurrency/loop"
+
 	"github.com/yi-nology/zentao-max/backend/internal/config"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
@@ -50,25 +52,25 @@ func silentErr(err error) error {
 
 // Info 版本检查结果的快照（/api/update/status 返回形态）。
 type Info struct {
-	Current      string     `json:"current"`
-	Latest       string     `json:"latest"`
-	HasUpdate    bool       `json:"hasUpdate"`
-	DownloadURL  string     `json:"downloadUrl"`
-	Notes        string     `json:"notes"`
-	Source       string     `json:"source"` // github | custom | release
+	Current     string `json:"current"`
+	Latest      string `json:"latest"`
+	HasUpdate   bool   `json:"hasUpdate"`
+	DownloadURL string `json:"downloadUrl"`
+	Notes       string `json:"notes"`
+	Source      string `json:"source"` // github | custom | release
 	// 版本发布管理服务（source=release）专属字段
-	ForceUpdate  bool       `json:"forceUpdate"` // 当前版本低于 min_supported，应阻断使用
-	MinSupported string     `json:"minSupported,omitempty"`
-	ReleasedAt   string     `json:"releasedAt,omitempty"`
-	ChannelURL   string     `json:"channelUrl,omitempty"` // 官方升级入口（发布页，无直链时前端跳此）
-	CheckedAt    *time.Time `json:"checkedAt"`
-	LastError    string     `json:"lastError"`
-	Checking     bool       `json:"checking"`
-	OS           string     `json:"os"`
-	Arch         string     `json:"arch"`
-	DownloadState string    `json:"downloadState"` // none|downloading|done|failed
-	DownloadPath string     `json:"downloadPath"`
-	DownloadErr  string     `json:"downloadError"`
+	ForceUpdate   bool       `json:"forceUpdate"` // 当前版本低于 min_supported，应阻断使用
+	MinSupported  string     `json:"minSupported,omitempty"`
+	ReleasedAt    string     `json:"releasedAt,omitempty"`
+	ChannelURL    string     `json:"channelUrl,omitempty"` // 官方升级入口（发布页，无直链时前端跳此）
+	CheckedAt     *time.Time `json:"checkedAt"`
+	LastError     string     `json:"lastError"`
+	Checking      bool       `json:"checking"`
+	OS            string     `json:"os"`
+	Arch          string     `json:"arch"`
+	DownloadState string     `json:"downloadState"` // none|downloading|done|failed
+	DownloadPath  string     `json:"downloadPath"`
+	DownloadErr   string     `json:"downloadError"`
 	// 下载进度（downloading 态下前端展示进度条）
 	DownloadTotal   int64   `json:"downloadTotal"`
 	Downloaded      int64   `json:"downloaded"`
@@ -139,26 +141,18 @@ func (s *Service) CheckNow() Info {
 	return info
 }
 
-// StartAutoCheck 启动注册检查 + 定期复查。ctx 取消即停止（进程级生命周期）。
+// StartAutoCheck 启动注册检查 + 定期复查（oekit loop：首跑延迟/忙时丢 tick/
+// 单轮 panic 收编/停机排水四个语义由原语钉死——手搓 ticker 循环里 CheckNow
+// panic 会静默打死整个循环）。ctx 取消即停止（进程级生命周期）。
 func (s *Service) StartAutoCheck(ctx context.Context) {
 	if !s.cfg.Enabled {
 		return
 	}
-	go func() {
-		time.Sleep(5 * time.Second) // 等服务与网络就绪
-		s.CheckNow()
-		interval := time.Duration(s.cfg.IntervalHours) * time.Hour
-		t := time.NewTicker(interval)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				s.CheckNow()
-			}
-		}
-	}()
+	loop.Run(ctx, loop.Config{
+		Name:       "update-auto-check",
+		FirstDelay: 5 * time.Second, // 等服务与网络就绪
+		Interval:   time.Duration(s.cfg.IntervalHours) * time.Hour,
+	}, func(context.Context) { s.CheckNow() })
 }
 
 func (s *Service) doCheck() Info {
@@ -303,7 +297,7 @@ func (s *Service) queryCustom() (remoteCheck, error) {
 const checkLocale = "zh-CN"
 
 // queryReleaseService 版本发布管理服务模式。release_url 为 API 前缀
-//（含版本段，如 https://api.murphyyi.com/vms/v1），业务路径由客户端拼接：
+// （含版本段，如 https://api.murphyyi.com/vms/v1），业务路径由客户端拼接：
 // {release_url}/products/{slug}/upgrade-check?current=&locale=。
 // 响应 {has_update, force_update, latest, note_md, min_supported, released_at,
 // channels:[{url,status}]}；版本比较在服务端完成，客户端直接采信。
@@ -722,7 +716,7 @@ func compareSemver(a, b [3]int) int {
 func ptrTime(t time.Time) *time.Time { return &t }
 
 // Apply 从已下载的更新包中提取新二进制并替换当前运行的可执行文件
-//（unix 原子 rename；返回 restartRequired=true 表示需重启生效）。
+// （unix 原子 rename；返回 restartRequired=true 表示需重启生效）。
 // Windows 上无法替换运行中的 exe，返回手动操作指引。
 func (s *Service) Apply() (applied bool, newBinaryPath string, err error) {
 	s.mu.Lock()

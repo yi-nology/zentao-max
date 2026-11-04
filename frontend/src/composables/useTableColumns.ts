@@ -36,7 +36,6 @@ export function useTableColumns<T extends ColumnConfig>(
   visibleColumns: Ref<T[]>
   toggleColumn: (key: string, visible?: boolean) => void
   showAllColumns: () => void
-  hideAllColumns: () => void
   resetColumns: () => void
 } {
   const columns = ref<T[]>(loadColumns()) as Ref<T[]>
@@ -89,15 +88,6 @@ export function useTableColumns<T extends ColumnConfig>(
     columns.value.forEach(c => { c.visible = true })
   }
 
-  function hideAllColumns(): void {
-    columns.value.forEach(c => {
-      // 保留固定必显示列（如 selection）
-      if (c.fixed !== 'left' && c.fixed !== 'right' && c.key !== '__selection__') {
-        c.visible = false
-      }
-    })
-  }
-
   function resetColumns(): void {
     columns.value = JSON.parse(JSON.stringify(defaultColumns))
   }
@@ -107,7 +97,6 @@ export function useTableColumns<T extends ColumnConfig>(
     visibleColumns,
     toggleColumn,
     showAllColumns,
-    hideAllColumns,
     resetColumns
   }
 }

@@ -319,6 +319,7 @@ import {
   batchCreateEffort,
   type DailyNote
 } from '@/api/zentao'
+import { formatDate } from '@/utils/date'
 import type {
   EffortCalendarResult,
   EffortCalendarEntry,
@@ -327,7 +328,7 @@ import type {
 
 // === state ===
 const year = ref(new Date().getFullYear().toString())
-const currentMonth = ref(new Date().toISOString().slice(0, 7)) // YYYY-MM
+const currentMonth = ref(formatDate(new Date()).slice(0, 7)) // YYYY-MM（本地时区）
 const currentDate = ref(new Date())
 const selectedUser = ref<string>('')
 const loading = ref(false)
@@ -356,7 +357,7 @@ const currentNoteDay = ref<string>('') // 弹窗正在编辑的日期
 // === 批量添加工时弹窗 ===
 const batchDialogVisible = ref(false)
 const batchSubmitting = ref(false)
-const batchDate = ref(new Date().toISOString().slice(0, 10)) // YYYY-MM-DD
+const batchDate = ref(formatDate(new Date())) // YYYY-MM-DD（本地时区）
 interface BatchFormItem {
   /** 行级日期（Excel 导入可跨天），空 = 用顶部 batchDate */
   date: string

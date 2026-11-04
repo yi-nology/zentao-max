@@ -342,6 +342,7 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { formatDate as toLocalDateStr } from '@/utils/date'
 import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug, batchCreateEffort } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
@@ -741,7 +742,7 @@ const effortDialogVisible = ref(false)
 const effortSubmitting = ref(false)
 const effortBugId = ref(0)
 const effortForm = reactive<{ date: string; work: string; consumed: number }>({
-  date: new Date().toISOString().slice(0, 10),
+  date: toLocalDateStr(new Date()),
   work: '',
   consumed: 0.5
 })
@@ -752,7 +753,7 @@ const openBugEffortDialog = (bug: Bug): void => {
     return
   }
   effortBugId.value = bug.id
-  effortForm.date = new Date().toISOString().slice(0, 10)
+  effortForm.date = toLocalDateStr(new Date())
   // 工作内容预填 Bug 标题，日报可读
   effortForm.work = String(bug.title || '')
   effortForm.consumed = 0.5

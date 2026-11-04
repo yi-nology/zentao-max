@@ -128,7 +128,11 @@ const levelFilters = [
   { text: 'Debug', value: 'debug' }
 ]
 
+let fetchInFlight = false
 const fetchLogs = async (): Promise<void> => {
+  // 自动刷新 3s 一跳，请求超过间隔时不叠加（防重入）
+  if (fetchInFlight) return
+  fetchInFlight = true
   loading.value = true
   try {
     const params: Record<string, string | number> = { limit: limit.value }
@@ -140,10 +144,11 @@ const fetchLogs = async (): Promise<void> => {
       bufferSize.value = res.data.buffer_size || 0
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '获取日志失败'
-    ElMessage.error(msg)
+    // 拦截器已对 HTTP/网络错误统一弹错，这里不再重复弹（否则后端宕机时每 3s 两条 toast）
+    console.warn('获取日志失败:', e)
   } finally {
     loading.value = false
+    fetchInFlight = false
   }
 }
 

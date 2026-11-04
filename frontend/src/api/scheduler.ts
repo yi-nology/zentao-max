@@ -28,9 +28,6 @@ export const toggleTask = (id: string): Promise<ApiResponse<SchedulerTask>> =>
 export const runTaskNow = (id: string): Promise<ApiResponse<TaskExecutionLog>> =>
   api.post(`/scheduler/tasks/${id}/run`)
 
-export const getTaskLogs = (id: string): Promise<ApiResponse<TaskExecutionLog[]>> =>
-  api.get(`/scheduler/tasks/${id}/logs`)
-
 export const getAllLogs = (): Promise<ApiResponse<TaskExecutionLog[]>> =>
   api.get('/scheduler/logs')
 

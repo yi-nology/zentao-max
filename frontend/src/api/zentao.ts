@@ -113,10 +113,6 @@ export const getBuildsByProject = (projectId: number): Promise<ApiResponse<Build
   return api.get('/builds/project', { params: { projectId } })
 }
 
-export const getBuildsByExecution = (executionId: number): Promise<ApiResponse<Build[]>> => {
-  return api.get('/builds/execution', { params: { executionId } })
-}
-
 export const getStories = (params: StoryParams = {}): Promise<ApiResponse<PaginatedResponse<Story>>> => {
   const apiParams: Record<string, unknown> = {}
   if (params.productId) apiParams.productId = params.productId
@@ -151,35 +147,12 @@ export const getBugStatusOptions = (): SelectOption[] => {
   ]
 }
 
-export const getBugSeverityOptions = (): SelectOption[] => {
-  return [
-    { label: '1', value: 1 },
-    { label: '2', value: 2 },
-    { label: '3', value: 3 },
-    { label: '4', value: 4 }
-  ]
-}
-
 export const getStoryStatusOptions = (): SelectOption[] => {
   return [
     { label: '草稿', value: 'draft' },
     { label: '激活', value: 'active' },
     { label: '已变更', value: 'changed' },
     { label: '已关闭', value: 'closed' }
-  ]
-}
-
-export const getStoryStageOptions = (): SelectOption[] => {
-  return [
-    { label: '等待', value: 'wait' },
-    { label: '已计划', value: 'planned' },
-    { label: '已立项', value: 'projected' },
-    { label: '研发中', value: 'developing' },
-    { label: '研发完毕', value: 'developed' },
-    { label: '测试中', value: 'testing' },
-    { label: '测试完毕', value: 'tested' },
-    { label: '已验收', value: 'verified' },
-    { label: '已发布', value: 'released' }
   ]
 }
 
@@ -339,10 +312,6 @@ export const listDailyNotes = (params: { user?: string; year?: number; month?: n
   return api.get('/effort/notes', { params: apiParams })
 }
 
-export const getDailyNote = (user: string, date: string): Promise<ApiResponse<DailyNote & { exists: boolean }>> => {
-  return api.get(`/effort/notes/${encodeURIComponent(user)}/${date}`)
-}
-
 export const putDailyNote = (user: string, date: string, content: string): Promise<ApiResponse<DailyNote>> => {
   return api.put(`/effort/notes/${encodeURIComponent(user)}/${date}`, { content })
 }
@@ -422,22 +391,6 @@ export const getCases = (params: ExtendedEntityParams = {}): Promise<ApiResponse
   return api.get('/cases', { params })
 }
 
-export const getPlans = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
-  return api.get('/plans', { params })
-}
-
-export const getPrograms = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
-  return api.get('/programs', { params })
-}
-
-export const getReleases = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
-  return api.get('/releases', { params })
-}
-
-export const getTestTasks = (params: ExtendedEntityParams = {}): Promise<ApiResponse<unknown>> => {
-  return api.get('/testtasks', { params })
-}
-
 // ---- Phase2c 写操作（bug/task/story，token + session 双模式）----
 // 这些端点经 wrapper 的写方法分发，session 模式下走禅道 PHP 表单端点。
 
@@ -468,111 +421,17 @@ export const finishTask = (id: number, data: { consumed?: number; finishedDate?:
 export const pauseTask = (id: number, data: { comment?: string }): Promise<ApiResponse<unknown>> => {
   return api.post(`/tasks/${id}/pause`, data)
 }
-export const assignTask = (id: number, data: { assignedTo: string; left?: number; comment?: string }): Promise<ApiResponse<unknown>> => {
-  return api.post(`/tasks/${id}/assign`, data)
-}
 
-// Story 写操作
-export const changeStory = (id: number, data: { spec: string; verify: string }): Promise<ApiResponse<unknown>> => {
-  return api.post(`/stories/${id}/change`, data)
-}
+// ---- Phase2c 扩展写操作 ----
+// 全实体 CRUD 封装已删（前端从未接线）；需要时再按现有形状补。
 
-// ---- Phase2c 扩展写操作（全实体 CRUD）----
-
-// Bug CRUD
-export const createBug = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.post(`/bugs?productId=${productId}`, data)
-}
 export const updateBug = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
   return api.put(`/bugs/${id}`, data)
 }
-export const deleteBug = (id: number): Promise<ApiResponse<unknown>> => {
-  return api.delete(`/bugs/${id}`)
-}
 
-// Task CRUD + activate + effort
-export const createTask = (executionId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.post(`/tasks?executionId=${executionId}`, data)
-}
-export const updateTask = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.put(`/tasks/${id}`, data)
-}
-export const deleteTask = (id: number): Promise<ApiResponse<unknown>> => {
-  return api.delete(`/tasks/${id}`)
-}
 export const activateTask = (id: number, data: { consumed?: number; left?: number }): Promise<ApiResponse<unknown>> => {
   return api.post(`/tasks/${id}/activate`, data)
 }
 export const recordEffort = (id: number, data: { date?: string; consumed: number; left: number; work: string }): Promise<ApiResponse<unknown>> => {
   return api.post(`/tasks/${id}/effort`, data)
 }
-
-// Story CRUD
-export const createStory = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.post('/stories', data)
-}
-export const updateStory = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.put(`/stories/${id}`, data)
-}
-export const deleteStory = (id: number): Promise<ApiResponse<unknown>> => {
-  return api.delete(`/stories/${id}`)
-}
-
-// Plan CRUD + link/unlink
-export const createPlan = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.post(`/plans?productId=${productId}`, data)
-}
-export const updatePlan = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.put(`/plans/${id}`, data)
-}
-export const deletePlan = (id: number): Promise<ApiResponse<unknown>> => {
-  return api.delete(`/plans/${id}`)
-}
-export const linkStoriesToPlan = (id: number, storyIds: number[]): Promise<ApiResponse<unknown>> => {
-  return api.post(`/plans/${id}/link-stories`, { storyIds })
-}
-export const unlinkStoriesFromPlan = (id: number, storyIds: number[]): Promise<ApiResponse<unknown>> => {
-  return api.post(`/plans/${id}/unlink-stories`, { storyIds })
-}
-export const linkBugsToPlan = (id: number, bugIds: number[]): Promise<ApiResponse<unknown>> => {
-  return api.post(`/plans/${id}/link-bugs`, { bugIds })
-}
-export const unlinkBugsFromPlan = (id: number, bugIds: number[]): Promise<ApiResponse<unknown>> => {
-  return api.post(`/plans/${id}/unlink-bugs`, { bugIds })
-}
-
-// Case CRUD
-export const createCase = (productId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.post(`/cases?productId=${productId}`, data)
-}
-export const updateCase = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => {
-  return api.put(`/cases/${id}`, data)
-}
-export const deleteCase = (id: number): Promise<ApiResponse<unknown>> => {
-  return api.delete(`/cases/${id}`)
-}
-
-// Product / Project / Program / Execution / Build / User CRUD
-export const createProduct = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/products', data)
-export const updateProduct = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/products/${id}`, data)
-export const deleteProduct = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/products/${id}`)
-
-export const createProject = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/projects', data)
-export const updateProject = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/projects/${id}`, data)
-export const deleteProject = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/projects/${id}`)
-
-export const createProgram = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/programs', data)
-export const updateProgram = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/programs/${id}`, data)
-export const deleteProgram = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/programs/${id}`)
-
-export const createExecution = (projectId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post(`/executions?projectId=${projectId}`, data)
-export const updateExecution = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/executions/${id}`, data)
-export const deleteExecution = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/executions/${id}`)
-
-export const createBuild = (projectId: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post(`/builds?projectId=${projectId}`, data)
-export const updateBuild = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/builds/${id}`, data)
-export const deleteBuild = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/builds/${id}`)
-
-export const createUser = (data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.post('/users', data)
-export const updateUser = (id: number, data: Record<string, unknown>): Promise<ApiResponse<unknown>> => api.put(`/users/${id}`, data)
-export const deleteUser = (id: number): Promise<ApiResponse<unknown>> => api.delete(`/users/${id}`)

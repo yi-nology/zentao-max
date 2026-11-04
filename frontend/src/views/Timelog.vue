@@ -120,13 +120,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import type { Ref, ComputedRef } from 'vue'
 import Chart from 'chart.js/auto'
 import type { Chart as ChartType } from 'chart.js/auto'
 import { getTimelogDashboard, getTimelogEfforts, getTimelogExecutions, getUsers } from '../api/zentao'
+import { formatDate } from '../utils/date'
 import type { Execution, User, TimelogAnalysis, TimelogEffort } from '../types/api'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -171,7 +172,7 @@ const setQuickRange = (range: string): void => {
     case 'lastMonth': { from = new Date(today.getFullYear(), today.getMonth() - 1, 1); to = new Date(today.getFullYear(), today.getMonth(), 0); break }
     default: return
   }
-  filters.value.dateFrom = from.toISOString().split('T')[0]; filters.value.dateTo = to.toISOString().split('T')[0]
+  filters.value.dateFrom = formatDate(from); filters.value.dateTo = formatDate(to)
 }
 
 const queryTimelog = async (): Promise<void> => {
@@ -278,6 +279,12 @@ watch(() => globalSelection.product, (newProduct) => {
     filters.value.executionId = ''
   }
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  for (const key of Object.keys(chartInstances.value) as (keyof ChartInstances)[]) {
+    chartInstances.value[key]?.destroy()
+  }
+})
 
 onMounted(async () => {
   const q = route.query

@@ -311,7 +311,7 @@
 
 <script setup lang="ts">
 import ChangelogDialog from '@/components/ChangelogDialog.vue'
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getAccountInfo, updateZentaoConfig } from '@/api/zentao'
 import { getSSOConfig, updateSSOConfig, type SSOConfigData } from '@/api/auth'
 import api from '@/api/api'
@@ -666,14 +666,22 @@ const checkUpdate = async (): Promise<void> => {
   }
 }
 
+// 下载进度轮询句柄：组件卸载时必须清理，否则后端卡在 downloading 时
+// 计时器会逃逸组件生命周期持续打 /update/status
+let downloadTimer: ReturnType<typeof setInterval> | null = null
+
 const downloadUpdate = async (): Promise<void> => {
   try {
     await api.post('/update/download', {})
     ElMessage.success('下载已开始，完成后会显示保存路径')
     // 轮询下载状态（含进度百分比）
-    const timer = setInterval(async () => {
+    if (downloadTimer) clearInterval(downloadTimer)
+    downloadTimer = setInterval(async () => {
       await fetchUpdateStatus()
-      if (updateInfo.value?.downloadState !== 'downloading') clearInterval(timer)
+      if (updateInfo.value?.downloadState !== 'downloading') {
+        if (downloadTimer) clearInterval(downloadTimer)
+        downloadTimer = null
+      }
     }, 1500)
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '下载失败')
@@ -735,6 +743,10 @@ onMounted(() => {
   fetchUpdateStatus()
   fetchSvcStatus()
   fetchSSOConfig()
+})
+
+onBeforeUnmount(() => {
+  if (downloadTimer) clearInterval(downloadTimer)
 })
 </script>
 

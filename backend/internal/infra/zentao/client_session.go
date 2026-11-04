@@ -487,7 +487,24 @@ func (s *SessionTransport) httpDo(ctx context.Context, req *http.Request) (*http
 		return nil
 	}, func(err error) bool {
 		// 执行函数已成功拿到响应（resp 非 nil）即视为服务器可达
-		return resp != nil
+		if resp != nil {
+			return true
+		}
+		// 调用方主动取消/预算截断不计入熔断失败样本：产品维度任务爬取的
+		// 60s 预算收口会取消在途请求，若计入会把熔断器打到开启，冷却期内
+		// 正常请求全被拒 50002（实测「没数据」的一类成因，2026-11-04）。
+		// httpClient.Timeout(120s) 到期产生的 DeadlineExceeded 仍计入：
+		// 通过 req ctx 是否带 deadline（且 <120s）与客户端超时区分。
+		if errors.Is(err, context.Canceled) {
+			return true
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			if dl, ok := req.Context().Deadline(); ok && time.Until(dl) < 100*time.Second {
+				return true
+			}
+			return false
+		}
+		return false
 	})
 	if err != nil {
 		if errors.Is(err, breaker.ErrCircuitOpen) {

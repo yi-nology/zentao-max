@@ -103,7 +103,10 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 		// 相同的全量数据。
 		if s.cache != nil {
 			loader := func(ctx context.Context) ([]byte, error) {
-				tasks, err := s.fetchAllTasksAcrossExecutions(time.Now().Add(60 * time.Second))
+				// 传零值 deadline：60s 爬取预算从「执行列表就绪后」起算——
+				// 此前在分支入口起算，缓存清空后 58s 的执行列表遍历会吃掉
+				// 全部预算，爬取只剩 2s（实测 tasks 接口 data:null）
+				tasks, err := s.fetchAllTasksAcrossExecutions(time.Time{})
 				if err != nil {
 					return nil, err
 				}

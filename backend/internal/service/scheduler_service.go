@@ -345,7 +345,9 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		logEntry.Error = reportErr.Error()
 		now := time.Now()
 		logEntry.FinishedAt = &now
-		_ = s.store.SaveLog(logEntry)
+		if saveErr := s.store.SaveLog(logEntry); saveErr != nil {
+			logger.Warn("任务执行日志落盘失败", "taskID", task.ID, "error", saveErr)
+		}
 		logger.Error("定时任务执行失败",
 			"taskID", task.ID,
 			"taskName", task.Name,
@@ -384,7 +386,9 @@ func (s *SchedulerService) executeTask(task *models.SchedulerTask, manual bool) 
 		logEntry.Status = "success"
 	}
 
-	_ = s.store.SaveLog(logEntry)
+	if saveErr := s.store.SaveLog(logEntry); saveErr != nil {
+		logger.Warn("任务执行日志落盘失败", "taskID", task.ID, "error", saveErr)
+	}
 	logger.Info("定时任务执行完成",
 		"taskID", task.ID,
 		"taskName", task.Name,

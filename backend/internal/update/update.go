@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oekit/concurrency/async"
 	"github.com/oekit/concurrency/loop"
 
 	"github.com/yi-nology/zentao-max/backend/internal/config"
@@ -541,7 +542,7 @@ func (s *Service) Download() error {
 	latest := s.info.Latest
 	s.mu.Unlock()
 
-	go func() {
+	async.GoSafe(func() {
 		path, err := s.doDownload(dlURL, latest)
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -554,7 +555,7 @@ func (s *Service) Download() error {
 		s.info.DownloadState = "done"
 		s.info.DownloadPath = path
 		logger.Info("更新包下载完成", "path", path)
-	}()
+	})
 	return nil
 }
 
@@ -851,12 +852,12 @@ func (s *Service) RestartSelf() error {
 		return fmt.Errorf("尚未应用更新")
 	}
 	// 短延迟让 HTTP 响应先送达客户端
-	go func() {
+	async.GoSafe(func() {
 		time.Sleep(800 * time.Millisecond)
 		logger.Info("应用更新完成，正在重启进程", "binary", bin)
 		if err := execSelf(bin, os.Args, os.Environ()); err != nil {
 			logger.Error("重启进程失败（请手动重启）", "error", err)
 		}
-	}()
+	})
 	return nil
 }

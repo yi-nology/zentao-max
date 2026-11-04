@@ -65,34 +65,6 @@ func genLanxinSign(secret string) (string, string) {
 	return signature, timestamp
 }
 
-func (s *WebhookService) buildPayload(report *models.BugReport) WebhookPayload {
-	details := make([]AssigneeDetailPayload, 0, len(report.Details))
-	for _, d := range report.Details {
-		details = append(details, AssigneeDetailPayload{
-			Assignee:     d.Assignee,
-			Account:      d.Account,
-			Total:        d.Total,
-			HighSeverity: d.HighSeverity,
-			Fatal:        d.Fatal,
-			Serious:      d.Serious,
-			Moderate:     d.Moderate,
-			Minor:        d.Minor,
-		})
-	}
-	return WebhookPayload{
-		Title:     report.Title,
-		Timestamp: report.Timestamp,
-		Project:   report.ProjectName,
-		Summary: WebhookSummary{
-			Total:           report.Total,
-			HighSeverity:    report.HighSeverity,
-			StatusBreakdown: report.StatusBreakdown,
-		},
-		Details: details,
-		Message: report.Message,
-	}
-}
-
 func (s *WebhookService) buildLanxinBody(wh models.WebhookConfig, payload WebhookPayload) ([]byte, error) {
 	msg := map[string]interface{}{
 		"msgType": "text",
@@ -108,30 +80,6 @@ func (s *WebhookService) buildLanxinBody(wh models.WebhookConfig, payload Webhoo
 		msg["timestamp"] = timestamp
 	}
 	return json.Marshal(msg)
-}
-
-func (s *WebhookService) SendAll(webhooks []models.WebhookConfig, report *models.BugReport) []models.WebhookResult {
-	payload := s.buildPayload(report)
-	results := make([]models.WebhookResult, 0, len(webhooks))
-
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	for _, wh := range webhooks {
-		if !wh.Enabled {
-			continue
-		}
-		wg.Add(1)
-		go func(wh models.WebhookConfig) {
-			defer wg.Done()
-			result := s.sendSingle(wh, payload)
-			mu.Lock()
-			results = append(results, result)
-			mu.Unlock()
-		}(wh)
-	}
-	wg.Wait()
-	return results
 }
 
 func (s *WebhookService) sendSingle(wh models.WebhookConfig, payload WebhookPayload) models.WebhookResult {

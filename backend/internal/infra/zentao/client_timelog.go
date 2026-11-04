@@ -53,11 +53,6 @@ func mapToSlice(m map[string]*statItem) []statItem {
 	return result
 }
 
-// GetTaskEfforts 获取任务的工时记录
-func (c *Client) GetTaskEfforts(taskID int) ([]zentaosdk.EffortEntry, error) {
-	return c.getTaskEffortsSession(context.Background(), taskID)
-}
-
 // GetTaskEffortsContext 获取任务的工时记录（支持 context 取消）
 func (c *Client) GetTaskEffortsContext(ctx context.Context, taskID int) ([]zentaosdk.EffortEntry, error) {
 	return c.getTaskEffortsSession(ctx, taskID)

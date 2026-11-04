@@ -211,8 +211,8 @@ func (c *Client) GetRealm() string {
 	return c.realm
 }
 
-// SessionLoginSync 同步执行一次会话登录。仅供 InitHandler.Login 在表单提交时
-// 显式调用以获得同步的成败反馈。
+// SessionLoginSync 同步执行一次会话登录。当前仅供测试使用（登录成败的
+// 同步反馈已由 Login 覆盖——UI 走 SSO，无表单登录入口）。
 func (c *Client) SessionLoginSync() error {
 	if c.session == nil {
 		return fmt.Errorf("会话客户端未初始化")
@@ -644,8 +644,8 @@ func (c *Client) doSessionPostWithRetryWithBody(ctx context.Context, operation, 
 		"operation", operation,
 		"path", path,
 	)
-	if err := c.session.ensureLoggedIn(); err != nil {
-		return body, fmt.Errorf("写操作失败，重新登录失败: %w，原始错误: %v", err, err)
+	if loginErr := c.session.ensureLoggedIn(); loginErr != nil {
+		return body, fmt.Errorf("写操作失败，重新登录失败: %w，原始错误: %v", loginErr, err)
 	}
 	return c.session.PostFormWithBody(ctx, path, form)
 }

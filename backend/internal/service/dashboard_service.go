@@ -686,8 +686,10 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 
 // collectTasksContext 并发收集任务（支持 context 取消）
 func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs []myzentao.ExecutionContext) []zentaosdk.Task {
-	// fanout.Map：并发取各执行的任务列表（单个失败忽略），结果保序拼接
-	perExec, _ := fanout.Map(ctx, execCtxs, len(execCtxs),
+	// fanout.Map：并发取各执行的任务列表（单个失败忽略），结果保序拼接。
+	// 并发度与 crawlWorkers 一致：len(execCtxs) 等价无界，大实例会大面积
+	// ErrPoolBusy 且失败被吞（见下方 return nil, nil），统计凭空缺数据。
+	perExec, _ := fanout.Map(ctx, execCtxs, crawlWorkers,
 		func(ctx context.Context, ec myzentao.ExecutionContext) ([]zentaosdk.Task, error) {
 			tasks, err := client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
 			if err != nil {
@@ -708,8 +710,9 @@ func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, 
 	if err != nil {
 		return nil
 	}
-	// fanout 并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）
-	perExec, _ := fanout.Map(ctx, executions, len(executions),
+	// fanout 并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）。
+	// 上限对齐 crawlWorkers，理由同 collectTasksContext。
+	perExec, _ := fanout.Map(ctx, executions, crawlWorkers,
 		func(ctx context.Context, e zentaosdk.Execution) ([]zentaosdk.Task, error) {
 			tasks, err := client.GetTasksContext(ctx, e.ID, 1, 200)
 			if err != nil {

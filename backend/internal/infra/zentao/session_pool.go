@@ -28,6 +28,7 @@ type SessionWorkerPool struct {
 	writeJobs chan *job
 
 	readConcurrency int
+	queueTimeout    time.Duration
 
 	closed atomic.Bool
 	wg     sync.WaitGroup
@@ -82,6 +83,7 @@ func NewSessionWorkerPool(cfg SessionWorkerPoolConfig) *SessionWorkerPool {
 		rateLimiter:     rateLimiter,
 		ratePerSec:      cfg.RatePerSec,
 		readConcurrency: cfg.ReadConcurrency,
+		queueTimeout:    cfg.QueueTimeout,
 		readJobs:        make(chan *job, cfg.JobBuf),
 		writeJobs:       make(chan *job, cfg.JobBuf),
 	}
@@ -151,7 +153,7 @@ func (p *SessionWorkerPool) submit(
 	}
 
 	if prio == 0 {
-		timer := time.NewTimer(100 * time.Millisecond)
+		timer := time.NewTimer(p.queueTimeout)
 		select {
 		case target <- j:
 			p.queueDepth.Add(1)

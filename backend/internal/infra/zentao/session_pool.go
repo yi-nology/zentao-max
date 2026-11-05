@@ -31,7 +31,11 @@ type SessionWorkerPool struct {
 	queueTimeout    time.Duration
 
 	closed atomic.Bool
-	wg     sync.WaitGroup
+	// closeMu 守护 readJobs/writeJobs 的「send vs close」：submit 在锁内
+	// 复判 closed 再入队，Shutdown 持写锁 close——消除 close 与 send 并发
+	// 的 data race（send-on-closed  panic 前就会被 race detector 抓到）。
+	closeMu sync.RWMutex
+	wg      sync.WaitGroup
 
 	readActive  atomic.Int64
 	writeActive atomic.Int64
@@ -152,6 +156,19 @@ func (p *SessionWorkerPool) submit(
 		target = p.writeJobs
 	}
 
+	// closeMu 内复判 closed：消除入口检查与入队之间 Shutdown 关闭通道的竞态。
+	// 锁只在入队期间持有（结果等待不持锁，避免拖住 Shutdown）。
+	p.closeMu.RLock()
+	if p.closed.Load() {
+		p.closeMu.RUnlock()
+		if cacheFallback != nil {
+			if err := cacheFallback(ctx); err == nil {
+				return nil
+			}
+		}
+		return ErrPoolClosed
+	}
+
 	if prio == 0 {
 		timer := time.NewTimer(p.queueTimeout)
 		select {
@@ -160,8 +177,11 @@ func (p *SessionWorkerPool) submit(
 			timer.Stop()
 		case <-ctx.Done():
 			timer.Stop()
+			p.closeMu.RUnlock()
 			return ctx.Err()
 		case <-timer.C:
+			timer.Stop()
+			p.closeMu.RUnlock()
 			if cacheFallback != nil {
 				if err := cacheFallback(ctx); err == nil {
 					return nil
@@ -169,6 +189,7 @@ func (p *SessionWorkerPool) submit(
 			}
 			return ErrPoolBusy
 		}
+		p.closeMu.RUnlock()
 		// 等待结果
 		select {
 		case err := <-j.done:
@@ -182,7 +203,9 @@ func (p *SessionWorkerPool) submit(
 	select {
 	case target <- j:
 		p.queueDepth.Add(1)
+		p.closeMu.RUnlock()
 	default:
+		p.closeMu.RUnlock()
 		// 队列满，丢弃（预期行为）
 		return nil
 	}
@@ -230,8 +253,10 @@ func (p *SessionWorkerPool) Shutdown(ctx context.Context) error {
 	if !p.closed.CompareAndSwap(false, true) {
 		return nil
 	}
+	p.closeMu.Lock()
 	close(p.readJobs)
 	close(p.writeJobs)
+	p.closeMu.Unlock()
 	done := make(chan struct{})
 	go func() {
 		p.wg.Wait()

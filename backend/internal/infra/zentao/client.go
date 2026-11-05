@@ -552,41 +552,11 @@ func (c *Client) doSessionJSONWithRetry(ctx context.Context, operation, path str
 // Session 模式下：写必须真打到禅道（不走 cache），但走 pool 限流（写串行 1 worker
 // 避免受限实例 SSO 标记异常）。成功后按 op 找 entity，cache.InvalidateEntity 强制
 // 下次读回源。
+//
+// 实现委托 doSessionPostWithBody（issue #3 双胞胎合并）：写串行提交 +
+// 写后 InvalidateEntity 逻辑只有一份。
 func (c *Client) doSessionPost(ctx context.Context, operation, path string, form neturl.Values) error {
-	if c.session == nil {
-		return fmt.Errorf("会话客户端未初始化")
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	doWrite := func(ctx context.Context) error {
-		return c.doSessionPostWithRetry(ctx, operation, path, form)
-	}
-
-	// 写成功后的 cache 失效回调（在 pool worker 内执行，确保 invalidate 顺序在 write 后）
-	var err error
-	if c.pool != nil {
-		err = c.pool.SubmitWrite(ctx, operation, func(ctx context.Context) error {
-			if werr := doWrite(ctx); werr != nil {
-				return werr
-			}
-			// 写成功 → 失效对应 entity 的 cache
-			if c.cache != nil {
-				if entity, ok := writeOpToEntity[operation]; ok {
-					_ = c.cache.InvalidateEntity(ctx, entity)
-				}
-			}
-			return nil
-		})
-	} else {
-		err = doWrite(ctx)
-		if err == nil && c.cache != nil {
-			if entity, ok := writeOpToEntity[operation]; ok {
-				_ = c.cache.InvalidateEntity(ctx, entity)
-			}
-		}
-	}
+	_, err := c.doSessionPostWithBody(ctx, operation, path, form)
 	return err
 }
 

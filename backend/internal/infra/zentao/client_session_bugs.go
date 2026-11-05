@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 
-	"github.com/oekit/concurrency/async"
-
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
 
 // ---- Bugs (session mode) ----
@@ -173,36 +170,13 @@ func (c *Client) getAllBugsSession(ctx context.Context, productID int) ([]zentao
 		pageTotal = 200
 	}
 
-	// 第 2..pageTotal 页并发预取（GoSafe 收编 panic；结果按各自下标写，无竞争）
-	type pageResult struct {
-		bugs []zentaosdk.Bug
-	}
-	results := make([]pageResult, pageTotal-1)
-	sem := make(chan struct{}, bugFetchConcurrency)
-	var wg sync.WaitGroup
-	for p := 2; p <= pageTotal; p++ {
-		wg.Add(1)
-		page := p
-		async.GoSafe(func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			b, _, e := c.fetchBugsPageSession(ctx, productID, page, "all", recTotal)
-			if e != nil {
-				logger.Warn("bug 翻页并发拉取失败", "productID", productID, "page", page, "error", e)
-				return
-			}
-			results[page-2] = pageResult{bugs: b}
-		})
-	}
-	wg.Wait()
-	missing := 0
-	for _, r := range results {
-		if r.bugs == nil {
-			missing++
-			continue
-		}
-		all = append(all, r.bugs...)
+	// 第 2..pageTotal 页并发预取（GoSafe 收编 panic；结果按各自下标写）
+	pages, missing := fetchPagesConcurrent(ctx, bugFetchConcurrency, pageTotal, func(ctx context.Context, page int) ([]zentaosdk.Bug, error) {
+		b, _, e := c.fetchBugsPageSession(ctx, productID, page, "all", recTotal)
+		return b, e
+	})
+	for _, pageBugs := range pages {
+		all = append(all, pageBugs...)
 	}
 	if missing > 0 {
 		// 部分数据语义（与 execution-all 翻页同款）：缺页记日志返回已收集部分，

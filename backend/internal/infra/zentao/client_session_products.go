@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
-	"github.com/oekit/concurrency/async"
-
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
 
 // ---- Products ----
@@ -98,41 +95,21 @@ func (c *Client) getProductsSession(ctx context.Context) ([]zentaosdk.Product, e
 		pageTotal = 200
 	}
 
-	// 第 2..pageTotal 页并发预取（结果按各自下标写，无竞争；seen 去重事后做）
-	type pageResult struct {
-		products []zentaosdk.Product
-	}
-	results := make([]pageResult, pageTotal-1)
-	sem := make(chan struct{}, 4)
-	var wg sync.WaitGroup
-	for p := 2; p <= pageTotal; p++ {
-		wg.Add(1)
-		page := p
-		async.GoSafe(func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			var r sessionProductAllResp
-			path := fmt.Sprintf("/product-all-noclosed-program_asc-0-%d-%d-%d.json", recTotal, 20, page)
-			if e := c.doSessionJSONUncached(ctx, "GetProducts", path, &r); e != nil {
-				logger.Warn("product 翻页并发拉取失败", "page", page, "error", e)
-				return
-			}
-			pr := make([]zentaosdk.Product, 0, len(r.ProductStats))
-			for _, pp := range r.ProductStats {
-				pr = append(pr, pp.toSDK())
-			}
-			results[page-2] = pageResult{products: pr}
-		})
-	}
-	wg.Wait()
-	missing := 0
-	for _, r := range results {
-		if r.products == nil {
-			missing++
-			continue
+	// 第 2..pageTotal 页并发预取（结果按各自下标写；seen 去重事后做）
+	pages, missing := fetchPagesConcurrent(ctx, 4, pageTotal, func(ctx context.Context, page int) ([]zentaosdk.Product, error) {
+		var r sessionProductAllResp
+		path := fmt.Sprintf("/product-all-noclosed-program_asc-0-%d-%d-%d.json", recTotal, 20, page)
+		if e := c.doSessionJSONUncached(ctx, "GetProducts", path, &r); e != nil {
+			return nil, e
 		}
-		for _, pp := range r.products {
+		pr := make([]zentaosdk.Product, 0, len(r.ProductStats))
+		for _, pp := range r.ProductStats {
+			pr = append(pr, pp.toSDK())
+		}
+		return pr, nil
+	})
+	for _, pageProducts := range pages {
+		for _, pp := range pageProducts {
 			if _, ok := seen[pp.ID]; ok {
 				continue
 			}

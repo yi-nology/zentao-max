@@ -270,9 +270,9 @@ func (h *HealthHandler) checkZentao() CheckItem {
 	}
 }
 
-func (h *HealthHandler) checkProducts() CheckItem {
-	start := time.Now()
-	products, err := h.productService.GetProducts()
+// runCheck 包装一项健康检查的结果：err 非 nil 记 fail（消息为错误文本），
+// 否则 ok + Count + 「正常」；计时/状态/LatencyMs 脚手架统一在此（issue #3）。
+func runCheck(start time.Time, count int, err error) CheckItem {
 	if err != nil {
 		return CheckItem{
 			Status:    "fail",
@@ -282,100 +282,46 @@ func (h *HealthHandler) checkProducts() CheckItem {
 	}
 	return CheckItem{
 		Status:    "ok",
-		Count:     len(products),
+		Count:     count,
 		Message:   "正常",
 		LatencyMs: time.Since(start).Milliseconds(),
 	}
+}
+
+func (h *HealthHandler) checkProducts() CheckItem {
+	start := time.Now()
+	products, err := h.productService.GetProducts()
+	return runCheck(start, len(products), err)
 }
 
 func (h *HealthHandler) checkProjects() CheckItem {
 	start := time.Now()
 	projects, err := h.projectService.GetProjects(&dto.ProjectQueryDTO{})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(projects),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, len(projects), err)
 }
 
 func (h *HealthHandler) checkBugs() CheckItem {
 	start := time.Now()
 	result, err := h.bugService.GetBugs(&dto.BugQueryDTO{PageSize: 1})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, result.Total, err)
 }
 
 func (h *HealthHandler) checkStories() CheckItem {
 	start := time.Now()
 	result, err := h.storyService.GetStories(&dto.StoryQueryDTO{PageSize: 1})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, result.Total, err)
 }
 
 func (h *HealthHandler) checkTasks() CheckItem {
 	start := time.Now()
 	result, err := h.taskService.GetTasks(&dto.TaskQueryDTO{PageSize: 1})
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     result.Total,
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, result.Total, err)
 }
 
 func (h *HealthHandler) checkUsers() CheckItem {
 	start := time.Now()
 	users, err := h.userService.GetUsersAll()
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(users),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, len(users), err)
 }
 
 func (h *HealthHandler) checkScheduler() CheckItem {
@@ -388,19 +334,7 @@ func (h *HealthHandler) checkScheduler() CheckItem {
 		}
 	}
 	tasks, err := h.schedulerService.ListTasks()
-	if err != nil {
-		return CheckItem{
-			Status:    "fail",
-			Message:   err.Error(),
-			LatencyMs: time.Since(start).Milliseconds(),
-		}
-	}
-	return CheckItem{
-		Status:    "ok",
-		Count:     len(tasks),
-		Message:   "正常",
-		LatencyMs: time.Since(start).Milliseconds(),
-	}
+	return runCheck(start, len(tasks), err)
 }
 
 // storeCache 写入 healthz 聚合结果缓存（90s TTL，锁内快照拷贝）。

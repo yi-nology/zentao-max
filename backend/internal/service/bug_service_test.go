@@ -5,8 +5,8 @@ import (
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 	"github.com/yi-nology/zentao-max/backend/internal/vo"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 func createMockBugs() []zentaosdk.Bug {

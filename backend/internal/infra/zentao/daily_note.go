@@ -21,9 +21,9 @@ import (
 // 位置：DBPrefix + "-notes.db"（DBPrefix 跟 SessionCache 共享 "~/.zentao-max/cache"）。
 // 命名空间：完全按 (user_account, date) 隔离；session 切账号不需要手动清（key 含 account）。
 type DailyNote struct {
-	User      string    `json:"user"`      // 禅道账号，如 <user-account>
-	Date      string    `json:"date"`      // YYYY-MM-DD
-	Content   string    `json:"content"`   // 自由文本，可空
+	User      string    `json:"user"`    // 禅道账号，如 <user-account>
+	Date      string    `json:"date"`    // YYYY-MM-DD
+	Content   string    `json:"content"` // 自由文本，可空
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

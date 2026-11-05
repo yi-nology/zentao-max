@@ -7,7 +7,7 @@ import (
 
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	"github.com/yi-nology/zentao-max/backend/internal/initialization"
-	"github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
+	storage "github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
 	"github.com/yi-nology/zentao-max/backend/internal/service"
 
 	"github.com/yi-nology/zentao-max/backend/internal/config"

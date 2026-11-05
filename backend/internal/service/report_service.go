@@ -7,10 +7,11 @@ import (
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
-	
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
-	"github.com/yi-nology/zentao-max/backend/internal/models"
+
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/models"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 type ReportService struct {
@@ -322,8 +323,8 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 
 	for _, t := range tasks {
 		statusBreakdown[t.Status]++
-		totalEstimate += toFloat64(t.Estimate)
-		totalConsumed += toFloat64(t.Consumed)
+		totalEstimate += utils.ToFloat64(t.Estimate)
+		totalConsumed += utils.ToFloat64(t.Consumed)
 	}
 
 	var overallProgress float64
@@ -349,8 +350,8 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 			assigneeMap[name] = stat
 		}
 		stat.Total++
-		stat.Estimate += toFloat64(t.Estimate)
-		stat.Consumed += toFloat64(t.Consumed)
+		stat.Estimate += utils.ToFloat64(t.Estimate)
+		stat.Consumed += utils.ToFloat64(t.Consumed)
 		switch t.Status {
 		case "wait":
 			stat.Wait++

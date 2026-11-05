@@ -25,7 +25,7 @@ type ZentaoSIDFile struct {
 
 const (
 	zentaoSIDFileName = "zentaosid.json"
-	zentaoSIDFileMode  = 0600 // cookie 不是密码但仍限制权限
+	zentaoSIDFileMode = 0600 // cookie 不是密码但仍限制权限
 )
 
 var zentaoSIDFileMu sync.Mutex

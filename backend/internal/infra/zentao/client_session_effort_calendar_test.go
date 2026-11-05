@@ -20,9 +20,9 @@ const testZenSIDName = "zentaosid"
 // TestParseCalendarObjectType 验证 [T]/[B]/[S]/[P]/空 五种 title 前缀解析。
 func TestParseCalendarObjectType(t *testing.T) {
 	cases := []struct {
-		title        string
-		wantType     string
-		wantClean    string
+		title     string
+		wantType  string
+		wantClean string
 	}{
 		{"[T]完善全景图文档", "task", "完善全景图文档"},
 		{"[B]修复样式错位", "bug", "修复样式错位"},

@@ -11,11 +11,11 @@ import (
 
 // EffortCalendarResult 业务层返回结构（含日聚合 + 月度汇总）。
 type EffortCalendarResult struct {
-	Entries  []EffortCalendarEntry      `json:"entries"`
-	Summary  *EffortCalendarSummary     `json:"summary"`
-	Year     int                        `json:"year"`
-	UserID   int                        `json:"userId"`
-	UserName string                     `json:"userName,omitempty"`
+	Entries  []EffortCalendarEntry  `json:"entries"`
+	Summary  *EffortCalendarSummary `json:"summary"`
+	Year     int                    `json:"year"`
+	UserID   int                    `json:"userId"`
+	UserName string                 `json:"userName,omitempty"`
 }
 
 // EffortCalendarEntry 单条记录（直接透传 client.CalendarEntry 字段）。
@@ -31,14 +31,14 @@ type EffortCalendarEntry struct {
 
 // EffortCalendarSummary 月度/全年汇总。
 type EffortCalendarSummary struct {
-	TotalHours    float64                            `json:"totalHours"`
-	TotalRecords  int                                `json:"totalRecords"`
-	WorkDays      int                                `json:"workDays"`      // 有工时的天数
-	AvgDailyHours float64                            `json:"avgDailyHours"` // 平均每日（按 workDays）
-	MaxDailyHours float64                            `json:"maxDailyHours"`
-	MaxDailyDate  string                             `json:"maxDailyDate"`
-	ByMonth       []EffortCalendarMonthStat          `json:"byMonth"`
-	ByType        map[string]EffortCalendarTypeStat  `json:"byType"`
+	TotalHours    float64                           `json:"totalHours"`
+	TotalRecords  int                               `json:"totalRecords"`
+	WorkDays      int                               `json:"workDays"`      // 有工时的天数
+	AvgDailyHours float64                           `json:"avgDailyHours"` // 平均每日（按 workDays）
+	MaxDailyHours float64                           `json:"maxDailyHours"`
+	MaxDailyDate  string                            `json:"maxDailyDate"`
+	ByMonth       []EffortCalendarMonthStat         `json:"byMonth"`
+	ByType        map[string]EffortCalendarTypeStat `json:"byType"`
 }
 
 // EffortCalendarMonthStat 月度汇总。

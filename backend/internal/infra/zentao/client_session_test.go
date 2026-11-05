@@ -6,9 +6,10 @@ import (
 	"os"
 	"testing"
 
-	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/internal/config"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // initTestLogger 用最小配置初始化全局 logger（会话登录成功路径会写日志）。
@@ -58,7 +59,7 @@ func TestSessionBugMapping(t *testing.T) {
 	if b.Status == "" {
 		t.Error("Status not mapped")
 	}
-	if toInt(b.Severity) == 0 {
+	if utils.ToInt(b.Severity) == 0 {
 		t.Error("Severity not mapped")
 	}
 	t.Logf("mapped bug OK: id=%d title=%q openedBy=%s assignedTo=%s severity=%v pri=%v",

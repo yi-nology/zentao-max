@@ -7,15 +7,16 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 )
 
 // EffortBatchHandler 工时批量创建 HTTP 处理器。
 //
 // 路由：POST /api/v1/efforts/batch
 // body: {"date": "2026-07-16", "items": [{"work": "...", "objectType": "task_617525",
-//                                          "execution": 9151, "consumed": 1, "left": 10}, ...]}
+//
+//	"execution": 9151, "consumed": 1, "left": 10}, ...]}
 //
 // 后端走 /effort-batchCreate-{date}.html?onlybody=yes 端点（受限 session mode），
 // service.BatchCreateEffort 负责拼 form 格式（id[]/work[]/objectType[]/execution[N]/consumed[]/left[N]）。

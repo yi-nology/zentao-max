@@ -49,7 +49,6 @@ func (h *TimelogHandler) GetTimelogDashboard(ctx context.Context, c *app.Request
 
 	// productId 可选（受限 session mode fallback）
 
-
 	if query.DateFrom == "" || query.DateTo == "" {
 		errors.BadRequest(c, "dateFrom and dateTo are required")
 		return

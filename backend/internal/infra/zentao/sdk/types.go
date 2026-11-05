@@ -182,20 +182,20 @@ type ProductListResponse struct {
 
 // ProductCreateRequest 创建/更新产品请求
 type ProductCreateRequest struct {
-	Name        string `json:"name"`
-	Code        string `json:"code,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Desc        string `json:"desc,omitempty"`
-	PO          string `json:"PO,omitempty"`
-	QD          string `json:"QD,omitempty"`
-	RD          string `json:"RD,omitempty"`
-	Status      string `json:"status,omitempty"`
-	Program     int    `json:"program,omitempty"`
-	Line        int    `json:"line,omitempty"`
-	Parent      int    `json:"parent,omitempty"`
-	Acl         string `json:"acl,omitempty"`
-	Whitelist   string `json:"whitelist,omitempty"`
-	Blacklist   string `json:"blacklist,omitempty"`
+	Name      string `json:"name"`
+	Code      string `json:"code,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Desc      string `json:"desc,omitempty"`
+	PO        string `json:"PO,omitempty"`
+	QD        string `json:"QD,omitempty"`
+	RD        string `json:"RD,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Program   int    `json:"program,omitempty"`
+	Line      int    `json:"line,omitempty"`
+	Parent    int    `json:"parent,omitempty"`
+	Acl       string `json:"acl,omitempty"`
+	Whitelist string `json:"whitelist,omitempty"`
+	Blacklist string `json:"blacklist,omitempty"`
 }
 
 // ========== 项目(Project)相关 ==========
@@ -393,48 +393,48 @@ type TaskAssignRequest struct {
 
 // BugCreateRequest 创建Bug请求
 type BugCreateRequest struct {
-	Branch     int      `json:"branch,omitempty"`
-	Module     int      `json:"module,omitempty"`
-	Execution  int      `json:"execution,omitempty"`
-	Product    int      `json:"product,omitempty"`
-	Project    int      `json:"project,omitempty"`
-	Title      string   `json:"title"`
-	Keywords   string   `json:"keywords,omitempty"`
-	Severity   int      `json:"severity"`
-	Pri        int      `json:"pri"`
-	Type       string   `json:"type"`
-	OS         string   `json:"os,omitempty"`
-	Browser    string   `json:"browser,omitempty"`
-	Hardware   string   `json:"hardware,omitempty"`
-	Steps      string   `json:"steps,omitempty"`
-	Task       int      `json:"task,omitempty"`
-	Story      int      `json:"story,omitempty"`
-	Deadline   string   `json:"deadline,omitempty"`
+	Branch      int      `json:"branch,omitempty"`
+	Module      int      `json:"module,omitempty"`
+	Execution   int      `json:"execution,omitempty"`
+	Product     int      `json:"product,omitempty"`
+	Project     int      `json:"project,omitempty"`
+	Title       string   `json:"title"`
+	Keywords    string   `json:"keywords,omitempty"`
+	Severity    int      `json:"severity"`
+	Pri         int      `json:"pri"`
+	Type        string   `json:"type"`
+	OS          string   `json:"os,omitempty"`
+	Browser     string   `json:"browser,omitempty"`
+	Hardware    string   `json:"hardware,omitempty"`
+	Steps       string   `json:"steps,omitempty"`
+	Task        int      `json:"task,omitempty"`
+	Story       int      `json:"story,omitempty"`
+	Deadline    string   `json:"deadline,omitempty"`
 	OpenedBuild []string `json:"openedBuild,omitempty"`
-	AssignedTo string   `json:"assignedTo,omitempty"`
+	AssignedTo  string   `json:"assignedTo,omitempty"`
 }
 
 // BugUpdateRequest 修改Bug请求
 // 注意：禅道 bug-edit 是全量更新，title/openedBuild/execution 必须带原值
 // （漏带会校验失败或被占位值覆盖），调用方需先取 bug 详情再提交。
 type BugUpdateRequest struct {
-	Branch     int      `json:"branch,omitempty"`
-	Module     int      `json:"module,omitempty"`
-	Execution  int      `json:"execution,omitempty"`
-	Title      string   `json:"title,omitempty"`
-	Keywords   string   `json:"keywords,omitempty"`
-	Severity   int      `json:"severity,omitempty"`
-	Pri        int      `json:"pri,omitempty"`
-	Type       string   `json:"type,omitempty"`
-	OS         string   `json:"os,omitempty"`
-	Browser    string   `json:"browser,omitempty"`
-	Hardware   string   `json:"hardware,omitempty"`
-	Steps      string   `json:"steps,omitempty"`
-	Task       int      `json:"task,omitempty"`
-	Story      int      `json:"story,omitempty"`
-	Deadline   string   `json:"deadline,omitempty"`
+	Branch      int      `json:"branch,omitempty"`
+	Module      int      `json:"module,omitempty"`
+	Execution   int      `json:"execution,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	Keywords    string   `json:"keywords,omitempty"`
+	Severity    int      `json:"severity,omitempty"`
+	Pri         int      `json:"pri,omitempty"`
+	Type        string   `json:"type,omitempty"`
+	OS          string   `json:"os,omitempty"`
+	Browser     string   `json:"browser,omitempty"`
+	Hardware    string   `json:"hardware,omitempty"`
+	Steps       string   `json:"steps,omitempty"`
+	Task        int      `json:"task,omitempty"`
+	Story       int      `json:"story,omitempty"`
+	Deadline    string   `json:"deadline,omitempty"`
 	OpenedBuild []string `json:"openedBuild,omitempty"`
-	AssignedTo string   `json:"assignedTo,omitempty"`
+	AssignedTo  string   `json:"assignedTo,omitempty"`
 	// 质量分析字段（biz8.x 定制，bug-edit 全量一次写全，不要分多次）
 	FixedPackageVersion string `json:"fixedPackageVersion,omitempty"`
 	ReasonAnalysis      string `json:"reasonAnalysis,omitempty"`
@@ -442,7 +442,7 @@ type BugUpdateRequest struct {
 	Implementation      string `json:"implementation,omitempty"`
 	TestAdvise          string `json:"testAdvise,omitempty"`
 	// 解决方案相关（bug-edit 也可顺带更新）
-	Resolution   string `json:"resolution,omitempty"`
+	Resolution    string `json:"resolution,omitempty"`
 	ResolvedBuild string `json:"resolvedBuild,omitempty"`
 	// 追加备注
 	Comment string `json:"comment,omitempty"`
@@ -450,75 +450,75 @@ type BugUpdateRequest struct {
 
 // Bug Bug结构
 type Bug struct {
-	ID               int         `json:"id"`
-	Project          int         `json:"project"`
-	Product          int         `json:"product"`
-	Branch           int         `json:"branch"`
-	Module           int         `json:"module"`
-	Execution        int         `json:"execution"`
-	Title            string      `json:"title"`
-	Keywords         string      `json:"keywords"`
-	Severity         interface{} `json:"severity"`
-	Pri              interface{} `json:"pri"`
-	Type             string      `json:"type"`
-	OS               string      `json:"os"`
-	Browser          string      `json:"browser"`
-	Hardware         string      `json:"hardware"`
-	Steps            string      `json:"steps"`
-	Task             interface{} `json:"task"`
-	Story            interface{} `json:"story"`
-	ToTask           interface{} `json:"toTask"`
-	ToStory          interface{} `json:"toStory"`
-	Plan             interface{} `json:"plan"`
-	StoryVersion     interface{} `json:"storyVersion"`
-	Confirmed        interface{} `json:"confirmed"`
-	ActivatedCount   interface{} `json:"activatedCount"`
-	ActivatedDate    interface{} `json:"activatedDate"`
-	FeedbackBy       interface{} `json:"feedbackBy"`
-	NotifyEmail      interface{} `json:"notifyEmail"`
-	Mailto           FlexibleString `json:"mailto"`
-	DuplicateBug     interface{} `json:"duplicateBug"`
-	LinkBug          FlexibleString `json:"linkBug"`
-	Case             interface{} `json:"case"`
-	CaseVersion      interface{} `json:"caseVersion"`
-	Result           interface{} `json:"result"`
-	Repo             interface{} `json:"repo"`
-	Entry            interface{} `json:"entry"`
-	Lines            interface{} `json:"lines"`
-	V1               interface{} `json:"v1"`
-	V2               interface{} `json:"v2"`
-	RepoType         interface{} `json:"repoType"`
-	Testtask         interface{} `json:"testtask"`
-	LastEditedBy     interface{} `json:"lastEditedBy"`
-	LastEditedDate   interface{} `json:"lastEditedDate"`
-	Deleted          interface{} `json:"deleted"`
-	Status           string      `json:"status"`
-	SubStatus        interface{} `json:"subStatus"`
-	Color            interface{} `json:"color"`
-	PlanTime         interface{} `json:"planTime"`
-	OpenedBy         UserRef     `json:"openedBy"`
-	OpenedDate       interface{} `json:"openedDate"`
-	OpenedBuild      FlexibleString `json:"openedBuild"`
-	AssignedTo       UserRef     `json:"assignedTo"`
-	AssignedDate     interface{} `json:"assignedDate"`
-	Deadline         interface{} `json:"deadline"`
-	ResolvedBy       interface{} `json:"resolvedBy"`
-	Resolution       interface{} `json:"resolution"`
-	ResolvedBuild    interface{} `json:"resolvedBuild"`
-	ResolvedDate     interface{} `json:"resolvedDate"`
-	ClosedBy         interface{} `json:"closedBy"`
-	ClosedDate       interface{} `json:"closedDate"`
-	StatusName       string      `json:"statusName"`
-	LifeCycle        interface{} `json:"lifeCycle"`
-	ExecutionName    interface{} `json:"executionName"`
-	StoryTitle       interface{} `json:"storyTitle"`
-	StoryStatus      interface{} `json:"storyStatus"`
-	LatestStoryVersion interface{} `json:"latestStoryVersion"`
-	TaskName         interface{} `json:"taskName"`
-	PlanName         interface{} `json:"planName"`
-	ProjectName      interface{} `json:"projectName"`
-	ToCases          FlexibleString `json:"toCases"`
-	Files            interface{} `json:"files"`
+	ID                 int            `json:"id"`
+	Project            int            `json:"project"`
+	Product            int            `json:"product"`
+	Branch             int            `json:"branch"`
+	Module             int            `json:"module"`
+	Execution          int            `json:"execution"`
+	Title              string         `json:"title"`
+	Keywords           string         `json:"keywords"`
+	Severity           interface{}    `json:"severity"`
+	Pri                interface{}    `json:"pri"`
+	Type               string         `json:"type"`
+	OS                 string         `json:"os"`
+	Browser            string         `json:"browser"`
+	Hardware           string         `json:"hardware"`
+	Steps              string         `json:"steps"`
+	Task               interface{}    `json:"task"`
+	Story              interface{}    `json:"story"`
+	ToTask             interface{}    `json:"toTask"`
+	ToStory            interface{}    `json:"toStory"`
+	Plan               interface{}    `json:"plan"`
+	StoryVersion       interface{}    `json:"storyVersion"`
+	Confirmed          interface{}    `json:"confirmed"`
+	ActivatedCount     interface{}    `json:"activatedCount"`
+	ActivatedDate      interface{}    `json:"activatedDate"`
+	FeedbackBy         interface{}    `json:"feedbackBy"`
+	NotifyEmail        interface{}    `json:"notifyEmail"`
+	Mailto             FlexibleString `json:"mailto"`
+	DuplicateBug       interface{}    `json:"duplicateBug"`
+	LinkBug            FlexibleString `json:"linkBug"`
+	Case               interface{}    `json:"case"`
+	CaseVersion        interface{}    `json:"caseVersion"`
+	Result             interface{}    `json:"result"`
+	Repo               interface{}    `json:"repo"`
+	Entry              interface{}    `json:"entry"`
+	Lines              interface{}    `json:"lines"`
+	V1                 interface{}    `json:"v1"`
+	V2                 interface{}    `json:"v2"`
+	RepoType           interface{}    `json:"repoType"`
+	Testtask           interface{}    `json:"testtask"`
+	LastEditedBy       interface{}    `json:"lastEditedBy"`
+	LastEditedDate     interface{}    `json:"lastEditedDate"`
+	Deleted            interface{}    `json:"deleted"`
+	Status             string         `json:"status"`
+	SubStatus          interface{}    `json:"subStatus"`
+	Color              interface{}    `json:"color"`
+	PlanTime           interface{}    `json:"planTime"`
+	OpenedBy           UserRef        `json:"openedBy"`
+	OpenedDate         interface{}    `json:"openedDate"`
+	OpenedBuild        FlexibleString `json:"openedBuild"`
+	AssignedTo         UserRef        `json:"assignedTo"`
+	AssignedDate       interface{}    `json:"assignedDate"`
+	Deadline           interface{}    `json:"deadline"`
+	ResolvedBy         interface{}    `json:"resolvedBy"`
+	Resolution         interface{}    `json:"resolution"`
+	ResolvedBuild      interface{}    `json:"resolvedBuild"`
+	ResolvedDate       interface{}    `json:"resolvedDate"`
+	ClosedBy           interface{}    `json:"closedBy"`
+	ClosedDate         interface{}    `json:"closedDate"`
+	StatusName         string         `json:"statusName"`
+	LifeCycle          interface{}    `json:"lifeCycle"`
+	ExecutionName      interface{}    `json:"executionName"`
+	StoryTitle         interface{}    `json:"storyTitle"`
+	StoryStatus        interface{}    `json:"storyStatus"`
+	LatestStoryVersion interface{}    `json:"latestStoryVersion"`
+	TaskName           interface{}    `json:"taskName"`
+	PlanName           interface{}    `json:"planName"`
+	ProjectName        interface{}    `json:"projectName"`
+	ToCases            FlexibleString `json:"toCases"`
+	Files              interface{}    `json:"files"`
 }
 
 // BugListResponse Bug列表响应
@@ -638,19 +638,19 @@ type StoryCreateRequest struct {
 
 // StoryUpdateRequest 更新需求请求
 type StoryUpdateRequest struct {
-	Title        string  `json:"title,omitempty"`
-	Spec         string  `json:"spec,omitempty"`
-	Verify       string  `json:"verify,omitempty"`
-	Type         string  `json:"type,omitempty"`
-	Pri          int     `json:"pri,omitempty"`
-	Estimate     float64 `json:"estimate,omitempty"`
-	AssignedTo   string  `json:"assignedTo,omitempty"`
-	Module       int     `json:"module,omitempty"`
-	Plan         int     `json:"plan,omitempty"`
-	Source       string  `json:"source,omitempty"`
-	SourceNote   string  `json:"sourceNote,omitempty"`
-	Status       string  `json:"status,omitempty"`
-	Stage        string  `json:"stage,omitempty"`
+	Title      string  `json:"title,omitempty"`
+	Spec       string  `json:"spec,omitempty"`
+	Verify     string  `json:"verify,omitempty"`
+	Type       string  `json:"type,omitempty"`
+	Pri        int     `json:"pri,omitempty"`
+	Estimate   float64 `json:"estimate,omitempty"`
+	AssignedTo string  `json:"assignedTo,omitempty"`
+	Module     int     `json:"module,omitempty"`
+	Plan       int     `json:"plan,omitempty"`
+	Source     string  `json:"source,omitempty"`
+	SourceNote string  `json:"sourceNote,omitempty"`
+	Status     string  `json:"status,omitempty"`
+	Stage      string  `json:"stage,omitempty"`
 }
 
 // ========== 计划(Plan)相关 ==========
@@ -714,18 +714,18 @@ type ReleaseListResponse struct {
 
 // Build 版本结构
 type Build struct {
-	ID        int    `json:"id"`
-	Product   int    `json:"product"`
-	Project   int    `json:"project"`
-	Execution int    `json:"execution"`
-	Name      string `json:"name"`
-	ScmPath   string `json:"scmPath"`
-	FilePath  string `json:"filePath"`
-	Date      string `json:"date"`
-	Stories   string `json:"stories"`
-	Bugs      string `json:"bugs"`
-	Builder   string `json:"builder"`
-	Desc      string `json:"desc"`
+	ID        int         `json:"id"`
+	Product   int         `json:"product"`
+	Project   int         `json:"project"`
+	Execution int         `json:"execution"`
+	Name      string      `json:"name"`
+	ScmPath   string      `json:"scmPath"`
+	FilePath  string      `json:"filePath"`
+	Date      string      `json:"date"`
+	Stories   string      `json:"stories"`
+	Bugs      string      `json:"bugs"`
+	Builder   string      `json:"builder"`
+	Desc      string      `json:"desc"`
 	Deleted   interface{} `json:"deleted"`
 }
 
@@ -751,20 +751,20 @@ type BuildCreateRequest struct {
 
 // EffortEntry 工时日志条目
 type EffortEntry struct {
-	ID         int     `json:"id"`
-	ObjectType string  `json:"objectType"`
-	ObjectID   int     `json:"objectID"`
-	Product    string  `json:"product"`
-	Project    int     `json:"project"`
-	Execution  int     `json:"execution"`
-	Account    string  `json:"account"`
-	Work       string  `json:"work"`
-	Date       string  `json:"date"`
-	Left       float64 `json:"left"`
-	Consumed   float64 `json:"consumed"`
-	Begin      string  `json:"begin"`
-	End        string  `json:"end"`
-	Deleted    interface{}  `json:"deleted"`
+	ID         int         `json:"id"`
+	ObjectType string      `json:"objectType"`
+	ObjectID   int         `json:"objectID"`
+	Product    string      `json:"product"`
+	Project    int         `json:"project"`
+	Execution  int         `json:"execution"`
+	Account    string      `json:"account"`
+	Work       string      `json:"work"`
+	Date       string      `json:"date"`
+	Left       float64     `json:"left"`
+	Consumed   float64     `json:"consumed"`
+	Begin      string      `json:"begin"`
+	End        string      `json:"end"`
+	Deleted    interface{} `json:"deleted"`
 }
 
 // EffortRequest 记录工时请求

@@ -7,6 +7,7 @@ import (
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // ---- Bugs (session mode) ----
@@ -281,10 +282,10 @@ func filterBugs(in []zentaosdk.Bug, p zentaosdk.BugSearchParams) []zentaosdk.Bug
 		if p.AssignedTo != "" && b.AssignedTo.Account != p.AssignedTo {
 			continue
 		}
-		if p.Severity != 0 && toInt(b.Severity) != p.Severity {
+		if p.Severity != 0 && utils.ToInt(b.Severity) != p.Severity {
 			continue
 		}
-		if p.Pri != 0 && toInt(b.Pri) != p.Pri {
+		if p.Pri != 0 && utils.ToInt(b.Pri) != p.Pri {
 			continue
 		}
 		if p.Keyword != "" {
@@ -299,20 +300,6 @@ func filterBugs(in []zentaosdk.Bug, p zentaosdk.BugSearchParams) []zentaosdk.Bug
 }
 
 // toInt 把 interface{} 安全转 int（severity/pri 在 SDK 里是 interface{}）。
-func toInt(v interface{}) int {
-	switch n := v.(type) {
-	case int:
-		return n
-	case int64:
-		return int(n)
-	case float64:
-		return int(n)
-	case string:
-		i, _ := strconv.Atoi(n)
-		return i
-	}
-	return 0
-}
 
 func containsFold(s, substr string) bool {
 	if len(substr) == 0 {

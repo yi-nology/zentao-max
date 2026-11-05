@@ -10,11 +10,11 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/errors"
-	"github.com/yi-nology/zentao-max/backend/internal/initialization"
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
-	"github.com/yi-nology/zentao-max/backend/internal/service"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
+	"github.com/yi-nology/zentao-max/backend/internal/service"
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
 
 type InitHandler struct {

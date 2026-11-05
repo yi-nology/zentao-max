@@ -2,7 +2,6 @@ package zentao
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -11,8 +10,9 @@ import (
 
 	"github.com/oekit/concurrency/async"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // effortItem 工时记录项
@@ -135,7 +135,7 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 			continue
 		}
 		for _, t := range tasks {
-			if toFloat64(t.Consumed) > 0 {
+			if utils.ToFloat64(t.Consumed) > 0 {
 				allTaskCtx = append(allTaskCtx, taskContext{
 					Task:     t,
 					ExecName: ec.Exec.Name,
@@ -416,22 +416,3 @@ func (c *Client) getTimelogAnalysisByUser(ctx context.Context, assignedTo, dateF
 
 // toFloat64 把 SDK 里 interface{} 类型的 Consumed/Left 安全转 float64。
 // session 模式映射时这些字段已是 float64；token 模式下 SDK 可能返回 float64 或 json.Number。
-func toFloat64(v interface{}) float64 {
-	switch n := v.(type) {
-	case float64:
-		return n
-	case float32:
-		return float64(n)
-	case int:
-		return float64(n)
-	case int64:
-		return float64(n)
-	case json.Number:
-		f, _ := n.Float64()
-		return f
-	case string:
-		f, _ := strconv.ParseFloat(n, 64)
-		return f
-	}
-	return 0
-}

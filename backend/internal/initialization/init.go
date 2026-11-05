@@ -271,7 +271,7 @@ func (s *InitService) StoreAuthConfigFromStruct(cfg *AuthConfig) error {
 //
 // 必须——auth.db 是单条加密记录，连接配置与 SSO 登录配置同住一处；任何一方的
 // 保存端点都禁止「新建只含自己字段的记录整体覆盖」，否则另一方字段被静默抹掉
-//（踩过：两处 update_zentao_config 都是整记录覆盖式写法，SSO 字段上线的当天
+// （踩过：两处 update_zentao_config 都是整记录覆盖式写法，SSO 字段上线的当天
 // 就会被下一次连接配置保存清掉）。
 func (s *InitService) UpdateAuthConfig(mutate func(*AuthConfig)) error {
 	if mutate == nil {

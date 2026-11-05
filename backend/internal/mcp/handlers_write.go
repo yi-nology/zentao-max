@@ -9,6 +9,7 @@ import (
 
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // MCP 写工具处理器：写禅道日志（挂任务）、Bug 备注、Bug 状态流转。
@@ -143,8 +144,8 @@ func (s *MCPServer) handleAddBugComment(params map[string]interface{}) (interfac
 	req := zentaosdk.BugUpdateRequest{
 		Title:      replaceHTMLEscape(bug.Title),
 		Type:       bug.Type,
-		Severity:   toInt(bug.Severity),
-		Pri:        toInt(bug.Pri),
+		Severity:   utils.ToInt(bug.Severity),
+		Pri:        utils.ToInt(bug.Pri),
 		Steps:      bug.Steps,
 		AssignedTo: accountOf(bug.AssignedTo),
 		OpenedBuild: func() []string {
@@ -330,19 +331,6 @@ func (s *MCPServer) handleTransitionTask(params map[string]interface{}) (interfa
 }
 
 // ---- 小工具：SDK 松散类型归一 ----
-
-func toInt(v interface{}) int {
-	switch t := v.(type) {
-	case float64:
-		return int(t)
-	case int:
-		return t
-	case string:
-		n, _ := strconv.Atoi(t)
-		return n
-	}
-	return 0
-}
 
 func accountOf(ref zentaosdk.UserRef) string {
 	return ref.Account

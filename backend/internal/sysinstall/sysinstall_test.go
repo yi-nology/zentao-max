@@ -14,7 +14,7 @@ func TestLaunchAgentPlist(t *testing.T) {
 		WorkDir:  "/opt/app",
 		Env:      [][2]string{{"PORT", "23456"}, {"A&B", "<x>"}},
 	}
-	st := Status{UnitPath: filepath.Join(t.TempDir(), ServiceLabel + ".plist")}
+	st := Status{UnitPath: filepath.Join(t.TempDir(), ServiceLabel+".plist")}
 	msg, err := installLaunchAgent(st, def)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -45,7 +45,7 @@ func TestSystemdUserUnit(t *testing.T) {
 		WorkDir:  "/opt/app",
 		Env:      [][2]string{{"ZENTAO_ENCRYPTION_KEY", "abc"}},
 	}
-	st := Status{UnitPath: filepath.Join(t.TempDir(), ServiceLabel + ".service")}
+	st := Status{UnitPath: filepath.Join(t.TempDir(), ServiceLabel+".service")}
 	_, err := installSystemdUser(st, def)
 	if err != nil && !strings.Contains(err.Error(), "systemctl") && !strings.Contains(err.Error(), "no such file") {
 		t.Fatalf("unexpected error: %v", err)
@@ -72,4 +72,4 @@ func TestSystemdUserUnit(t *testing.T) {
 		t.Errorf("service.env missing encryption key")
 	}
 	_ = os.Remove(st.UnitPath)
-	}
+}

@@ -8,9 +8,9 @@
 //     以保证工作目录正确（schtasks 不支持 WorkingDirectory）
 //
 // 三个关键不变量：
-//   1. 工作目录继承安装时的 cwd——auth.db/cron.db/cache 全是 cwd 相对路径；
-//   2. 环境快照固化进服务定义（ZENTAO_ENCRYPTION_KEY 等丢失会导致开机解密失败）；
-//   3. 开发模式守卫：go run 的临时二进制（路径含 go-build）拒绝安装。
+//  1. 工作目录继承安装时的 cwd——auth.db/cron.db/cache 全是 cwd 相对路径；
+//  2. 环境快照固化进服务定义（ZENTAO_ENCRYPTION_KEY 等丢失会导致开机解密失败）；
+//  3. 开发模式守卫：go run 的临时二进制（路径含 go-build）拒绝安装。
 package sysinstall
 
 import (
@@ -27,15 +27,15 @@ const ServiceLabel = "com.murphyyi.zentao-max"
 
 // Status 安装/运行状态快照。
 type Status struct {
-	Platform    string `json:"platform"`
-	Supported   bool   `json:"supported"`
-	Installed   bool   `json:"installed"`
-	Running     bool   `json:"running"`
-	ExecPath    string `json:"execPath"`
-	WorkDir     string `json:"workDir"`
-	DevMode     bool   `json:"devMode"` // go run 临时二进制，不可安装
-	UnitPath    string `json:"unitPath"`
-	Detail      string `json:"detail"`
+	Platform  string `json:"platform"`
+	Supported bool   `json:"supported"`
+	Installed bool   `json:"installed"`
+	Running   bool   `json:"running"`
+	ExecPath  string `json:"execPath"`
+	WorkDir   string `json:"workDir"`
+	DevMode   bool   `json:"devMode"` // go run 临时二进制，不可安装
+	UnitPath  string `json:"unitPath"`
+	Detail    string `json:"detail"`
 }
 
 type definition struct {

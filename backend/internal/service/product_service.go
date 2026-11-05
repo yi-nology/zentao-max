@@ -3,8 +3,8 @@ package service
 import (
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 
-	"github.com/yi-nology/zentao-max/backend/internal/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/vo"
 )
 
 // ProductService 产品业务逻辑服务

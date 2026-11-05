@@ -202,9 +202,9 @@ func (s *TimelogService) getMyEffortAnalysis(query *dto.TimelogQueryDTO) (map[st
 // ---- 本地聚合类型（与 zentao 包内 client_timelog 的聚合 shape 保持一致） ----
 
 type timelogStatItem struct {
-	Name   string  `json:"name"`
-	Hours  float64 `json:"hours"`
-	Count  int     `json:"count"`
+	Name  string  `json:"name"`
+	Hours float64 `json:"hours"`
+	Count int     `json:"count"`
 }
 
 type timelogDailyStat struct {

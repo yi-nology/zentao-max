@@ -27,10 +27,10 @@ type CalendarEntry struct {
 	ID         int     `json:"id"`
 	Title      string  `json:"title"`
 	ObjectType string  `json:"objectType"` // "task" / "bug"，解析 [T]/[B] 前缀
-	Start      string  `json:"start"`     // YYYY-MM-DD
-	End        string  `json:"end"`       // YYYY-MM-DD
-	Consumed   float64 `json:"consumed"`  // 消耗工时（小时）
-	URL        string  `json:"url"`       // 禅道详情页
+	Start      string  `json:"start"`      // YYYY-MM-DD
+	End        string  `json:"end"`        // YYYY-MM-DD
+	Consumed   float64 `json:"consumed"`   // 消耗工时（小时）
+	URL        string  `json:"url"`        // 禅道详情页
 }
 
 // calendarRawEntry 是禅道端点返回的原始 shape。本地解析后转 CalendarEntry。

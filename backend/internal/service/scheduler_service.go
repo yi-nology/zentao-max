@@ -9,11 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-		"github.com/yi-nology/zentao-max/backend/internal/initialization"
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/internal/initialization"
 	"github.com/yi-nology/zentao-max/backend/internal/models"
-
-	)
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+)
 
 type SchedulerService struct {
 	store    *initialization.ConfigStore

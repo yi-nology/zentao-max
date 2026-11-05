@@ -14,8 +14,7 @@ import (
 	"github.com/oekit/concurrency/async"
 
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
-
-	)
+)
 
 // Client 封装禅道会话模式客户端（PHP *.json 端点 + zentaosid cookie）。
 // 适用于标准禅道开源版/企业版以及禁用 REST API 的实例（如受限实例 your-zentao-server.com）。
@@ -23,6 +22,7 @@ import (
 // Session 模式专属：
 //   - cache：SessionCache 二级 cache（L1 in-memory + L2 SQLite + singleflight + stale fallback）。
 //   - pool ：SessionWorkerPool 限流 + 写串行 + 读并发 4。
+//
 // 两者都 nil-safe：构造时若 server/account 为空则 nil，所有 doSessionJSON/Post 仍可工作。
 type Client struct {
 	account   string
@@ -655,7 +655,7 @@ var writeOpToEntity = map[string]sessionEntity{
 	// cases
 	"CreateCase": sessionEntityCases, "UpdateCase": sessionEntityCases, "DeleteCase": sessionEntityCases,
 	// efforts
-	"RecordEffort": sessionEntityEfforts,
+	"RecordEffort":      sessionEntityEfforts,
 	"BatchCreateEffort": sessionEntityEfforts,
 	// users
 	"CreateUser": sessionEntityUsers, "UpdateUser": sessionEntityUsers, "DeleteUser": sessionEntityUsers,
@@ -791,9 +791,10 @@ func opToEntity(op string) sessionEntity {
 
 // extractScopeFromPath 从 path 提取 scope 数字。
 // 例子：/bug-browse-1029-0-all.json → "byProduct:1029"
-//       /task-all-0-0--0-200-1.json → "all"（没明确产品）
-//       /user-browse.json → "all"
-//       /product-browse.json → "all"
+//
+//	/task-all-0-0--0-200-1.json → "all"（没明确产品）
+//	/user-browse.json → "all"
+//	/product-browse.json → "all"
 func extractScopeFromPath(path string) string {
 	// 简单策略：找 path 里第一个数字序列
 	digits := ""

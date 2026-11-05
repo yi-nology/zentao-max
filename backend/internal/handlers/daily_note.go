@@ -7,22 +7,23 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/errors"
-	"github.com/yi-nology/zentao-max/backend/internal/service"
 	"github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
+	"github.com/yi-nology/zentao-max/backend/internal/service"
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
 )
 
 // DailyNoteHandler daily note HTTP 处理器。
 //
 // 路由：
-//   GET  /api/v1/effort/notes?user={account}&year={YYYY}&month={MM}
-//        拉指定用户某月所有 note；user 留空取当前用户；year/month 留空返全部。
-//   GET  /api/v1/effort/notes/{user}/{date}
-//        拉单条 note；不存在返 200 + 空 content。
-//   PUT  /api/v1/effort/notes/{user}/{date}
-//        upsert 单条 note。body: {"content": "..."}。
-//   DELETE /api/v1/effort/notes/{user}/{date}
-//        删一条 note。
+//
+//	GET  /api/v1/effort/notes?user={account}&year={YYYY}&month={MM}
+//	     拉指定用户某月所有 note；user 留空取当前用户；year/month 留空返全部。
+//	GET  /api/v1/effort/notes/{user}/{date}
+//	     拉单条 note；不存在返 200 + 空 content。
+//	PUT  /api/v1/effort/notes/{user}/{date}
+//	     upsert 单条 note。body: {"content": "..."}。
+//	DELETE /api/v1/effort/notes/{user}/{date}
+//	     删一条 note。
 //
 // 业务定位：跟禅道 effort 互补 — effort 是 task 维度 ("X 任务 Y 小时")，
 // note 是日维度总结 ("今天整体感受 / 会议 / 明日计划")。
@@ -31,6 +32,7 @@ import (
 //   - 给当前 user 自动建一个 special "📓 Daily Notes" task（产品/项目/执行=0）
 //   - daily note 作为该 task 的 effort.work 字段
 //   - zentao web 端"我的工时"页 / task 详情页能直接看到
+//
 // 失败降级：zentao 不可达 / 限流时仅写本地 SQLite（不丢数据）。
 type DailyNoteHandler struct {
 	store   *zentao.DailyNoteStore

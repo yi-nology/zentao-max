@@ -6,9 +6,9 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
+	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/pkg/errors"
-	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 )
 
 // WriteHandler 暴露 bug/task/story 的写操作（Phase2c）。

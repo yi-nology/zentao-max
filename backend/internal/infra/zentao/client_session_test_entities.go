@@ -200,10 +200,10 @@ func (c *Client) getAllCasesSession(ctx context.Context, productID int) ([]zenta
 
 // v1CasesResp 接收 v1 响应. Page 用 string 兼容受限实例返 "1"/"2".
 type v1CasesResp struct {
-	Page      string             `json:"page"`
-	Total     int                `json:"total"`
-	Limit     int                `json:"limit"`
-	Testcases []v1CaseItem       `json:"testcases"`
+	Page      string       `json:"page"`
+	Total     int          `json:"total"`
+	Limit     int          `json:"limit"`
+	Testcases []v1CaseItem `json:"testcases"`
 }
 
 type v1CaseItem struct {

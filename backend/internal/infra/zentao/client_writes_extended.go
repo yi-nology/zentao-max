@@ -11,8 +11,8 @@ import (
 
 	neturl "net/url"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
 
 // 本文件补齐 SDK 的剩余写操作（Phase2c 扩展）。
@@ -102,10 +102,10 @@ func judgeBugCreateResponse(body []byte) (int, bool, error) {
 	}
 	// biz8.x 实例的 JSON 形态响应：{"result":"success"|"fail","message":...,"locate":...}
 	var jsonResp struct {
-		Result  string              `json:"result"`
-		Message json.RawMessage     `json:"message"`
-		Msg     string              `json:"msg"`
-		Locate  string              `json:"locate"`
+		Result  string          `json:"result"`
+		Message json.RawMessage `json:"message"`
+		Msg     string          `json:"msg"`
+		Locate  string          `json:"locate"`
 	}
 	if err := json.Unmarshal(body, &jsonResp); err == nil && jsonResp.Result != "" {
 		switch jsonResp.Result {

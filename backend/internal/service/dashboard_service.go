@@ -11,11 +11,12 @@ import (
 	"github.com/oekit/concurrency/async"
 	"github.com/oekit/concurrency/fanout"
 
-	"github.com/yi-nology/zentao-max/backend/pkg/logger"
-	"github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
-	"github.com/yi-nology/zentao-max/backend/internal/vo"
 	myzentao "github.com/yi-nology/zentao-max/backend/internal/infra/zentao"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	storage "github.com/yi-nology/zentao-max/backend/internal/repository/sqlite"
+	"github.com/yi-nology/zentao-max/backend/internal/vo"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
 
 // DashboardService 仪表盘服务
@@ -148,38 +149,6 @@ func convertTasks(tasks []zentaosdk.Task) []vo.TaskVO {
 		})
 	}
 	return result
-}
-
-func toFloat64(v interface{}) float64 {
-	if v == nil {
-		return 0
-	}
-	switch val := v.(type) {
-	case float64:
-		return val
-	case int:
-		return float64(val)
-	case json.Number:
-		f, _ := val.Float64()
-		return f
-	case string:
-		f, _ := time.ParseDuration(val)
-		return f.Hours()
-	}
-	return 0
-}
-
-func toInt(v interface{}) int {
-	switch val := v.(type) {
-	case int:
-		return val
-	case float64:
-		return int(val)
-	case json.Number:
-		n, _ := val.Int64()
-		return int(n)
-	}
-	return 0
 }
 
 func toWeekKey(dateStr string) string {
@@ -520,7 +489,7 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 			continue
 		}
 		for _, t := range tasks {
-			consumed := toFloat64(t.Consumed)
+			consumed := utils.ToFloat64(t.Consumed)
 			if consumed <= 0 {
 				continue
 			}
@@ -540,7 +509,7 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 					continue
 				}
 
-				c := toFloat64(e.Consumed)
+				c := utils.ToFloat64(e.Consumed)
 				result.TotalHours += c
 
 				dateKey := e.Date
@@ -553,7 +522,7 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 				}
 				dateMap[dateKey] += c
 
-				pid := toInt(e.Project)
+				pid := utils.ToInt(e.Project)
 				projectMap[pid] += c
 				projectNames[pid] = ec.ProjName
 

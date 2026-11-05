@@ -23,7 +23,7 @@ import (
 //
 // thread-safe：Service 自身有 mu 锁 special task_id 的查找/创建；DailyNoteStore 内部也有锁。
 type DailyNoteService struct {
-	store *myzentao.DailyNoteStore
+	store  *myzentao.DailyNoteStore
 	client *myzentao.Client
 
 	// 进程内 special task_id 缓存，避免每个请求都查 zentao。
@@ -42,10 +42,10 @@ func NewDailyNoteService(store *myzentao.DailyNoteStore, client *myzentao.Client
 
 // DailyNoteResult 是 PutNote 的返回（包含 zentao 同步状态）。
 type DailyNoteResult struct {
-	Note     *myzentao.DailyNote
+	Note         *myzentao.DailyNote
 	ZentaoSynced bool   // true = 同步到禅道 effort 成功；false = 仅本地
-	TaskID   int    // zentao special task_id（0 = 未同步到禅道）
-	Message  string // 给前端的提示文本
+	TaskID       int    // zentao special task_id（0 = 未同步到禅道）
+	Message      string // 给前端的提示文本
 }
 
 // PutNote 写一条 daily note：先尝试禅道 RecordEffort，再写本地 SQLite。
@@ -102,10 +102,10 @@ func (s *DailyNoteService) PutNote(ctx context.Context, user, date, content stri
 		msg = "已保存到本地（禅道同步失败，详情看 server log）"
 	}
 	return &DailyNoteResult{
-		Note:        note,
+		Note:         note,
 		ZentaoSynced: zentaoSynced,
-		TaskID:      zentaoTaskID,
-		Message:     msg,
+		TaskID:       zentaoTaskID,
+		Message:      msg,
 	}, nil
 }
 

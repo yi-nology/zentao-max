@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { getProducts, getProjects } from '@/api/zentao'
 import type { Product, Project } from '@/types/api'
 
@@ -67,6 +67,8 @@ const selectedProject = ref<number | string>('')
 
 // 加载产品列表（一次性）。冷拉需 10s+（后端遍历禅道分页），失败自动重试——
 // 此前静默吞掉，下拉永远"无数据"且无提示无自愈
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
 const loadProductList = async (retry = 0): Promise<void> => {
   productLoading.value = true
   productLoadFailed.value = false
@@ -85,7 +87,7 @@ const loadProductList = async (retry = 0): Promise<void> => {
     console.error('获取产品列表失败:', error)
     productLoadFailed.value = true
     if (retry < 2) {
-      setTimeout(() => loadProductList(retry + 1), 1500 * (retry + 1))
+      retryTimer = setTimeout(() => loadProductList(retry + 1), 1500 * (retry + 1))
     }
   } finally {
     productLoading.value = false
@@ -162,6 +164,14 @@ onMounted(async () => {
       selectedProject.value = props.modelValue.project
     }
     await loadProjectListByProduct(initialProduct)
+  }
+})
+
+// 卸载清理重试定时器（issue #7 顺带项：卸载后多触发一次，无害但脏）
+onBeforeUnmount(() => {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
   }
 })
 

@@ -312,3 +312,9 @@ export interface SelectOption {
   label: string
   value: string | number
 }
+
+/** 顶部全局选择器共享的产品/项目选择状态（Layout provide，各列表页 inject） */
+export interface GlobalSelection {
+  product: number | null
+  project: number | null
+}

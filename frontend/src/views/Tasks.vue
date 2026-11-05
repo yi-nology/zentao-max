@@ -59,6 +59,12 @@
       <div class="table-header">
         <span class="result-count">共 {{ pagination.total }} 条</span>
         <div class="header-actions">
+          <ColumnSettings
+            :columns="columns"
+            @toggle="toggleColumn"
+            @show-all="showAllColumns"
+            @reset="resetColumns"
+          />
           <span v-if="pagination.total > 0" class="export-hint">导出当前筛选的全部 {{ pagination.total }} 条</span>
           <el-dropdown split-button type="success" size="small" :loading="exporting" :disabled="pagination.total === 0" @click="handleExport('excel')" @command="handleExport">
             导出 Excel
@@ -74,34 +80,34 @@
       </div>
       <div v-if="loading" class="cold-load-hint">大实例首次加载需全量遍历执行（可能需要 1 分钟），之后走缓存秒开</div>
       <el-table v-loading="loading" :data="taskList" border stripe style="width: 100%" :empty-text="listEmptyText" :row-class-name="tableRowClassName" @row-click="handleRowClick">
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="name" label="标题" min-width="220">
+        <el-table-column v-if="isColVisible('id')" prop="id" label="ID" width="80" align="center" />
+        <el-table-column v-if="isColVisible('name')" prop="name" label="标题" min-width="220">
           <template #default="{ row }">
             <a href="javascript:void(0)" @click="openZentaoTask(row.id)" class="task-title">{{ row.name }}</a>
             <span v-if="overdueDays(row) > 0" class="overdue-flag">已超期{{ overdueDays(row) }}天</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column v-if="isColVisible('status')" prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="指派给" width="110" align="center">
+        <el-table-column v-if="isColVisible('assignedTo')" label="指派给" width="110" align="center">
           <template #default="{ row }">
             <span class="assignee-cell">{{ row.assignedTo?.realname || row.assignedTo?.account || '未指派' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="estimate" label="预估" width="80" align="center">
+        <el-table-column v-if="isColVisible('estimate')" prop="estimate" label="预估" width="80" align="center">
           <template #default="{ row }">
             <span :class="{ 'text-over-hours': isOverHours(row) }">{{ row.estimate || 0 }}h</span>
           </template>
         </el-table-column>
-        <el-table-column prop="consumed" label="消耗" width="80" align="center">
+        <el-table-column v-if="isColVisible('consumed')" prop="consumed" label="消耗" width="80" align="center">
           <template #default="{ row }">
             <span :class="{ 'text-over-hours': isOverHours(row) }">{{ row.consumed || 0 }}h</span>
           </template>
         </el-table-column>
-        <el-table-column label="进度" width="130" align="center">
+        <el-table-column v-if="isColVisible('progress')" label="进度" width="130" align="center">
           <template #default="{ row }">
             <el-progress :percentage="getProgress(row.estimate, row.consumed)" :status="getProgressStatus(row)" :stroke-width="8" />
           </template>
@@ -182,6 +188,8 @@ import { dateShortcuts } from '@/utils/date'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getExecutions, getTasks, getTask, getTaskStatusOptions, getUsers, startTask, finishTask, pauseTask, activateTask, recordEffort } from '@/api/zentao'
 import { usePagedQuery } from '@/composables/usePagedQuery'
+import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/ColumnSettings.vue'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
@@ -205,6 +213,22 @@ const { pagination, handleSizeChange, handlePageChange } = usePagedQuery(() => {
 // 统计分段卡：服务端按全量（分页前）统计，避免随翻页跳变
 const statusCounts = ref<Record<'doing' | 'wait' | 'done' | 'closed', number>>({ doing: 0, wait: 0, done: 0, closed: 0 })
 const exporting = ref<boolean>(false)
+
+// 列配置（M4 推广自 Bugs 页，issue #7-6；默认全可见，行为不变）
+interface TaskColumnConfig extends ColumnConfig { key: 'id' | 'name' | 'status' | 'assignedTo' | 'estimate' | 'consumed' | 'progress' }
+const defaultTaskColumns: TaskColumnConfig[] = [
+  { key: 'id', label: 'ID', visible: true, width: 80 },
+  { key: 'name', label: '标题', visible: true, minWidth: 220 },
+  { key: 'status', label: '状态', visible: true, width: 100 },
+  { key: 'assignedTo', label: '指派给', visible: true, width: 110 },
+  { key: 'estimate', label: '预估', visible: true, width: 80 },
+  { key: 'consumed', label: '消耗', visible: true, width: 80 },
+  { key: 'progress', label: '进度', visible: true, width: 130 }
+]
+const { columns, toggleColumn, showAllColumns, resetColumns } =
+  useTableColumns<TaskColumnConfig>('zentao-max-task-columns', defaultTaskColumns)
+const isColVisible = (key: string): boolean =>
+  columns.value.find(c => c.key === key)?.visible ?? true
 
 
 // 未选产品/执行时不发请求，页面展示引导文案
@@ -271,7 +295,7 @@ watch(() => [globalSelection.product, globalSelection.project], () => {
   pagination.page = 1
   fetchExecutions()
   fetchTasks()
-}, { deep: true })
+})
 
 const fetchTasks = async (): Promise<void> => {
   if (!hasScope()) {

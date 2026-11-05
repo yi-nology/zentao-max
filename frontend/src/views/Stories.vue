@@ -68,6 +68,12 @@
         <span v-if="selectedStories.length > 0">已选择 {{ selectedStories.length }} 个需求</span>
         <span v-else class="result-count">共 {{ pagination.total }} 条</span>
         <div class="header-actions">
+          <ColumnSettings
+            :columns="columns"
+            @toggle="toggleColumn"
+            @show-all="showAllColumns"
+            @reset="resetColumns"
+          />
           <el-button type="primary" size="small" @click="handleViewDetails" :disabled="selectedStories.length === 0">查看详情</el-button>
           <span v-if="selectedStories.length > 0 || pagination.total > 0" class="export-hint">{{ selectedStories.length > 0 ? `导出已选的 ${selectedStories.length} 条` : `导出当前筛选的全部 ${pagination.total} 条` }}</span>
           <el-dropdown split-button type="success" size="small" :loading="exporting" :disabled="selectedStories.length === 0 && pagination.total === 0" @click="handleExport('excel')" @command="handleExport">
@@ -84,26 +90,26 @@
       </div>
       <el-table v-loading="loading" :data="filteredStoryList" border stripe style="width: 100%" :empty-text="listEmptyText" @select="handleSelect" @select-all="handleSelectAll" @row-click="handleRowClick">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" align="center" />
-        <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
+        <el-table-column v-if="isColVisible('id')" prop="id" label="ID" width="80" align="center" />
+        <el-table-column v-if="isColVisible('title')" prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <a href="javascript:void(0)" @click="openEntity('story', row.id)" class="story-title">{{ row.title }}</a>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column v-if="isColVisible('status')" prop="status" label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="pri" label="优先级" width="80" align="center">
+        <el-table-column v-if="isColVisible('pri')" prop="pri" label="优先级" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="getPriorityType(row.pri)">{{ row.pri }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="stage" label="阶段" width="100" align="center">
+        <el-table-column v-if="isColVisible('stage')" prop="stage" label="阶段" width="100" align="center">
           <template #default="{ row }">{{ getStageLabel(row.stage) }}</template>
         </el-table-column>
-        <el-table-column prop="assignedTo" label="指派人" width="100" align="center">
+        <el-table-column v-if="isColVisible('assignedTo')" prop="assignedTo" label="指派人" width="100" align="center">
           <template #default="{ row }">{{ row.assignedTo?.realname || row.assignedTo?.account || row.assignedTo || '-' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="80" align="center">
@@ -141,6 +147,8 @@ import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { dateShortcuts } from '@/utils/date'
+import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
+import ColumnSettings from '@/components/ColumnSettings.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getStories, getStory, getUsers, getProducts, getStoryStatusOptions } from '@/api/zentao'
 import { usePagedQuery } from '@/composables/usePagedQuery'
@@ -171,6 +179,21 @@ const { pagination, handleSizeChange, handlePageChange } = usePagedQuery(() => {
 // max 后端 status 过滤在客户端进行，统计口径为"除状态外筛选后的全量"
 const statusCounts = ref<Record<'draft' | 'active' | 'reviewing' | 'changed' | 'closed', number>>({ draft: 0, active: 0, reviewing: 0, changed: 0, closed: 0 })
 const exporting = ref<boolean>(false)
+
+// 列配置（M4 推广自 Bugs 页，issue #7-6；默认全可见，行为不变）
+interface StoryColumnConfig extends ColumnConfig { key: 'id' | 'title' | 'status' | 'pri' | 'stage' | 'assignedTo' }
+const defaultStoryColumns: StoryColumnConfig[] = [
+  { key: 'id', label: 'ID', visible: true, width: 80 },
+  { key: 'title', label: '标题', visible: true, minWidth: 200 },
+  { key: 'status', label: '状态', visible: true, width: 90 },
+  { key: 'pri', label: '优先级', visible: true, width: 80 },
+  { key: 'stage', label: '阶段', visible: true, width: 100 },
+  { key: 'assignedTo', label: '指派人', visible: true, width: 100 }
+]
+const { columns, toggleColumn, showAllColumns, resetColumns } =
+  useTableColumns<StoryColumnConfig>('zentao-max-story-columns', defaultStoryColumns)
+const isColVisible = (key: string): boolean =>
+  columns.value.find(c => c.key === key)?.visible ?? true
 
 
 // 未选产品/项目时不发请求，页面展示引导文案

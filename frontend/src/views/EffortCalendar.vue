@@ -109,220 +109,44 @@
       <span class="legend-item"><span class="legend-swatch type-other" />其他</span>
     </div>
 
-    <!-- 当日明细弹窗 -->
-    <el-dialog
-      v-model="dayDialogVisible"
-      :title="dayDialogTitle"
-      width="680px"
-      append-to-body
-    >
-      <!-- 这天我干了什么（自由文本） -->
-      <div class="note-section">
-        <div class="note-header">
-          <span class="note-title">📝 这天我干了什么</span>
-          <span v-if="noteDirty" class="note-status note-status-dirty">未保存</span>
-          <span v-else-if="noteSaved" class="note-status note-status-saved">已保存 ✓</span>
-          <span v-if="currentNote" class="note-updated">
-            {{ formatNoteTime(currentNote.updatedAt) }}
-          </span>
-        </div>
-        <el-input
-          v-model="noteDraft"
-          type="textarea"
-          :rows="4"
-          placeholder="今天做 X / 会议 / 明日计划…（留空也可保存）"
-          maxlength="2000"
-          show-word-limit
-          @input="onNoteInput"
-        />
-        <!-- 同步为工时：备注内容挂到指定任务（禅道日志必须挂对象） -->
-        <div class="note-effort-sync">
-          <el-checkbox v-model="noteSyncEnabled">同步为工时（挂到任务）</el-checkbox>
-          <template v-if="noteSyncEnabled">
-            <el-select
-              v-model="noteSyncTask"
-              placeholder="选择任务"
-              filterable
-              size="small"
-              style="width: 100%; margin-top: 8px"
-            >
-              <el-option-group label="我负责的任务">
-                <el-option
-                  v-for="t in taskOptions"
-                  :key="`note-${t.id}`"
-                  :label="`#${t.id} ${t.name} (剩 ${t.left}h)`"
-                  :value="`task_${t.id}`"
-                />
-              </el-option-group>
-            </el-select>
-            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px">
-              <span class="note-sync-label">消耗(h)</span>
-              <el-input-number v-model="noteSyncConsumed" :min="0.5" :max="24" :step="0.5" :precision="1" size="small" />
-              <span class="note-sync-label" v-if="noteSyncTask">{{ currentNoteDay }}</span>
-            </div>
-          </template>
-        </div>
-        <div class="note-actions">
-          <el-button size="small" @click="onClearNote" :disabled="!noteDraft">清空</el-button>
-          <el-button size="small" type="primary" :loading="noteSaving" @click="onSaveNote">
-            {{ noteSyncEnabled && noteSyncTask ? '保存并挂工时' : '保存' }}
-          </el-button>
-        </div>
-      </div>
+    <EffortDayDialog
+      ref="dayDialogRef"
+      :user="noteUser"
+      :task-options="taskOptions"
+      @saved="onNoteSaved"
+      @cleared="onNoteCleared"
+      @synced="loadData"
+    />
 
-      <el-divider />
-
-      <!-- 当日工时记录（禅道 effort） -->
-      <div v-if="dayEntries.length === 0" class="empty-day">该日无禅道工时记录</div>
-      <div v-else class="day-entries">
-        <div v-for="e in dayEntries" :key="e.id" class="day-entry">
-          <span class="entry-type" :class="`type-${e.objectType}`">{{ typeLabel(e.objectType) }}</span>
-          <span class="entry-title">{{ e.title }}</span>
-          <span class="entry-hours">{{ e.consumed.toFixed(1) }}h</span>
-          <a v-if="e.url" :href="originBase + e.url" target="_blank" rel="noopener" class="entry-link">查看</a>
-        </div>
-        <div class="day-total">
-          合计: <strong>{{ dayTotal.toFixed(1) }}</strong> 小时 · {{ dayEntries.length }} 条
-        </div>
-      </div>
-    </el-dialog>
-
-    <!-- 批量添加工时弹窗（受限实例 batchCreate 端点转发） -->
-    <el-dialog
-      v-model="batchDialogVisible"
-      title="批量添加工时"
-      width="820px"
-      append-to-body
-      :close-on-click-modal="false"
-    >
-      <div class="batch-form">
-        <div class="batch-row batch-row-header">
-          <div class="batch-cell batch-cell-date">
-            <span class="batch-label">日期</span>
-            <el-date-picker
-              v-model="batchDate"
-              type="date"
-              placeholder="选择日期"
-              value-format="YYYY-MM-DD"
-              :disabled-date="(d: Date) => d.getTime() > Date.now()"
-              style="width: 160px"
-            />
-          </div>
-          <div class="batch-cell batch-cell-stats">
-            <span class="batch-stat">
-              共 <strong>{{ batchItems.length }}</strong> 行 ·
-              <strong>{{ validBatchCount }}</strong> 条有效 ·
-              合计 <strong>{{ batchTotalConsumed.toFixed(1) }}</strong> h
-            </span>
-          </div>
-        </div>
-
-        <el-table :data="batchItems" style="width: 100%" size="small" empty-text="暂无数据，点击下方 + 添加行 或 导入 Excel">
-          <el-table-column label="日期" width="115">
-            <template #default="{ row }">
-              <el-input v-model="row.date" :placeholder="batchDate" size="small" style="width: 100%" />
-            </template>
-          </el-table-column>
-          <el-table-column label="任务 / Bug" min-width="260">
-            <template #default="{ row }">
-              <el-select
-                v-model="row.objectType"
-                placeholder="选择任务或Bug"
-                filterable
-                style="width: 100%"
-                @change="(v: string) => onTaskSelectChange(row, v)"
-              >
-                <el-option-group label="我负责的任务">
-                  <el-option
-                    v-for="t in taskOptions"
-                    :key="`task-${t.id}`"
-                    :label="`#${t.id} ${t.name} (剩 ${t.left}h)`"
-                    :value="`task_${t.id}`"
-                  />
-                </el-option-group>
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="工作内容" min-width="200">
-            <template #default="{ row }">
-              <el-input v-model="row.work" placeholder="做了什么" size="small" />
-            </template>
-          </el-table-column>
-          <el-table-column label="消耗(h)" width="100">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.consumed"
-                :min="0"
-                :max="24"
-                :step="0.5"
-                :precision="1"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="剩余(h)" width="100">
-            <template #default="{ row }">
-              <el-input-number
-                v-model="row.left"
-                :min="0"
-                :max="999"
-                :step="0.5"
-                :precision="1"
-                size="small"
-                controls-position="right"
-                style="width: 100%"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right">
-            <template #default="{ $index }">
-              <el-button link type="danger" size="small" @click="removeBatchItem($index)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="batch-toolbar">
-          <el-button size="small" @click="addBatchItem">+ 添加行</el-button>
-          <el-button size="small" @click="resetBatchItems">清空</el-button>
-          <el-button size="small" type="success" plain :loading="importing" @click="importFileRef?.click()">导入 Excel</el-button>
-          <input
-            ref="importFileRef"
-            type="file"
-            accept=".xlsx,.xls"
-            style="display: none"
-            @change="onImportFile"
-          />
-          <span class="batch-tip">提示：受限实例端点要求 objectType 格式为 task_xxx 或 bug_xxx；剩余留空将按任务当前剩余自动扣减</span>
-        </div>
-      </div>
-
-      <template #footer>
-        <el-button @click="batchDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="batchSubmitting" @click="onBatchSubmit">提交</el-button>
-      </template>
-    </el-dialog>
+    <EffortBatchDialog
+      ref="batchDialogRef"
+      :task-options="taskOptions"
+      :existing-entries="result?.entries ?? []"
+      @submitted="loadData"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+/**
+ * 工时日历（issue #7-4：当日明细弹窗拆 EffortDayDialog、批量添加/Excel 导入
+ * 拆 EffortBatchDialog）。本文件保留：年月用户控件、日历格子聚合渲染、
+ * daily note 缓存（📝 指示）、任务选项加载。
+ */
+import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import {
   getEffortCalendar,
   getUsers,
-  listDailyNotes,
-  putDailyNote,
-  deleteDailyNote,
   getTasks,
-  batchCreateEffort,
+  listDailyNotes,
   type DailyNote
 } from '@/api/zentao'
 import { formatDate } from '@/utils/date'
+import EffortDayDialog from '@/components/EffortDayDialog.vue'
+import EffortBatchDialog from '@/components/EffortBatchDialog.vue'
 import type {
   EffortCalendarResult,
-  EffortCalendarEntry,
   EffortCalendarSummary
 } from '@/types/api'
 
@@ -335,79 +159,10 @@ const loading = ref(false)
 const result = ref<EffortCalendarResult | null>(null)
 const userOptions = ref<{ value: string; label: string }[]>([])
 
-// 弹窗
-const dayDialogVisible = ref(false)
-const dayDialogTitle = ref('')
-const dayEntries = ref<EffortCalendarEntry[]>([])
-const dayTotal = computed(() => dayEntries.value.reduce((s, e) => s + e.consumed, 0))
-
-// Daily note 状态
 const noteByDate = ref<Record<string, DailyNote>>({})
-const noteDraft = ref('')
-const noteSaving = ref(false)
-// 同步为工时：备注内容挂到指定任务（禅道日志必须挂对象，纯文本不算日志）
-const noteSyncEnabled = ref(false)
-const noteSyncTask = ref('')
-const noteSyncConsumed = ref(0.5)
-const noteDirty = ref(false)  // 草稿未保存
-const noteSaved = ref(false)  // 刚保存成功（短暂显示 "已保存"）
-const currentNote = ref<DailyNote | null>(null) // 弹窗当前日期的 note（来自 noteByDate 或 null）
-const currentNoteDay = ref<string>('') // 弹窗正在编辑的日期
 
-// === 批量添加工时弹窗 ===
-const batchDialogVisible = ref(false)
-const batchSubmitting = ref(false)
-const batchDate = ref(formatDate(new Date())) // YYYY-MM-DD（本地时区）
-interface BatchFormItem {
-  /** 行级日期（Excel 导入可跨天），空 = 用顶部 batchDate */
-  date: string
-  work: string
-  objectType: string  // 'task_xxx' / 'bug_xxx'
-  execution: number
-  consumed: number
-  left: number
-}
-const batchItems = ref<BatchFormItem[]>([])
+// 「同步为工时」与批量添加工时共用的任务下拉选项
 const taskOptions = ref<{ id: number; name: string; execution: number; left: number }[]>([])
-const importing = ref(false)
-const importFileRef = ref<HTMLInputElement | null>(null)
-
-const validBatchCount = computed(() => batchItems.value.filter(i =>
-  i.objectType && i.execution > 0 && i.consumed >= 0
-).length)
-const batchTotalConsumed = computed(() => batchItems.value.reduce((s, i) => s + (i.consumed || 0), 0))
-
-function emptyBatchItem(): BatchFormItem {
-  return { date: '', work: '', objectType: '', execution: 0, consumed: 0, left: 0 }
-}
-
-function addBatchItem() {
-  batchItems.value.push(emptyBatchItem())
-}
-
-function removeBatchItem(idx: number) {
-  batchItems.value.splice(idx, 1)
-}
-
-function resetBatchItems() {
-  batchItems.value = [emptyBatchItem()]
-}
-
-function onTaskSelectChange(row: BatchFormItem, v: string) {
-  // v 格式: "task_{id}" 或 "bug_{id}"
-  if (!v) return
-  if (!row.date) row.date = batchDate.value
-  const [kind, idStr] = v.split('_')
-  const id = Number(idStr)
-  if (kind === 'task') {
-    const t = taskOptions.value.find((x) => x.id === id)
-    if (t) {
-      row.execution = t.execution
-      // 默认 left 用 task 当前剩余
-      if (row.left === 0) row.left = t.left
-    }
-  }
-}
 
 async function loadTaskOptions() {
   // 拉当前查看用户的待办任务。selectedUser 是账号；未显式选择时日历接口返回的
@@ -439,268 +194,11 @@ async function loadTaskOptions() {
   }
 }
 
-// === Excel 导入（复刻 skills/zentao-timelog zt.py 的解析语义） ===
-// 红线对应：先预览（本表格即 dry-run）再提交；剩余工时留空 = 任务当前剩余按行累计扣减；
-// 已提交过的行（日历已有同日同对象同消耗）自动跳过并在导入时提示。
-
-/** Excel 日期序列号 → YYYY-MM-DD（1899-12-30 起算） */
-function excelSerialToDate(n: number): Date {
-  return new Date(Math.round((n - 25569) * 86400000))
-}
-
-/** 归一日期：YYYY-MM-DD / YYYY/M/D / M.D / 今天 / 昨天 / Excel 序列号 / Date 对象 */
-function normDate(v: unknown, base = new Date()): string | null {
-  const fmt = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  if (v == null || v === '') return null
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return fmt(v)
-  if (typeof v === 'number' && Number.isFinite(v)) {
-    // Excel 日期序列号（常见 > 20000）；M.D 形态（如 9.16）按"今年月.日"解释
-    if (v > 59) return fmt(excelSerialToDate(v))
-    const m = String(v).match(/^(\d{1,2})\.(\d{1,2})$/)
-    if (m) return fmt(new Date(base.getFullYear(), Number(m[1]) - 1, Number(m[2])))
-    return null
-  }
-  const s = String(v).trim()
-  if (s === '今天') return fmt(base)
-  if (s === '昨天') { const d = new Date(base); d.setDate(d.getDate() - 1); return fmt(d) }
-  let m = s.match(/^(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?$/)
-  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
-  m = s.match(/^(\d{1,2})[.月](\d{1,2})[.]?日?$/)
-  if (m) return fmt(new Date(base.getFullYear(), Number(m[1]) - 1, Number(m[2])))
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : fmt(d)
-}
-
-/** 对象号归一：123456 / 任务#123456 / BUG#123456 / task_123456 → { type, id } */
-function parseObjectNo(v: unknown, typeHint: string): { objectType: string; id: number } | null {
-  if (v == null) return null
-  const s = String(v).trim()
-  if (!s) return null
-  let m = s.match(/^(task|bug|任务|BUG|Bug)[#_:\-\s]*(\d+)$/i)
-  if (m) {
-    const kind = /^(bug|BUG|Bug)$/.test(m[1]) ? 'bug' : 'task'
-    return { objectType: `${kind}_${m[2]}`, id: Number(m[2]) }
-  }
-  m = s.match(/^(\d+)$/)
-  if (m) {
-    const kind = typeHint.toLowerCase().startsWith('bug') ? 'bug' : 'task'
-    return { objectType: `${kind}_${m[1]}`, id: Number(m[1]) }
-  }
-  return null
-}
-
-// 台账去重键：日期|工作内容|消耗（日历 entry.url 是 effort-view 不含对象 ID，
-// 与 zt.py 台账语义一致按"内容+日期+消耗"判重）
-
-const HEADER_HINTS = ['日期', '类型', '对象号', '工作内容', '消耗', '剩余', '测试包版本']
-
-async function onImportFile(ev: Event): Promise<void> {
-  const input = ev.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  importing.value = true
-  try {
-    const XLSX = await import('xlsx')
-    const buf = await file.arrayBuffer()
-    // cellDates: 日期单元格直接给 Date，避免序列号歧义
-    const wb = XLSX.read(buf, { cellDates: true })
-    const sheet = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false })
-
-    // 前 10 行内定位表头行（sheet_to_json 已按第一个非空行做表头，这里按列名做别名映射）
-    const pick = (row: Record<string, unknown>, keys: string[]): unknown => {
-      for (const k of keys) {
-        for (const col of Object.keys(row)) {
-          if (col.trim() === k) return row[col]
-        }
-      }
-      return undefined
-    }
-    // 校验表头：至少命中 3 个提示词，否则提示模板不符
-    const cols = rows.length > 0 ? Object.keys(rows[0]) : []
-    const hit = cols.filter((c) => HEADER_HINTS.some((h) => c.includes(h))).length
-    if (rows.length === 0 || hit < 3) {
-      ElMessage.error('未识别到表头（需要包含：日期/类型/对象号/工作内容/消耗工时 列）。请使用模板格式，表头前允许有说明行。')
-      return
-    }
-
-    const items: BatchFormItem[] = []
-    const invalidRows: string[] = []
-    let skippedComment = 0
-    const fileSeen = new Set<string>() // 文件内去重
-    let skippedDupInFile = 0
-    // 台账式去重：日历已有 同日 + 同对象 + 同消耗 的记录视为已提交
-    const existing = new Set<string>()
-    for (const e of result.value?.entries ?? []) {
-      existing.add(`${e.start}|${String(e.title || '').trim()}|${e.consumed}`)
-    }
-    let skippedAlreadySubmitted = 0
-
-    // 剩余工时自动计算基准：任务当前剩余，同一任务多行按提交顺序累计扣减
-    const taskLeftBase = new Map<number, number>()
-    const taskExec = new Map<number, number>()
-
-    for (const row of rows) {
-      const objNo = pick(row, ['对象号', '任务/Bug', '任务号', 'Bug号', '对象'])
-      const work = String(pick(row, ['工作内容', '内容', '工作']) ?? '').trim()
-      // 注释行：对象号或内容以 # 开头
-      if (String(objNo ?? '').trim().startsWith('#') || work.startsWith('#')) { skippedComment++; continue }
-      const typeHint = String(pick(row, ['类型']) ?? '')
-      const parsed = parseObjectNo(objNo, typeHint)
-      const consumed = Number(pick(row, ['消耗工时', '消耗', '工时']) ?? 0) || 0
-      const leftRaw = pick(row, ['剩余工时', '剩余'])
-      const dateStr = normDate(pick(row, ['日期']), new Date(batchDate.value))
-      // 说明行/空行：对象号与内容都空
-      if (!parsed && !work) { skippedComment++; continue }
-      if (!parsed || consumed <= 0 || !dateStr) {
-        invalidRows.push(`第 ${rows.indexOf(row) + 2} 行：${!parsed ? '对象号无法识别' : consumed <= 0 ? '消耗工时必须大于 0' : '日期无法识别'}`)
-        continue
-      }
-
-      // 台账去重（禅道侧已有）与文件内去重
-      const key = `${dateStr}|${work}|${consumed}`
-      if (existing.has(key)) { skippedAlreadySubmitted++; continue }
-      if (fileSeen.has(key)) { skippedDupInFile++; continue }
-      fileSeen.add(key)
-
-      const taskId = parsed.objectType.startsWith('task_') ? parsed.id : 0
-      const known = taskOptions.value.find((t) => t.id === parsed.id)
-      if (taskId && known) {
-        if (!taskLeftBase.has(parsed.id)) taskLeftBase.set(parsed.id, known.left)
-        if (!taskExec.has(parsed.id)) taskExec.set(parsed.id, known.execution)
-      }
-      let left: number
-      const leftManual = String(leftRaw ?? '').trim()
-      if (leftManual !== '' && leftManual !== undefined && !Number.isNaN(Number(leftManual))) {
-        // 手填 = 绝对值（覆盖任务当前剩余）
-        left = Number(leftManual)
-      } else if (taskId && taskLeftBase.has(taskId)) {
-        // 自动：当前剩余 − 本次消耗，同任务多行累计扣减
-        left = Math.max(0, (taskLeftBase.get(taskId) ?? 0) - consumed)
-        taskLeftBase.set(taskId, left)
-      } else {
-        // Bug 工时或找不到的任务：剩余无基准，置 0（弹窗内可手改）
-        left = 0
-      }
-      items.push({
-        date: dateStr,
-        work,
-        objectType: parsed.objectType,
-        execution: taskExec.get(parsed.id) ?? known?.execution ?? 0,
-        consumed,
-        left
-      })
-    }
-
-    if (items.length === 0) {
-      ElMessage.error(`没有可导入的行。${invalidRows.length ? '问题：' + invalidRows.slice(0, 3).join('；') : ''}`)
-      return
-    }
-    batchItems.value = items
-    const parts = [`导入 ${items.length} 行`]
-    if (skippedAlreadySubmitted) parts.push(`禅道已有 ${skippedAlreadySubmitted} 行（跳过）`)
-    if (skippedDupInFile) parts.push(`文件内重复 ${skippedDupInFile} 行（跳过）`)
-    if (skippedComment) parts.push(`注释/空行 ${skippedComment} 行`)
-    if (invalidRows.length) parts.push(`无效 ${invalidRows.length} 行`)
-    const warn = [
-      invalidRows.length ? '无效行：\n' + invalidRows.slice(0, 5).join('\n') : '',
-      '剩余为 0 的行会把任务置为完成（受限实例还要求测试包版本），如非交付请手动改剩余。'
-    ].filter(Boolean).join('\n\n')
-    await ElMessageBox.alert(`${parts.join('，')}。请核对下方列表后再提交。${warn ? '\n\n' + warn : ''}`, '导入完成', { type: 'success', customStyle: { whiteSpace: 'pre-line' } }).catch(() => {})
-  } catch (err) {
-    console.error('Excel 解析失败:', err)
-    ElMessage.error(`Excel 解析失败: ${(err as Error).message}`)
-  } finally {
-    importing.value = false
-    input.value = ''
-  }
-}
-
-function openBatchCreateDialog() {
-  // 默认日期 = 当前日历选中日
-  if (currentDate.value) {
-    const d = new Date(currentDate.value)
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    batchDate.value = `${y}-${m}-${day}`
-  }
-  if (batchItems.value.length === 0) {
-    batchItems.value = [emptyBatchItem()]
-  }
-  batchDialogVisible.value = true
-  loadTaskOptions()
-}
-
-async function onBatchSubmit() {
-  const valid = batchItems.value.filter((i) => i.objectType && i.execution > 0)
-  if (valid.length === 0) {
-    ElMessage.error('至少需要一条有效记录（选择任务/Bug 且 execution 不为空）')
-    return
-  }
-  // 按行日期分组（Excel 导入可跨天），空日期回落到顶部 batchDate
-  const byDate = new Map<string, BatchFormItem[]>()
-  for (const i of valid) {
-    const d = i.date || batchDate.value
-    if (!byDate.has(d)) byDate.set(d, [])
-    byDate.get(d)!.push(i)
-  }
-  for (const d of byDate.keys()) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      ElMessage.error(`日期格式不正确：${d}（应为 YYYY-MM-DD）`)
-      return
-    }
-  }
-  batchSubmitting.value = true
-  try {
-    let created = 0
-    let skipped = 0
-    // 逐天提交（batchCreate 端点按日期组织表单），任一天失败即中止并提示已完成部分
-    for (const [date, items] of byDate) {
-      const payload = {
-        date,
-        items: items.map((i) => ({
-          work: i.work,
-          objectType: i.objectType,
-          execution: i.execution,
-          consumed: i.consumed,
-          left: i.left,
-        })),
-      }
-      const res = await batchCreateEffort(payload)
-      if (res.code === 200 && res.data) {
-        created += res.data.created
-        skipped += res.data.skipped
-      } else {
-        ElMessage.error(`${date} 提交失败: ${res.message || '未知错误'}（此前日期已写入的记录保留）`)
-        return
-      }
-    }
-    ElMessage.success(`已写入 ${created} 条，跳过 ${skipped} 条空行`)
-    batchDialogVisible.value = false
-    // 回读校验：重新拉当前 year 的日历，展开对应日期核对数值
-    await loadData()
-  } catch (err) {
-    ElMessage.error(`提交失败: ${(err as Error).message}`)
-  } finally {
-    batchSubmitting.value = false
-  }
-}
-
 function dayNote(day: string): DailyNote | null {
   return noteByDate.value[day] ?? null
 }
 
-function formatNoteTime(s?: string): string {
-  if (!s) return ''
-  const d = new Date(s)
-  if (isNaN(d.getTime())) return s
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
-// 禅道 base（从当前 location 推断，给 url 拼前缀用）
-const originBase = computed(() => window.location.origin)
 
 const summary = computed<EffortCalendarSummary | null>(() => result.value?.summary ?? null)
 
@@ -803,7 +301,6 @@ async function loadNotes() {
   }
 }
 
-// === 控件联动 ===
 function onFilterChange() {
   // 切换月份 / 年份 / 用户 都跳到对应日,让 el-calendar 跟着切视图
   if (currentMonth.value) {
@@ -813,117 +310,39 @@ function onFilterChange() {
   loadData()
 }
 
+// 目标用户账号（daily note 保存必填；未选时回退日历接口返回的 userName）
+const noteUser = computed(() => selectedUser.value || result.value?.userName || '')
+
+const dayDialogRef = ref<InstanceType<typeof EffortDayDialog> | null>(null)
+const batchDialogRef = ref<InstanceType<typeof EffortBatchDialog> | null>(null)
+
 function onDayClick(day: string) {
-  dayDialogTitle.value = day
-  dayEntries.value = (result.value?.entries ?? []).filter((e) => e.start === day)
-  // 加载当天的 note 进草稿
-  const existing = noteByDate.value[day] ?? null
-  currentNote.value = existing
-  currentNoteDay.value = day
-  noteDraft.value = existing?.content ?? ''
-  noteDirty.value = false
-  noteSaved.value = false
+  const entries = (result.value?.entries ?? []).filter((e) => e.start === day)
   // "同步为工时"需要我负责的任务下拉，打开时预加载
   loadTaskOptions()
-  dayDialogVisible.value = true
+  dayDialogRef.value?.open(day, entries, noteByDate.value[day] ?? null)
 }
 
-function onNoteInput() {
-  noteDirty.value = noteDraft.value !== (currentNote.value?.content ?? '')
-  noteSaved.value = false
+function onNoteSaved(note: DailyNote): void {
+  noteByDate.value = { ...noteByDate.value, [note.date]: note }
 }
 
-async function onSaveNote() {
-  if (!currentNoteDay.value) return
-  // user 没选时用当前登录用户（后端 user 留空时无法定位；这里强制传 user）
-  const user = selectedUser.value || (result.value?.userName ?? '')
-  if (!user) {
-    ElMessage.error('请先选择用户')
-    return
-  }
-  noteSaving.value = true
-  try {
-    const res = await putDailyNote(user, currentNoteDay.value, noteDraft.value)
-    if (res.code === 200 && res.data) {
-      const saved: DailyNote = res.data
-      noteByDate.value = { ...noteByDate.value, [saved.date]: saved }
-      currentNote.value = saved
-      noteDraft.value = saved.content
-      noteDirty.value = false
-      noteSaved.value = true
-      // 同步为工时：备注内容作为 work 挂到选中任务
-      let syncMsg = ''
-      if (noteSyncEnabled.value && noteSyncTask.value) {
-        const taskId = Number(noteSyncTask.value.split('_')[1])
-        const t = taskOptions.value.find((x) => x.id === taskId)
-        try {
-          const er = await batchCreateEffort({
-            date: currentNoteDay.value,
-            items: [{
-              work: noteDraft.value.trim(),
-              objectType: noteSyncTask.value,
-              execution: t?.execution || 0,
-              consumed: noteSyncConsumed.value,
-              left: t ? Math.max(0, t.left - noteSyncConsumed.value) : 0
-            }]
-          })
-          if (er.code === 200 && er.data && er.data.created > 0) {
-            syncMsg = `，已挂工时到 #${taskId}（${noteSyncConsumed.value}h）`
-            // 刷新日历让新工时条目出现
-            await loadData()
-          } else {
-            syncMsg = '，但挂工时失败：' + (er.message || '未知错误')
-          }
-        } catch (syncErr) {
-          syncMsg = '，但挂工时失败：' + (syncErr as Error).message
-        }
-      }
-      if (syncMsg.includes('失败')) {
-        ElMessage.warning('备注已保存' + syncMsg)
-      } else {
-        ElMessage.success('已保存' + syncMsg)
-      }
-      setTimeout(() => {
-        if (!noteDirty.value) noteSaved.value = false
-      }, 1500)
-    } else {
-      ElMessage.error(res.message || '保存失败')
-    }
-  } catch (err) {
-    ElMessage.error(`保存失败: ${(err as Error).message}`)
-  } finally {
-    noteSaving.value = false
-  }
+function onNoteCleared(day: string): void {
+  const next = { ...noteByDate.value }
+  delete next[day]
+  noteByDate.value = next
 }
 
-async function onClearNote() {
-  if (!currentNoteDay.value) return
-  const user = selectedUser.value || (result.value?.userName ?? '')
-  if (!user) return
-  try {
-    await deleteDailyNote(user, currentNoteDay.value)
-    // 清理本地缓存
-    const next = { ...noteByDate.value }
-    delete next[currentNoteDay.value]
-    noteByDate.value = next
-    currentNote.value = null
-    noteDraft.value = ''
-    noteDirty.value = false
-    ElMessage.success('已清空')
-  } catch (err) {
-    ElMessage.error(`清空失败: ${(err as Error).message}`)
-  }
+// 批量添加：默认日期 = 当前日历选中日
+function openBatchCreateDialog(): void {
+  const d = currentDate.value
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  loadTaskOptions()
+  batchDialogRef.value?.open(`${y}-${m}-${day}`)
 }
 
-function typeLabel(t: string): string {
-  switch (t) {
-    case 'task': return '任务'
-    case 'bug': return 'Bug'
-    case 'story': return '需求'
-    case 'project': return '项目'
-    default: return '其他'
-  }
-}
 
 // === 监听 selectedMonth 跟 el-calendar 同步 ===
 watch(currentMonth, (val) => {
@@ -1107,173 +526,5 @@ onMounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 2px;
-}
-
-.empty-day {
-  text-align: center;
-  color: var(--el-text-color-secondary);
-  padding: 24px 0;
-}
-
-/* === daily note 弹窗 === */
-.note-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.note-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-.note-title {
-  font-weight: 600;
-}
-
-.note-status {
-  font-size: 12px;
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-.note-status-dirty {
-  color: #d97706;
-  background: #fef3c7;
-}
-.note-status-saved {
-  color: #059669;
-  background: #d1fae5;
-}
-
-.note-updated {
-  margin-left: auto;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.note-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.note-effort-sync {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.note-sync-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.day-entries {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.day-entry {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.entry-type {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 12px;
-  color: #fff;
-  min-width: 48px;
-  text-align: center;
-}
-
-.entry-title {
-  flex: 1;
-  font-size: 13px;
-}
-
-.entry-hours {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  min-width: 50px;
-  text-align: right;
-}
-
-.entry-link {
-  font-size: 12px;
-  color: var(--el-color-primary);
-  text-decoration: none;
-}
-
-.entry-link:hover {
-  text-decoration: underline;
-}
-
-.day-total {
-  margin-top: 12px;
-  text-align: right;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-/* === 批量添加工时弹窗 === */
-.batch-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.batch-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 0;
-}
-
-.batch-cell-date {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.batch-label {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-.batch-cell-stats {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.batch-stat strong {
-  color: var(--el-color-primary);
-  margin: 0 2px;
-}
-
-.batch-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.batch-tip {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
 }
 </style>

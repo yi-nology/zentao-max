@@ -87,7 +87,7 @@
         <el-table-column prop="id" label="ID" width="80" align="center" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`story-view-${row.id}.html`))" class="story-title">{{ row.title }}</a>
+            <a href="javascript:void(0)" @click="openEntity('story', row.id)" class="story-title">{{ row.title }}</a>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="90" align="center">
@@ -140,8 +140,10 @@
 import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { dateShortcuts } from '@/utils/date'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getStories, getStory, getUsers, getProducts, getStoryStatusOptions } from '@/api/zentao'
+import { usePagedQuery } from '@/composables/usePagedQuery'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
@@ -149,12 +151,10 @@ import { useRoute, useRouter } from 'vue-router'
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
 interface ProductOption { id: number; name: string }
 interface FilterForm { productId: number | null; assignedTo: string; status: string; dateRange: [string, string] | []; specificDate: string }
-interface Pagination { page: number; pageSize: number; total: number }
-
 const globalSelection = inject<GlobalSelection>('globalSelection')!
 const route = useRoute()
 const router = useRouter()
-const { buildUrl: buildZentaoUrl } = useZentaoConfig()
+const { openEntity } = useZentaoConfig()
 // productId 优先级：filterForm 选的产品 > 顶部 globalSelection 选的产品
 const filterForm = reactive<FilterForm>({ productId: null, assignedTo: '', status: '', dateRange: [], specificDate: '' })
 const productOptions = ref<ProductOption[]>([])
@@ -165,20 +165,13 @@ const loading = ref<boolean>(false)
 const selectedStories = ref<Story[]>([])
 const detailDialogVisible = ref<boolean>(false)
 const currentStory = ref<Story | null>(null)
-const pagination = reactive<Pagination>({ page: 1, pageSize: 20, total: 0 })
+const { pagination, handleSizeChange, handlePageChange } = usePagedQuery(() => { syncRoute(); fetchStories() })
 
 // 统计分段卡：服务端按全量（分页前）统计，避免随翻页跳变。
 // max 后端 status 过滤在客户端进行，统计口径为"除状态外筛选后的全量"
 const statusCounts = ref<Record<'draft' | 'active' | 'reviewing' | 'changed' | 'closed', number>>({ draft: 0, active: 0, reviewing: 0, changed: 0, closed: 0 })
 const exporting = ref<boolean>(false)
-// 导出走全量分页拉取（后端单页上限 100）
-const EXPORT_PAGE_SIZE = 100
 
-const dateShortcuts = [
-  { text: '近7天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 6); return [start, end] } },
-  { text: '近30天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 29); return [start, end] } },
-  { text: '近90天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 89); return [start, end] } }
-]
 
 // 未选产品/项目时不发请求，页面展示引导文案
 const hasScope = (): boolean => !!(globalSelection.product || globalSelection.project || filterForm.productId)
@@ -286,8 +279,6 @@ const handleSearch = (): void => {
   pagination.page = 1; syncRoute(); fetchStories()
 }
 const handleReset = (): void => { filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; filterForm.specificDate = ''; pagination.page = 1; syncRoute(); fetchStories() }
-const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; syncRoute(); fetchStories() }
-const handlePageChange = (page: number): void => { pagination.page = page; syncRoute(); fetchStories() }
 
 const syncRoute = (): void => {
   const q: Record<string, string> = {}
@@ -322,7 +313,7 @@ const openDetailById = async (id: number): Promise<void> => {
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (exporting.value) return
   if (selectedStories.value.length === 0 && pagination.total === 0) return
-  const { exportData, timestampedFilename } = await import('@/utils/export')
+  const { exportData, fetchAllPages, timestampedFilename } = await import('@/utils/export')
   type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
   const cols: ExportColumn<Story>[] = [
     { header: 'ID', access: s => s.id },
@@ -345,14 +336,10 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
         endDate: filterForm.dateRange[1] || '',
         specificDate: filterForm.specificDate
       }
-      const pageCount = Math.ceil(pagination.total / EXPORT_PAGE_SIZE)
-      list = []
-      for (let p = 1; p <= pageCount; p++) {
-        const res = await getStories({ ...baseParams, page: p, pageSize: EXPORT_PAGE_SIZE })
-        const pageList = res.data.list || []
-        list.push(...pageList)
-        if (pageList.length < EXPORT_PAGE_SIZE) break
-      }
+      list = await fetchAllPages<Story>(pagination.total, async (p, ps) => {
+        const res = await getStories({ ...baseParams, page: p, pageSize: ps })
+        return res.data.list || []
+      })
     }
     if (list.length === 0) { ElMessage.warning('没有可导出的数据'); return }
     await exportData(timestampedFilename('需求列表'), list, cols, format, { title: '需求列表' })
@@ -365,13 +352,6 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   } finally { exporting.value = false }
 }
 
-const openZentaoLink = async (url: string): Promise<void> => {
-  if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
-  try {
-    const { openExternalLink } = await import('@/composables/useExternalLink')
-    await openExternalLink(url)
-  } catch { window.open(url, '_blank', 'noopener,noreferrer') }
-}
 
 onMounted(() => {
   const q = route.query

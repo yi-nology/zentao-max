@@ -156,7 +156,7 @@
             :show-overflow-tooltip="col.showOverflowTooltip"
           >
             <template v-if="col.key === 'title'" #default="{ row }">
-              <a href="javascript:void(0)" @click="openZentaoLink(buildZentaoUrl(`bug-view-${row.id}.html`))" class="bug-title">
+              <a href="javascript:void(0)" @click="openEntity('bug', row.id)" class="bug-title">
                 {{ row.title }}
               </a>
             </template>
@@ -342,9 +342,11 @@ import { ref, reactive, onMounted, computed, inject, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { formatDate as toLocalDateStr } from '@/utils/date'
+import { dateShortcuts, formatDate as toLocalDateStr } from '@/utils/date'
+import { extractApiError } from '@/api/api'
 import { getBugs, getBug, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug, batchCreateEffort } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
+import { usePagedQuery } from '@/composables/usePagedQuery'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
 import ColumnSettings from '@/components/ColumnSettings.vue'
@@ -366,16 +368,10 @@ interface FilterForm {
   specificDate: string
 }
 
-interface Pagination {
-  page: number
-  pageSize: number
-  total: number
-}
-
 const globalSelection = inject<GlobalSelection>('globalSelection')!
 const route = useRoute()
 const router = useRouter()
-const { buildUrl: buildZentaoUrl } = useZentaoConfig()
+const { buildUrl: buildZentaoUrl, openEntity } = useZentaoConfig()
 
 // ----- 表格列配置（自定义列 + 本地排序） -----
 interface BugColumnConfig extends ColumnConfig {
@@ -474,23 +470,16 @@ const versionOptions = computed<Build[]>(() => {
   return buildVersions.value.length > 0 ? buildVersions.value : fallbackVersions.value
 })
 
-const pagination = reactive<Pagination>({
-  page: 1,
-  pageSize: 20,
-  total: 0
-})
+// 未选产品时翻页/改页大小不触发请求（与原 hand-rolled 版语义一致）
+const { pagination, handleSizeChange, handlePageChange } = usePagedQuery(
+  () => { syncRoute(); fetchBugs() },
+  { guard: () => !!globalSelection.product }
+)
 
 // 统计分段卡：服务端按全量（分页前）统计，避免随翻页跳变
 const statusCounts = ref<Record<'active' | 'resolved' | 'closed', number>>({ active: 0, resolved: 0, closed: 0 })
 const exporting = ref<boolean>(false)
-// 导出走全量分页拉取（后端单页上限 100）
-const EXPORT_PAGE_SIZE = 100
 
-const dateShortcuts = [
-  { text: '近7天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 6); return [start, end] } },
-  { text: '近30天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 29); return [start, end] } },
-  { text: '近90天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 89); return [start, end] } }
-]
 
 // 未选产品时不发请求，页面展示引导文案
 const hasScope = (): boolean => !!globalSelection.product
@@ -708,8 +697,7 @@ const submitAction = async (): Promise<void> => {
     actionDialogVisible.value = false
     fetchBugs()
   } catch (err) {
-    const anyErr = err as { response?: { data?: { message?: string } } }
-    ElMessage.error(anyErr?.response?.data?.message || '操作失败')
+    ElMessage.error(extractApiError(err) || '操作失败')
   } finally {
     actionLoading.value = false
   }
@@ -785,8 +773,7 @@ const submitBugEffort = async (): Promise<void> => {
       ElMessage.error(res.message || '提交失败')
     }
   } catch (err) {
-    const anyErr = err as { response?: { data?: { message?: string } } }
-    ElMessage.error(anyErr?.response?.data?.message || '提交失败')
+    ElMessage.error(extractApiError(err) || '提交失败')
   } finally {
     effortSubmitting.value = false
   }
@@ -836,26 +823,10 @@ const submitBugEdit = async (): Promise<void> => {
     // 回查：重新拉列表（接口返回 success 不代表字段落库，以回读为准）
     fetchBugs()
   } catch (err) {
-    const anyErr = err as { response?: { data?: { message?: string } } }
-    ElMessage.error(anyErr?.response?.data?.message || '提交失败')
+    ElMessage.error(extractApiError(err) || '提交失败')
   } finally {
     editSubmitting.value = false
   }
-}
-
-const handleSizeChange = (size: number): void => {
-  if (!globalSelection.product) return
-  pagination.pageSize = size
-  pagination.page = 1
-  syncRoute()
-  fetchBugs()
-}
-
-const handlePageChange = (page: number): void => {
-  if (!globalSelection.product) return
-  pagination.page = page
-  syncRoute()
-  fetchBugs()
 }
 
 const syncRoute = (): void => {
@@ -987,7 +958,7 @@ const openDetailById = async (id: number): Promise<void> => {
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (exporting.value) return
   if (selectedBugs.value.length === 0 && pagination.total === 0) return
-  const { exportData, timestampedFilename } = await import('@/utils/export')
+  const { exportData, fetchAllPages, timestampedFilename } = await import('@/utils/export')
   type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
   const cols: ExportColumn<Bug>[] = [
     { header: 'ID', access: bug => bug.id },
@@ -1020,14 +991,10 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
         endDate: filterForm.dateRange[1] || '',
         specificDate: filterForm.specificDate
       }
-      const pageCount = Math.ceil(pagination.total / EXPORT_PAGE_SIZE)
-      list = []
-      for (let p = 1; p <= pageCount; p++) {
-        const res = await getBugs({ ...baseParams, page: p, pageSize: EXPORT_PAGE_SIZE })
-        const pageList = res.data.list || []
-        list.push(...pageList)
-        if (pageList.length < EXPORT_PAGE_SIZE) break
-      }
+      list = await fetchAllPages<Bug>(pagination.total, async (p, ps) => {
+        const res = await getBugs({ ...baseParams, page: p, pageSize: ps })
+        return res.data.list || []
+      })
     }
     if (list.length === 0) { ElMessage.warning('没有可导出的数据'); return }
     await exportData(filename, list, cols, format, { title: 'Bug 列表' })
@@ -1041,19 +1008,6 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   } finally { exporting.value = false }
 }
 
-const openZentaoLink = async (url: string): Promise<void> => {
-  if (!url) {
-    ElMessage.warning('禅道地址未配置，请检查系统设置')
-    return
-  }
-  try {
-    const { openExternalLink } = await import('@/composables/useExternalLink')
-    await openExternalLink(url)
-  } catch (error) {
-    console.error('打开链接失败:', error)
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-}
 
 onMounted(() => {
   const q = route.query

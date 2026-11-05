@@ -1,5 +1,7 @@
+import { ElMessage } from 'element-plus'
 import { ref } from 'vue'
 import { getAccountInfo } from '@/api/zentao'
+import { openExternalLink } from './useExternalLink'
 
 let cachedDomain: string | null = null
 let fetchPromise: Promise<string> | null = null
@@ -35,5 +37,16 @@ export function useZentaoConfig() {
     return d ? `${d}/${path}` : ''
   }
 
-  return { domain, buildUrl, fetchDomain }
+  // 打开禅道实体 view 页（issue #6：Bugs/Tasks/Stories 三处
+  // buildZentaoUrl(`x-view-N.html`) + openZentaoLink 收敛为一句 openEntity）
+  const openEntity = (type: 'bug' | 'task' | 'story', id: number): void => {
+    const url = buildUrl(`${type}-view-${id}.html`)
+    if (!url) {
+      ElMessage.warning('禅道地址未配置，请检查系统设置')
+      return
+    }
+    void openExternalLink(url)
+  }
+
+  return { domain, buildUrl, fetchDomain, openEntity }
 }

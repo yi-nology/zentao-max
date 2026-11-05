@@ -7,7 +7,7 @@
       </div>
       <div class="header-right">
         <label class="auto-toggle">
-          <input type="checkbox" v-model="autoRefresh" />
+          <input type="checkbox" :checked="autoRefresh" @change="toggleAutoRefresh" />
           <span class="toggle-track" :class="{ on: autoRefresh }">
             <span class="toggle-thumb"></span>
           </span>
@@ -120,7 +120,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import api from '@/api/api'
 import type { ApiResponse } from '@/types/api'
 
@@ -142,8 +143,6 @@ interface HealthData {
 const data = ref<HealthData | null>(null)
 const loading = ref(false)
 const lastCheckTime = ref('')
-const autoRefresh = ref(false)
-let timer: ReturnType<typeof setInterval> | null = null
 
 const iconMap: Record<string, string> = {
   products: '📦', projects: '📁', bugs: '🐛',
@@ -187,13 +186,14 @@ const runCheck = async () => {
 }
 
 onMounted(() => { runCheck() })
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
-watch(autoRefresh, (v) => {
-  if (timer) clearInterval(timer)
-  if (v) timer = setInterval(runCheck, 30000)
-  else timer = null
-})
+// 轮询统一走 usePolling（issue #6）：大实例 runCheck 超 30s 时 in-flight
+// 锁防重入，不再手搓 setInterval
+const { running: autoRefresh, start: startPolling, stop: stopPolling } = usePolling(runCheck, 30000)
+const toggleAutoRefresh = (): void => {
+  if (autoRefresh.value) stopPolling()
+  else startPolling()
+}
 </script>
 
 <style scoped>

@@ -314,7 +314,7 @@ import ChangelogDialog from '@/components/ChangelogDialog.vue'
 import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue'
 import { getAccountInfo, updateZentaoConfig } from '@/api/zentao'
 import { getSSOConfig, updateSSOConfig, type SSOConfigData } from '@/api/auth'
-import api from '@/api/api'
+import api, { extractApiError } from '@/api/api'
 import { renderMarkdown } from '@/utils/markdown'
 import type { ApiResponse } from '@/types/api'
 import { getStoredThemeMode, setThemeMode, type ThemeMode } from '@/composables/useTheme'
@@ -632,8 +632,7 @@ const svcDo = async (action: string): Promise<void> => {
     ElMessage.success(res?.data?.message || '操作成功')
     await fetchSvcStatus()
   } catch (e) {
-    const resp = (e as { response?: { data?: { message?: string } } })?.response
-    ElMessage.error(resp?.data?.message || (e instanceof Error ? e.message : '操作失败'))
+    ElMessage.error(extractApiError(e) || (e instanceof Error ? e.message : '操作失败'))
   } finally {
     svcAction.value = ''
   }
@@ -696,8 +695,7 @@ const applyingUpdate = async (): Promise<void> => {
     ElMessage.success(res?.data?.message || '更新已应用')
     await fetchUpdateStatus()
   } catch (e) {
-    const resp = (e as { response?: { data?: { message?: string } } })?.response
-    ElMessage.error(resp?.data?.message || (e instanceof Error ? e.message : '应用更新失败'))
+    ElMessage.error(extractApiError(e) || (e instanceof Error ? e.message : '应用更新失败'))
   } finally {
     applying.value = false
   }

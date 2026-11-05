@@ -76,6 +76,7 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { extractApiError } from '@/api/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,8 +119,7 @@ const handleSendCode = async (): Promise<void> => {
     mobileHint.value = mobile
     startCountdown()
   } catch (err) {
-    const resp = (err as { response?: { data?: { message?: string } } })?.response
-    error.value = resp?.data?.message || (err instanceof Error ? err.message : '验证码发送失败')
+    error.value = extractApiError(err) || (err instanceof Error ? err.message : '验证码发送失败')
   } finally {
     sendingCode.value = false
   }
@@ -134,9 +134,7 @@ const handleSsoLogin = async (): Promise<void> => {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     router.push(redirect)
   } catch (err) {
-    const resp = (err as { response?: { data?: { message?: string } } })?.response
-    const backendMsg = resp?.data?.message
-    error.value = backendMsg || (err instanceof Error ? err.message : '登录失败')
+    error.value = extractApiError(err) || (err instanceof Error ? err.message : '登录失败')
   } finally {
     loading.value = false
   }

@@ -93,7 +93,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/api/api'
@@ -118,8 +119,6 @@ const level = ref('')
 const keyword = ref('')
 const limit = ref(200)
 const bufferSize = ref(0)
-const autoRefresh = ref(false)
-let timer: ReturnType<typeof setInterval> | null = null
 
 const levelFilters = [
   { text: 'Error', value: 'error' },
@@ -128,11 +127,7 @@ const levelFilters = [
   { text: 'Debug', value: 'debug' }
 ]
 
-let fetchInFlight = false
 const fetchLogs = async (): Promise<void> => {
-  // 自动刷新 3s 一跳，请求超过间隔时不叠加（防重入）
-  if (fetchInFlight) return
-  fetchInFlight = true
   loading.value = true
   try {
     const params: Record<string, string | number> = { limit: limit.value }
@@ -148,9 +143,11 @@ const fetchLogs = async (): Promise<void> => {
     console.warn('获取日志失败:', e)
   } finally {
     loading.value = false
-    fetchInFlight = false
   }
 }
+
+// 轮询骨架（interval + in-flight 防重入 + 卸载清理）统一收敛到 usePolling（issue #6）
+const { running: autoRefresh, start: startPolling, stop: stopPolling } = usePolling(fetchLogs, 3000)
 
 const clearLogs = async (): Promise<void> => {
   try {
@@ -171,16 +168,8 @@ const clearLogs = async (): Promise<void> => {
 }
 
 const toggleAutoRefresh = (): void => {
-  if (autoRefresh.value) {
-    if (timer) {
-      clearInterval(timer)
-      timer = null
-    }
-    autoRefresh.value = false
-  } else {
-    autoRefresh.value = true
-    timer = setInterval(fetchLogs, 3000)
-  }
+  if (autoRefresh.value) stopPolling()
+  else startPolling()
 }
 
 const levelTagType = (lvl: string): 'danger' | 'warning' | 'success' | 'info' | 'primary' => {
@@ -218,12 +207,6 @@ onMounted(() => {
   fetchLogs()
 })
 
-onBeforeUnmount(() => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
-})
 </script>
 
 <style scoped>

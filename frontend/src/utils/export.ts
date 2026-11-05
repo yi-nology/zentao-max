@@ -172,3 +172,25 @@ export function timestampedFilename(base: string): string {
   const d = String(now.getDate()).padStart(2, '0')
   return `${base}-${y}${m}${d}`
 }
+
+/** 导出全量分页拉取的单页大小（后端单页上限 100） */
+export const EXPORT_PAGE_SIZE = 100
+
+/**
+ * 按总条数分页拉全量（导出用，issue #6：Bugs/Stories/Tasks 三处复制循环收敛）。
+ * 某页不足 pageSize 视为末页提前结束（与后端分页语义一致）。
+ */
+export async function fetchAllPages<T>(
+  total: number,
+  fetchPage: (page: number, pageSize: number) => Promise<T[]>,
+  pageSize: number = EXPORT_PAGE_SIZE
+): Promise<T[]> {
+  const out: T[] = []
+  const pageCount = Math.ceil(total / pageSize)
+  for (let p = 1; p <= pageCount; p++) {
+    const pageList = await fetchPage(p, pageSize)
+    out.push(...pageList)
+    if (pageList.length < pageSize) break
+  }
+  return out
+}

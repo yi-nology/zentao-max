@@ -69,4 +69,15 @@ api.interceptors.response.use(
   }
 )
 
+/**
+ * 从 axios 错误里提取后端语义化错误消息（供业务 catch 展示 4xx 等
+ * 非拦截器覆盖场景）。无后端消息时返回空串，调用方自行给兜底文案。
+ * 职责约定（issue #6）：拦截器负责网络错误/401/403/5xx 的 toast，
+ * 业务 catch 只处理需要额外语义文案的失败。
+ */
+export function extractApiError(err: unknown): string {
+  const anyErr = err as { response?: { data?: { message?: string } }; message?: string }
+  return anyErr?.response?.data?.message || ''
+}
+
 export default api

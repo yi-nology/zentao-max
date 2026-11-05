@@ -178,20 +178,20 @@
 import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { dateShortcuts } from '@/utils/date'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getExecutions, getTasks, getTask, getTaskStatusOptions, getUsers, startTask, finishTask, pauseTask, activateTask, recordEffort } from '@/api/zentao'
+import { usePagedQuery } from '@/composables/usePagedQuery'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
 
 interface GlobalSelection { product: number | null; project: number | null; execution: number | null }
 interface FilterForm { execution: number | null; assignedTo: string; status: string; dateRange: [string, string] | [] }
-interface Pagination { page: number; pageSize: number; total: number }
-
 const globalSelection = inject<GlobalSelection>('globalSelection')!
 const route = useRoute()
 const router = useRouter()
-const { buildUrl: buildZentaoUrl } = useZentaoConfig()
+const { openEntity } = useZentaoConfig()
 const filterForm = reactive<FilterForm>({ execution: null, assignedTo: '', status: '', dateRange: [] })
 const executionOptions = ref<Execution[]>([])
 const statusOptions = ref<SelectOption[]>(getTaskStatusOptions())
@@ -200,19 +200,12 @@ const taskList = ref<Task[]>([])
 const loading = ref<boolean>(false)
 const detailDialogVisible = ref<boolean>(false)
 const currentTask = ref<Task | null>(null)
-const pagination = reactive<Pagination>({ page: 1, pageSize: 20, total: 0 })
+const { pagination, handleSizeChange, handlePageChange } = usePagedQuery(() => { syncRoute(); fetchTasks() })
 
 // 统计分段卡：服务端按全量（分页前）统计，避免随翻页跳变
 const statusCounts = ref<Record<'doing' | 'wait' | 'done' | 'closed', number>>({ doing: 0, wait: 0, done: 0, closed: 0 })
 const exporting = ref<boolean>(false)
-// 导出走全量分页拉取（后端单页上限 100）
-const EXPORT_PAGE_SIZE = 100
 
-const dateShortcuts = [
-  { text: '近7天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 6); return [start, end] } },
-  { text: '近30天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 29); return [start, end] } },
-  { text: '近90天', value: (): [Date, Date] => { const end = new Date(); const start = new Date(); start.setDate(start.getDate() - 89); return [start, end] } }
-]
 
 // 未选产品/执行时不发请求，页面展示引导文案
 const hasScope = (): boolean => !!(globalSelection.product || filterForm.execution)
@@ -243,7 +236,7 @@ const fetchUsers = async (): Promise<void> => {
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (exporting.value) return
   if (pagination.total === 0) return
-  const { exportData, timestampedFilename } = await import('@/utils/export')
+  const { exportData, fetchAllPages, timestampedFilename } = await import('@/utils/export')
   type ExportColumn<T> = import('@/utils/export').ExportColumn<T>
   const cols: ExportColumn<Task>[] = [
     { header: 'ID', access: t => t.id },
@@ -258,14 +251,10 @@ const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   exporting.value = true
   try {
     const baseParams = { productId: globalSelection.product ?? undefined, executionId: filterForm.execution ?? undefined, assignedTo: filterForm.assignedTo, status: filterForm.status, startDate: filterForm.dateRange[0] || '', endDate: filterForm.dateRange[1] || '' }
-    const pageCount = Math.ceil(pagination.total / EXPORT_PAGE_SIZE)
-    const all: Task[] = []
-    for (let p = 1; p <= pageCount; p++) {
-      const res = await getTasks({ ...baseParams, page: p, pageSize: EXPORT_PAGE_SIZE })
-      const list = res.data.list || []
-      all.push(...list)
-      if (list.length < EXPORT_PAGE_SIZE) break
-    }
+    const all = await fetchAllPages<Task>(pagination.total, async (p, ps) => {
+      const res = await getTasks({ ...baseParams, page: p, pageSize: ps })
+      return res.data.list || []
+    })
     if (all.length === 0) { ElMessage.warning('没有可导出的数据'); return }
     await exportData(timestampedFilename('任务列表'), all, cols, format, { title: '任务列表' })
     if (all.length < pagination.total) ElMessage.warning(`筛选结果 ${pagination.total} 条，已导出前 ${all.length} 条`)
@@ -320,8 +309,6 @@ const setStatusFilter = (status: string): void => {
 
 const handleSearch = (): void => { pagination.page = 1; syncRoute(); fetchTasks() }
 const handleReset = (): void => { filterForm.execution = null; filterForm.assignedTo = ''; filterForm.status = ''; filterForm.dateRange = []; pagination.page = 1; syncRoute(); fetchTasks() }
-const handleSizeChange = (size: number): void => { pagination.pageSize = size; pagination.page = 1; syncRoute(); fetchTasks() }
-const handlePageChange = (page: number): void => { pagination.page = page; syncRoute(); fetchTasks() }
 
 const syncRoute = (): void => {
   const q: Record<string, string> = {}
@@ -380,14 +367,7 @@ const openDetailById = async (id: number): Promise<void> => {
     console.error('按 ID 打开任务详情失败:', error)
   }
 }
-const openZentaoTask = async (taskId: number): Promise<void> => {
-  const url = buildZentaoUrl(`task-view-${taskId}.html`)
-  if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
-  try {
-    const { openExternalLink } = await import('@/composables/useExternalLink')
-    await openExternalLink(url)
-  } catch { window.open(url, '_blank', 'noopener,noreferrer') }
-}
+const openZentaoTask = (taskId: number): void => { openEntity('task', taskId) }
 
 // ----- Task 写操作（开始/完成/暂停/激活/记录工时）-----
 type TaskActionType = 'start' | 'finish' | 'pause' | 'activate' | 'effort'

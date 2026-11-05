@@ -36,6 +36,63 @@ func severityInt(v interface{}) int {
 	}
 }
 
+// sortByPriority 排序：优先人员排前面，然后按数量降序。
+// 四份报告共用同一套 prioritySet 构建与排序逻辑（issue #2 归一）。
+func sortByPriority[T any](details []T, priorityAssignees []string, nameOf func(T) (assignee, account string), totalOf func(T) int) {
+	prioritySet := make(map[string]bool, len(priorityAssignees))
+	for _, name := range priorityAssignees {
+		prioritySet[name] = true
+	}
+	sort.SliceStable(details, func(i, j int) bool {
+		iName, iAccount := nameOf(details[i])
+		jName, jAccount := nameOf(details[j])
+		iPriority := prioritySet[iName] || prioritySet[iAccount]
+		jPriority := prioritySet[jName] || prioritySet[jAccount]
+		if iPriority != jPriority {
+			return iPriority
+		}
+		return totalOf(details[i]) > totalOf(details[j])
+	})
+}
+
+// extractUserRef 从禅道 SDK 两种 AssignedTo 形状（UserRef / map）提取姓名与账号。
+func extractUserRef(v interface{}) (name, account string) {
+	switch ref := v.(type) {
+	case zentaosdk.UserRef:
+		return ref.Realname, ref.Account
+	case map[string]interface{}:
+		if s, ok := ref["realname"].(string); ok {
+			name = s
+		}
+		if s, ok := ref["account"].(string); ok {
+			account = s
+		}
+	}
+	return name, account
+}
+
+// writeMessageHead 写报告消息头：关键词角标 + 图标标题 + 时间 + 可选备注头 + 分隔线。
+func writeMessageHead(sb *strings.Builder, emoji, title string, t time.Time, keyword, messageHeader string) {
+	kw := ""
+	if keyword != "" {
+		kw = fmt.Sprintf("【%s】", keyword)
+	}
+	sb.WriteString(fmt.Sprintf("%s%s %s\n", kw, emoji, title))
+	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
+	if messageHeader != "" {
+		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
+	}
+	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+}
+
+// writeMessageTail 写报告消息尾：分隔线 + 可选外部信息块（末尾不带换行）。
+func writeMessageTail(sb *strings.Builder, externalInfo string) {
+	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
+	if externalInfo != "" {
+		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
+	}
+}
+
 func (s *ReportService) GenerateBugReport(productID int, projectID int, projectName string, statusFilter string, keyword string, externalInfo string, messageHeader string, priorityAssignees []string) (*models.BugReport, error) {
 	bugs, err := s.client.GetAllBugsByProjectWithProduct(productID, projectID)
 	if err != nil {
@@ -104,21 +161,10 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
 	// 排序：优先人员排前面，然后按 Bug 数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		return details[i].Total > details[j].Total
-	})
+	sortByPriority(details, priorityAssignees,
+		func(d models.AssigneeBugStats) (string, string) { return d.Assignee, d.Account },
+		func(d models.AssigneeBugStats) int { return d.Total })
 
 	totalHigh := 0
 	for _, d := range details {
@@ -143,16 +189,7 @@ func (s *ReportService) GenerateBugReport(productID int, projectID int, projectN
 
 func buildMessage(title string, t time.Time, total, highSeverity int, details []models.AssigneeBugStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s🔴 %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHead(&sb, "🔴", title, t, keyword, messageHeader)
 	sb.WriteString(fmt.Sprintf("📊 剩余 Bug：%d个（高级别 %d个）\n\n", total, highSeverity))
 
 	for _, d := range details {
@@ -164,10 +201,7 @@ func buildMessage(title string, t time.Time, total, highSeverity int, details []
 		sb.WriteString(fmt.Sprintf("   └ 致命:%d 严重:%d 一般:%d 轻微:%d\n", d.Fatal, d.Serious, d.Moderate, d.Minor))
 	}
 
-	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
-	if externalInfo != "" {
-		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
-	}
+	writeMessageTail(&sb, externalInfo)
 	sb.WriteString(fmt.Sprintf("⚠️ 高级别 Bug 共 %d个，需重点关注！\n", highSeverity))
 	sb.WriteString(fmt.Sprintf("📈 Bug 状态分布：活跃 %d | 已解决 %d | 已关闭 %d",
 		statusBreakdown["active"], statusBreakdown["resolved"], statusBreakdown["closed"]))
@@ -196,19 +230,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 
 	assigneeMap := make(map[string]*models.AssigneeStoryStats)
 	for _, st := range stories {
-		name := ""
-		account := ""
-		if ref, ok := st.AssignedTo.(zentaosdk.UserRef); ok {
-			name = ref.Realname
-			account = ref.Account
-		} else if ref, ok := st.AssignedTo.(map[string]interface{}); ok {
-			if v, ok := ref["realname"].(string); ok {
-				name = v
-			}
-			if v, ok := ref["account"].(string); ok {
-				account = v
-			}
-		}
+		name, account := extractUserRef(st.AssignedTo)
 		if name == "" {
 			name = "未指派"
 		}
@@ -240,21 +262,10 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
 	// 排序：优先人员排前面，然后按需求数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		return details[i].Total > details[j].Total
-	})
+	sortByPriority(details, priorityAssignees,
+		func(d models.AssigneeStoryStats) (string, string) { return d.Assignee, d.Account },
+		func(d models.AssigneeStoryStats) int { return d.Total })
 
 	now := time.Now()
 	title := fmt.Sprintf("需求进度报告 - %s", projectName)
@@ -274,16 +285,7 @@ func (s *ReportService) GenerateRequirementReport(productID int, projectID int, 
 
 func buildRequirementMessage(title string, t time.Time, total int, details []models.AssigneeStoryStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s📋 %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHead(&sb, "📋", title, t, keyword, messageHeader)
 	sb.WriteString(fmt.Sprintf("📊 需求总数：%d个\n\n", total))
 
 	for _, d := range details {
@@ -292,10 +294,7 @@ func buildRequirementMessage(title string, t time.Time, total int, details []mod
 			d.Active, d.Changed, d.Resolved, d.Closed, d.Accepted))
 	}
 
-	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
-	if externalInfo != "" {
-		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
-	}
+	writeMessageTail(&sb, externalInfo)
 	sb.WriteString(fmt.Sprintf("📈 需求状态分布："))
 	for status, count := range statusBreakdown {
 		sb.WriteString(fmt.Sprintf("%s %d | ", status, count))
@@ -337,19 +336,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 
 	assigneeMap := make(map[string]*models.TaskProgressStats)
 	for _, t := range tasks {
-		name := ""
-		account := ""
-		if ref, ok := t.AssignedTo.(zentaosdk.UserRef); ok {
-			name = ref.Realname
-			account = ref.Account
-		} else if ref, ok := t.AssignedTo.(map[string]interface{}); ok {
-			if v, ok := ref["realname"].(string); ok {
-				name = v
-			}
-			if v, ok := ref["account"].(string); ok {
-				account = v
-			}
-		}
+		name, account := extractUserRef(t.AssignedTo)
 		if name == "" {
 			name = "未指派"
 		}
@@ -392,21 +379,10 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
 	// 排序：优先人员排前面，然后按任务数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		return details[i].Total > details[j].Total
-	})
+	sortByPriority(details, priorityAssignees,
+		func(d models.TaskProgressStats) (string, string) { return d.Assignee, d.Account },
+		func(d models.TaskProgressStats) int { return d.Total })
 
 	now := time.Now()
 	title := fmt.Sprintf("任务进度报告 - %s", projectName)
@@ -429,16 +405,7 @@ func (s *ReportService) GenerateTaskReport(productID int, projectID int, project
 
 func buildTaskMessage(title string, t time.Time, total int, totalEstimate, totalConsumed, overallProgress float64, details []models.TaskProgressStats, statusBreakdown map[string]int, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s✅ %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHead(&sb, "✅", title, t, keyword, messageHeader)
 	sb.WriteString(fmt.Sprintf("📊 任务总数：%d个 | 整体进度：%.0f%%\n", total, overallProgress))
 	sb.WriteString(fmt.Sprintf("⏱ 预估工时：%.1fh | 已消耗：%.1fh\n\n", totalEstimate, totalConsumed))
 
@@ -449,10 +416,7 @@ func buildTaskMessage(title string, t time.Time, total int, totalEstimate, total
 			d.Wait, d.Doing, d.Done, d.Paused))
 	}
 
-	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
-	if externalInfo != "" {
-		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
-	}
+	writeMessageTail(&sb, externalInfo)
 	sb.WriteString(fmt.Sprintf("📈 任务状态分布：待开始 %d | 进行中 %d | 已完成 %d | 已暂停 %d",
 		statusBreakdown["wait"], statusBreakdown["doing"], statusBreakdown["done"], statusBreakdown["pause"]))
 	return sb.String()
@@ -547,21 +511,10 @@ func (s *ReportService) GenerateBugAgingReport(productID int, projectID int, pro
 		details = append(details, *stat)
 	}
 
-	// 构建优先人员集合
-	prioritySet := make(map[string]bool)
-	for _, name := range priorityAssignees {
-		prioritySet[name] = true
-	}
-
 	// 排序：优先人员排前面，然后按 Bug 数量降序
-	sort.Slice(details, func(i, j int) bool {
-		iPriority := prioritySet[details[i].Assignee] || prioritySet[details[i].Account]
-		jPriority := prioritySet[details[j].Assignee] || prioritySet[details[j].Account]
-		if iPriority != jPriority {
-			return iPriority
-		}
-		return details[i].Total > details[j].Total
-	})
+	sortByPriority(details, priorityAssignees,
+		func(d models.AssigneeBugAgingStats) (string, string) { return d.Assignee, d.Account },
+		func(d models.AssigneeBugAgingStats) int { return d.Total })
 
 	total := 0
 	for _, d := range details {
@@ -610,16 +563,7 @@ func severityName(sev int) string {
 
 func buildBugAgingMessage(title string, t time.Time, total, agingDays int, details []models.AssigneeBugAgingStats, keyword string, externalInfo string, messageHeader string) string {
 	var sb strings.Builder
-	kw := ""
-	if keyword != "" {
-		kw = fmt.Sprintf("【%s】", keyword)
-	}
-	sb.WriteString(fmt.Sprintf("%s⏰ %s\n", kw, title))
-	sb.WriteString(fmt.Sprintf("📅 %s\n", t.Format("2006-01-02 15:04:05")))
-	if messageHeader != "" {
-		sb.WriteString(fmt.Sprintf("📌 %s\n", messageHeader))
-	}
-	sb.WriteString("━━━━━━━━━━━━━━━━━━━━\n")
+	writeMessageHead(&sb, "⏰", title, t, keyword, messageHeader)
 	sb.WriteString(fmt.Sprintf("📊 超时 Bug：%d个（阈值：%d天）\n\n", total, agingDays))
 
 	for _, d := range details {
@@ -633,10 +577,7 @@ func buildBugAgingMessage(title string, t time.Time, total, agingDays int, detai
 		}
 	}
 
-	sb.WriteString("\n━━━━━━━━━━━━━━━━━━━━\n")
-	if externalInfo != "" {
-		sb.WriteString(fmt.Sprintf("📌 外部信息：\n%s\n━━━━━━━━━━━━━━━━━━━━\n", externalInfo))
-	}
+	writeMessageTail(&sb, externalInfo)
 	sb.WriteString(fmt.Sprintf("⚠️ 以上 Bug 已超过 %d 天未解决，请尽快处理！", agingDays))
 	return sb.String()
 }

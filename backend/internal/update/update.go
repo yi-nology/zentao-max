@@ -90,6 +90,11 @@ type Service struct {
 	mu       sync.Mutex
 	info     Info
 	checking bool
+
+	// current 为启动时确定、此后不可变的当前版本号。
+	// info.Current 与其保持一致，但 info 整体会被 CheckNow 持锁重写，
+	// 读侧一律走本字段，避免与 mu 保护的字级竞争（issue #8）。
+	current string
 }
 
 // New 创建服务。currentVersion 来自 ldflags 注入的 internal/version。
@@ -108,6 +113,7 @@ func New(cfg config.UpdateConfig, currentVersion string) *Service {
 			OS:      runtime.GOOS,
 			Arch:    runtime.GOARCH,
 		},
+		current: currentVersion,
 	}
 }
 
@@ -220,7 +226,7 @@ func (s *Service) queryLatest() (remoteCheck, error) {
 // queryGitHub GitHub Releases 模式：GET /repos/{repo}/releases/latest。
 func (s *Service) queryGitHub() (remoteCheck, error) {
 	endpoint := fmt.Sprintf("%s/repos/%s/releases/latest?version=%s&os=%s&arch=%s",
-		githubAPIBase, s.cfg.GitHubRepo, s.info.Current, runtime.GOOS, runtime.GOARCH)
+		githubAPIBase, s.cfg.GitHubRepo, s.current, runtime.GOOS, runtime.GOARCH)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, endpoint, nil)
 	if err != nil {
 		return remoteCheck{}, err
@@ -261,7 +267,7 @@ func (s *Service) queryGitHub() (remoteCheck, error) {
 func (s *Service) queryCustom() (remoteCheck, error) {
 	payload := map[string]interface{}{
 		"app":     "zentao-max",
-		"version": s.info.Current,
+		"version": s.current,
 		"os":      runtime.GOOS,
 		"arch":    runtime.GOARCH,
 	}
@@ -307,7 +313,7 @@ const checkLocale = "zh-CN"
 func (s *Service) queryReleaseService() (remoteCheck, error) {
 	base := strings.TrimRight(s.cfg.ReleaseURL, "/")
 	q := url.Values{}
-	q.Set("current", s.info.Current)
+	q.Set("current", s.current)
 	q.Set("locale", checkLocale)
 	endpoint := fmt.Sprintf("%s/products/%s/upgrade-check?%s",
 		base, url.PathEscape(s.cfg.Slug), q.Encode())
@@ -315,8 +321,8 @@ func (s *Service) queryReleaseService() (remoteCheck, error) {
 	if err != nil {
 		return remoteCheck{}, silentErr(err)
 	}
-	req.Header.Set("User-Agent", "zentao-max/"+s.info.Current)
-	req.Header.Set("X-Client-Version", s.info.Current)
+	req.Header.Set("User-Agent", "zentao-max/"+s.current)
+	req.Header.Set("X-Client-Version", s.current)
 	resp, err := s.hc.Do(req)
 	if err != nil {
 		return remoteCheck{}, silentErr(err)
@@ -493,8 +499,8 @@ func (s *Service) Changelog(limit int) ([]ChangelogEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "zentao-max/"+s.info.Current)
-	req.Header.Set("X-Client-Version", s.info.Current)
+	req.Header.Set("User-Agent", "zentao-max/"+s.current)
+	req.Header.Set("X-Client-Version", s.current)
 	resp, err := s.hc.Do(req)
 	if err != nil {
 		return nil, err

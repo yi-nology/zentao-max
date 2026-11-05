@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
-	"github.com/oekit/concurrency/async"
-
+	"github.com/oekit/concurrency/fanout"
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 	"github.com/yi-nology/zentao-max/backend/pkg/utils"
@@ -123,88 +121,81 @@ func (c *Client) GetTimelogAnalysis(productID, projectID, executionID, assignedT
 	}
 	var allTaskCtx []taskContext
 
-	// 每层独立 45s 预算：共享单闸时先跑的层会耗尽预算，后一层永远 0 收集
-	taskDeadline := time.Now().Add(45 * time.Second)
-	for _, ec := range allExecs {
-		if time.Now().After(taskDeadline) {
-			logger.Warn("工时分析任务收集超时，返回已收集部分", "executions", len(allExecs))
-			break
-		}
-		tasks, terr := c.GetTasksContext(ctx, ec.Exec.ID, 1, 500)
-		if terr != nil {
-			continue
-		}
-		for _, t := range tasks {
-			if utils.ToFloat64(t.Consumed) > 0 {
-				allTaskCtx = append(allTaskCtx, taskContext{
-					Task:     t,
-					ExecName: ec.Exec.Name,
-				})
+	// 任务层：每层独立 45s 预算（共享单闸时先跑的层会耗尽预算，后一层永远
+	// 0 收集）。fanout.Map 有界并发（cap 8）替代原逐执行串行 + deadline 轮询；
+	// ctx 截止时排队项按 Canceled 记失败、在途 HTTP 被 ctx 掐断，确定性收口
+	// （原手搓 sem/wg 变体随 issue #1/#3 收敛统一爬取原语）。
+	taskBudget, cancelTasks := context.WithTimeout(ctx, 45*time.Second)
+	perExecTasks, terr := fanout.Map(taskBudget, allExecs, 8,
+		func(ctx context.Context, ec execWithContext) ([]taskContext, error) {
+			tasks, err := c.GetTasksContext(ctx, ec.Exec.ID, 1, 500)
+			if err != nil {
+				return nil, nil // 单个执行失败不阻断整体收集
 			}
-		}
+			var out []taskContext
+			for _, t := range tasks {
+				if utils.ToFloat64(t.Consumed) > 0 {
+					out = append(out, taskContext{Task: t, ExecName: ec.Exec.Name})
+				}
+			}
+			return out, nil
+		})
+	cancelTasks()
+	if terr != nil {
+		logger.Warn("工时分析任务收集超时/部分失败，返回已收集部分",
+			"executions", len(allExecs), "error", terr)
+	}
+	for _, tasks := range perExecTasks {
+		allTaskCtx = append(allTaskCtx, tasks...)
 	}
 
 	var allEfforts []effortItem
 
-	// 工时明细层并发拉取（cap 4 = SessionWorkerPool 读 worker 数）：逐任务
-	// 请求串行跑不完预算（实测截断到 0 条工时）；并发 4 后闸内吞吐 ×4。
-	// 每层独立 45s 预算：共享单闸时先跑的层会耗尽预算，后一层永远 0 收集。
-	// effortDeadline 到达后不再提交新任务，等在飞请求收尾（最长一个请求时长）。
-	{
-		effortDeadline := time.Now().Add(45 * time.Second)
-		var mu sync.Mutex
-		sem := make(chan struct{}, 4)
-		var wg sync.WaitGroup
-		for _, tc := range allTaskCtx {
-			if time.Now().After(effortDeadline) {
-				logger.Warn("工时分析工时明细收集超时，返回已收集部分",
-					"tasks", len(allTaskCtx), "collected", len(allEfforts))
-				break
+	// 工时明细层：独立 45s 预算，fanout.Map cap 4（= SessionWorkerPool 读
+	// worker 数）：逐任务请求串行跑不完预算（实测截断到 0 条工时）；并发 4
+	// 后闸内吞吐 ×4。ctx 打进每个请求，截止确定性收口。
+	effortBudget, cancelEfforts := context.WithTimeout(ctx, 45*time.Second)
+	perTaskEfforts, ferr := fanout.Map(effortBudget, allTaskCtx, 4,
+		func(ctx context.Context, tc taskContext) ([]effortItem, error) {
+			efforts, err := c.GetTaskEffortsContext(ctx, tc.Task.ID)
+			if err != nil {
+				return nil, nil
 			}
-			wg.Add(1)
-			tc := tc
-			async.GoSafe(func() {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				efforts, ferr := c.GetTaskEffortsContext(ctx, tc.Task.ID)
-				if ferr != nil {
-					return
+			var items []effortItem
+			for _, e := range efforts {
+				if assignedTo != "" && e.Account != assignedTo {
+					continue
 				}
-				var items []effortItem
-				for _, e := range efforts {
-					if assignedTo != "" && e.Account != assignedTo {
-						continue
-					}
-					if dateFrom != "" && e.Date < dateFrom {
-						continue
-					}
-					if dateTo != "" && e.Date > dateTo {
-						continue
-					}
-					items = append(items, effortItem{
-						ID:        e.ID,
-						TaskID:    tc.Task.ID,
-						TaskName:  tc.Task.Name,
-						TaskType:  tc.Task.Type,
-						Product:   productName,
-						Project:   tc.ExecName,
-						Execution: tc.ExecName,
-						Account:   e.Account,
-						Date:      e.Date,
-						Consumed:  e.Consumed,
-						Left:      e.Left,
-						Work:      e.Work,
-					})
+				if dateFrom != "" && e.Date < dateFrom {
+					continue
 				}
-				if len(items) > 0 {
-					mu.Lock()
-					allEfforts = append(allEfforts, items...)
-					mu.Unlock()
+				if dateTo != "" && e.Date > dateTo {
+					continue
 				}
-			})
-		}
-		wg.Wait()
+				items = append(items, effortItem{
+					ID:        e.ID,
+					TaskID:    tc.Task.ID,
+					TaskName:  tc.Task.Name,
+					TaskType:  tc.Task.Type,
+					Product:   productName,
+					Project:   tc.ExecName,
+					Execution: tc.ExecName,
+					Account:   e.Account,
+					Date:      e.Date,
+					Consumed:  e.Consumed,
+					Left:      e.Left,
+					Work:      e.Work,
+				})
+			}
+			return items, nil
+		})
+	cancelEfforts()
+	if ferr != nil {
+		logger.Warn("工时分析工时明细收集超时/部分失败，返回已收集部分",
+			"tasks", len(allTaskCtx), "error", ferr)
+	}
+	for _, items := range perTaskEfforts {
+		allEfforts = append(allEfforts, items...)
 	}
 
 	var totalHours float64

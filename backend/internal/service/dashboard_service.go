@@ -457,7 +457,19 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 	return overview, nil
 }
 
+// timelogLayerBudget 个人工时逐层独立预算：共享单闸时先跑的层会耗尽预算，
+// 后一层永远 0 收集（与 client_timelog 同款教训）。预算只掐层内收集，
+// 在飞请求由 ctx 传进 HTTP 层收尾。
+const timelogLayerBudget = 45 * time.Second
+
 // GetPersonalTimelogContext 获取个人工时报表（支持 context 取消）
+//
+// 两层爬取均走 crawlByIDs 统一原语（issue #1：原为逐执行/逐任务串行 N+1，
+// 大实例首查分钟级）：
+//  1. 任务层：该产品的执行列表 → 各执行任务（cap 8）
+//  2. 工时明细层：有消耗任务 → 逐任务工时（cap 4）
+//
+// 层预算超时 → Incomplete=true 返回部分结果（调用方取消仍返回 ctx.Err()）。
 func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, account string, productID int, dateFrom string, dateTo string, groupBy string) (*vo.PersonalTimelogVO, error) {
 	select {
 	case <-ctx.Done():
@@ -477,65 +489,90 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 	projectNames := make(map[int]string)
 	var details []vo.TimelogEntryVO
 
-	for _, ec := range execCtxs {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
+	// 任务层：独立预算，超时返回已收集部分并标记 Incomplete
+	execIDs := make([]int, len(execCtxs))
+	for i, ec := range execCtxs {
+		execIDs[i] = ec.Exec.ID
+	}
+	taskBudget, cancelTasks := context.WithTimeout(ctx, timelogLayerBudget)
+	perExec := crawlByIDsGrouped(taskBudget, execIDs, crawlWorkers,
+		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
+			return s.client.GetTasksContext(ctx, execID, 1, 200)
+		})
+	cancelTasks()
+	if err := taskBudget.Err(); err != nil && ctx.Err() == nil {
+		result.Incomplete = true
+	}
 
-		tasks, err := s.client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
-		if err != nil || len(tasks) == 0 {
-			continue
-		}
+	type taskCtxItem struct {
+		task     zentaosdk.Task
+		execName string
+	}
+	var withEfforts []taskCtxItem
+	for i, tasks := range perExec {
 		for _, t := range tasks {
-			consumed := utils.ToFloat64(t.Consumed)
-			if consumed <= 0 {
+			if utils.ToFloat64(t.Consumed) <= 0 {
 				continue
 			}
-			efforts, err := s.client.GetTaskEffortsContext(ctx, t.ID)
-			if err != nil {
+			withEfforts = append(withEfforts, taskCtxItem{task: t, execName: execCtxs[i].ProjName})
+		}
+	}
+
+	// 工时明细层：独立预算（cap 4 对齐受限实例读 worker 数），超时同标记
+	taskIDs := make([]int, len(withEfforts))
+	for i, tc := range withEfforts {
+		taskIDs[i] = tc.task.ID
+	}
+	effortBudget, cancelEfforts := context.WithTimeout(ctx, timelogLayerBudget)
+	perTask := crawlByIDsGrouped(effortBudget, taskIDs, 4,
+		func(ctx context.Context, taskID int) ([]zentaosdk.EffortEntry, error) {
+			return s.client.GetTaskEffortsContext(ctx, taskID)
+		})
+	cancelEfforts()
+	if err := effortBudget.Err(); err != nil && ctx.Err() == nil {
+		result.Incomplete = true
+	}
+
+	for i, efforts := range perTask {
+		tc := withEfforts[i]
+		for _, e := range efforts {
+			eAccount := e.Account
+			if account != "" && eAccount != account {
 				continue
 			}
-			for _, e := range efforts {
-				eAccount := e.Account
-				if account != "" && eAccount != account {
-					continue
-				}
-				if dateFrom != "" && e.Date < dateFrom {
-					continue
-				}
-				if dateTo != "" && e.Date > dateTo {
-					continue
-				}
-
-				c := utils.ToFloat64(e.Consumed)
-				result.TotalHours += c
-
-				dateKey := e.Date
-				if groupBy == "week" {
-					dateKey = toWeekKey(e.Date)
-				} else if groupBy == "month" {
-					if len(e.Date) >= 7 {
-						dateKey = e.Date[:7]
-					}
-				}
-				dateMap[dateKey] += c
-
-				pid := utils.ToInt(e.Project)
-				projectMap[pid] += c
-				projectNames[pid] = ec.ProjName
-
-				work := e.Work
-				details = append(details, vo.TimelogEntryVO{
-					ID:          e.ID,
-					Work:        work,
-					Date:        e.Date,
-					Consumed:    c,
-					ProjectID:   pid,
-					ProjectName: projectNames[pid],
-				})
+			if dateFrom != "" && e.Date < dateFrom {
+				continue
 			}
+			if dateTo != "" && e.Date > dateTo {
+				continue
+			}
+
+			c := utils.ToFloat64(e.Consumed)
+			result.TotalHours += c
+
+			dateKey := e.Date
+			if groupBy == "week" {
+				dateKey = toWeekKey(e.Date)
+			} else if groupBy == "month" {
+				if len(e.Date) >= 7 {
+					dateKey = e.Date[:7]
+				}
+			}
+			dateMap[dateKey] += c
+
+			pid := utils.ToInt(e.Project)
+			projectMap[pid] += c
+			projectNames[pid] = tc.execName
+
+			work := e.Work
+			details = append(details, vo.TimelogEntryVO{
+				ID:          e.ID,
+				Work:        work,
+				Date:        e.Date,
+				Consumed:    c,
+				ProjectID:   pid,
+				ProjectName: projectNames[pid],
+			})
 		}
 	}
 
@@ -570,6 +607,8 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 	var items []vo.SearchItem
 	kw := strings.ToLower(keyword)
 
+	// 三个数据源任一失败都记 Incomplete 返回部分结果（原为 x, _ := 静默吞错，
+	// 禅道不可达时搜索静默返 0，用户无法区分「无匹配」与「查询失败」）。
 	{
 		select {
 		case <-ctx.Done():
@@ -577,7 +616,11 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		bugs, _ := s.client.GetAllBugsContext(ctx, productID)
+		bugs, berr := s.client.GetAllBugsContext(ctx, productID)
+		if berr != nil {
+			result.Incomplete = true
+			logger.Warn("搜索：bugs 数据源拉取失败", "productID", productID, "error", berr)
+		}
 		for _, b := range bugs {
 			if strings.Contains(strings.ToLower(b.Title), kw) {
 				items = append(items, vo.SearchItem{
@@ -596,7 +639,11 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		stories, _ := s.client.GetAllStoriesContext(ctx, productID)
+		stories, serr := s.client.GetAllStoriesContext(ctx, productID)
+		if serr != nil {
+			result.Incomplete = true
+			logger.Warn("搜索：stories 数据源拉取失败", "productID", productID, "error", serr)
+		}
 		for _, st := range stories {
 			if strings.Contains(strings.ToLower(st.Title), kw) {
 				items = append(items, vo.SearchItem{
@@ -615,17 +662,22 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		default:
 		}
 
-		execCtxs, _ := s.client.GetExecutionsByProductContext(ctx, productID)
-		for _, ec := range execCtxs {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-			}
-			tasks, err := s.client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
-			if err != nil {
-				continue
-			}
+		execCtxs, eerr := s.client.GetExecutionsByProductContext(ctx, productID)
+		if eerr != nil {
+			result.Incomplete = true
+			logger.Warn("搜索：执行任务数据源拉取失败", "productID", productID, "error", eerr)
+		}
+		// 任务层：crawlByIDs 并发收集（原为逐执行串行 N+1，issue #1），
+		// 结果按执行保序，保留执行名上下文
+		execIDs := make([]int, len(execCtxs))
+		for i, ec := range execCtxs {
+			execIDs[i] = ec.Exec.ID
+		}
+		tasksByExec := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
+			func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
+				return s.client.GetTasksContext(ctx, execID, 1, 200)
+			})
+		for i, tasks := range tasksByExec {
 			for _, t := range tasks {
 				if strings.Contains(strings.ToLower(t.Name), kw) {
 					items = append(items, vo.SearchItem{
@@ -633,7 +685,7 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 						ID:     t.ID,
 						Title:  t.Name,
 						Status: t.Status,
-						Extra:  map[string]interface{}{"execution": ec.ExecName},
+						Extra:  map[string]interface{}{"execution": execCtxs[i].ExecName},
 					})
 				}
 			}

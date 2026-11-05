@@ -85,6 +85,7 @@ type PersonalTimelogVO struct {
 	ByDate     []DateHoursVO    `json:"byDate"`
 	ByProject  []ProjectHoursVO `json:"byProject"`
 	Details    []TimelogEntryVO `json:"details"`
+	Incomplete bool             `json:"incomplete,omitempty"` // true=逐层预算内未完成（层超时收口），数字可能偏小
 }
 
 // DateHoursVO 按日期工时
@@ -107,6 +108,9 @@ type TimelogEntryVO struct {
 type SearchVO struct {
 	Total int          `json:"total"`
 	Items []SearchItem `json:"items"`
+	// Incomplete=true 表示某个数据源（bugs/stories/执行任务）拉取失败或
+	// 任务层预算收口，结果只是已收集的部分——用于区分「无匹配」与「查询失败」。
+	Incomplete bool `json:"incomplete,omitempty"`
 }
 
 // SearchItem 搜索结果项

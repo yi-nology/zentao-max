@@ -17,6 +17,70 @@ import (
 // 失败清单并立即返回，不存在手搓 sem/wg 的「超时后排干整条队列」类 bug。
 const crawlWorkers = 8
 
+// crawlByIDsGrouped 对给定 ID 列表有界并发爬取的泛化内核：返回按输入 ID
+// 保序的分组结果（失败组为 nil），ctx 收口语义（预算/调用方取消）由调用层
+// 决定，这里只负责 fanout + 部分失败记日志（返回已收集部分，不致命）。
+// dashboard 个人工时/搜索的逐执行层、timelog 逐任务层共用（issue #1：
+// 三条漏网串行 N+1 迁移统一爬取原语）。
+func crawlByIDsGrouped[T any](
+	ctx context.Context,
+	ids []int,
+	workers int,
+	fetchOne func(ctx context.Context, id int) ([]T, error),
+) [][]T {
+	t0 := time.Now()
+	results, err := fanout.Map(ctx, ids, workers, fetchOne)
+
+	if err != nil {
+		var fe *fanout.Error
+		if errors.As(err, &fe) {
+			logger.Warn("按 ID 爬取部分失败（预算收口/单项错误，返回已收集部分）",
+				"failed", len(fe.Failed),
+				"total", len(ids),
+				"elapsed", time.Since(t0).Round(time.Millisecond),
+			)
+		}
+	}
+	collected := 0
+	for _, rs := range results {
+		collected += len(rs)
+	}
+	logger.Info("按 ID 爬取完成",
+		"collected", collected,
+		"total", len(ids),
+		"elapsed", time.Since(t0).Round(time.Millisecond),
+	)
+	return results
+}
+
+// crawlByIDs 扁平化 + 按 ID 去重版（dedupID 非 nil 时），供「只要全集、
+// 不关心来源分组」的调用方（跨执行 tasks/stories 爬取）。
+func crawlByIDs[T any](
+	ctx context.Context,
+	ids []int,
+	workers int,
+	dedupID func(T) int,
+	fetchOne func(ctx context.Context, id int) ([]T, error),
+) []T {
+	grouped := crawlByIDsGrouped(ctx, ids, workers, fetchOne)
+
+	var out []T
+	seen := map[int]struct{}{}
+	for _, rs := range grouped {
+		for _, item := range rs {
+			if dedupID != nil {
+				id := dedupID(item)
+				if _, dup := seen[id]; dup {
+					continue
+				}
+				seen[id] = struct{}{}
+			}
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 // crawlAcrossExecutions 跨执行并行爬取的统一入口（2026-11-04 破坏性重构：
 // tasks/stories 各写一遍 sem+wg+select+deadline，select 在 sem/ctx.Done
 // 双就绪时随机选择曾把 60s 预算拖成 137s——换 oekit fanout.Map）。
@@ -47,42 +111,7 @@ func crawlAcrossExecutions[T any](
 	for i, e := range allExecs {
 		execIDs[i] = e.ID
 	}
-	results, err := fanout.Map(ctx, execIDs, crawlWorkers, func(ctx context.Context, execID int) ([]T, error) {
-		return fetchOne(ctx, execID)
-	})
-
-	var out []T
-	seen := map[int]struct{}{}
-	for _, rs := range results {
-		for _, item := range rs {
-			if dedupID != nil {
-				id := dedupID(item)
-				if _, dup := seen[id]; dup {
-					continue
-				}
-				seen[id] = struct{}{}
-			}
-			out = append(out, item)
-		}
-	}
-
-	if err != nil {
-		var fe *fanout.Error
-		if errors.As(err, &fe) {
-			logger.Warn("跨执行爬取部分失败（预算收口/单执行错误，返回已收集部分）",
-				"failed", len(fe.Failed),
-				"executions", len(execIDs),
-				"collected", len(out),
-				"elapsed_total", time.Since(t0).Round(time.Millisecond),
-			)
-		}
-	}
-	logger.Info("跨执行爬取完成",
-		"collected", len(out),
-		"executions", len(execIDs),
-		"elapsed_total", time.Since(t0).Round(time.Millisecond),
-	)
-	return out, nil
+	return crawlByIDs(ctx, execIDs, crawlWorkers, dedupID, fetchOne), nil
 }
 
 // fetchTasksAcrossExecutions tasks 版爬取（fetch 走 GetTasksContext，

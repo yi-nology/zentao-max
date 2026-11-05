@@ -247,3 +247,8 @@ func (s *TaskService) productProjectSet(productID int) (map[int]struct{}, error)
 	}
 	return projSet, nil
 }
+
+// GetTaskByID 按 ID 拉取任务详情（列表页 ?id= 落地直达详情弹窗，issue #5）。
+func (s *TaskService) GetTaskByID(ctx context.Context, id int) (*zentaosdk.Task, error) {
+	return s.client.GetTaskByID(ctx, id)
+}

@@ -44,3 +44,18 @@ func (h *BugHandler) GetBugs(ctx context.Context, c *app.RequestContext) {
 		"statusCounts": statusCounts,
 	})
 }
+
+// GetBug 按 ID 拉取 Bug 详情（列表页 ?id= 落地直达详情弹窗，issue #5）。
+func (h *BugHandler) GetBug(ctx context.Context, c *app.RequestContext) {
+	id, err := pathID(c, "id")
+	if err != nil {
+		errors.BadRequest(c, "无效的 Bug ID")
+		return
+	}
+	bug, err := h.bugService.GetBugByID(ctx, id)
+	if err != nil {
+		errors.Error(c, errors.ExternalError("禅道", err))
+		return
+	}
+	errors.Success(c, bug)
+}

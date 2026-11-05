@@ -343,7 +343,7 @@ import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { formatDate as toLocalDateStr } from '@/utils/date'
-import { getBugs, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug, batchCreateEffort } from '@/api/zentao'
+import { getBugs, getBug, getBuildsByProject, getBugStatusOptions, getProjects, getUsers, getProducts, resolveBug, closeBug, assignBug, confirmBug, activateBug, updateBug, batchCreateEffort } from '@/api/zentao'
 import type { Build } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import { useTableColumns, type ColumnConfig } from '@/composables/useTableColumns'
@@ -973,6 +973,17 @@ const handleViewDetail = (row: Bug): void => {
   detailDialogVisible.value = true
 }
 
+// ?id= 跳转落地：按 ID 拉详情自动打开详情弹窗（Dashboard/全局搜索跳转，issue #5）
+const openDetailById = async (id: number): Promise<void> => {
+  try {
+    const res = await getBug(id)
+    if (res.data) handleViewDetail(res.data)
+  } catch (error) {
+    // HTTP 错误 toast 由 api 拦截器统一弹出
+    console.error('按 ID 打开 Bug 详情失败:', error)
+  }
+}
+
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (exporting.value) return
   if (selectedBugs.value.length === 0 && pagination.total === 0) return
@@ -1054,6 +1065,8 @@ onMounted(() => {
   if (q.specificDate) filterForm.specificDate = String(q.specificDate)
   if (q.page) pagination.page = Number(q.page) || 1
   if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
+  if (q.id) openDetailById(Number(q.id))
 
   fetchUsers()
   fetchProductNames()

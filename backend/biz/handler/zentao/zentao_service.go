@@ -34,6 +34,11 @@ func GetBugs(ctx context.Context, c *app.RequestContext) {
 	bugHandler.GetBugs(ctx, c)
 }
 
+// GetBug 按 ID 拉取详情（列表页 ?id= 落地直达，issue #5）
+func GetBug(ctx context.Context, c *app.RequestContext) {
+	bugHandler.GetBug(ctx, c)
+}
+
 func GetBuildsByProject(ctx context.Context, c *app.RequestContext) {
 	buildHandler.GetBuildsByProject(ctx, c)
 }
@@ -46,8 +51,18 @@ func GetStories(ctx context.Context, c *app.RequestContext) {
 	storyHandler.GetStories(ctx, c)
 }
 
+// GetStory 按 ID 拉取详情（列表页 ?id= 落地直达，issue #5）
+func GetStory(ctx context.Context, c *app.RequestContext) {
+	storyHandler.GetStory(ctx, c)
+}
+
 func GetTasks(ctx context.Context, c *app.RequestContext) {
 	taskHandler.GetTasks(ctx, c)
+}
+
+// GetTask 按 ID 拉取详情（列表页 ?id= 落地直达，issue #5）
+func GetTask(ctx context.Context, c *app.RequestContext) {
+	taskHandler.GetTask(ctx, c)
 }
 
 func GetUsers(ctx context.Context, c *app.RequestContext) {

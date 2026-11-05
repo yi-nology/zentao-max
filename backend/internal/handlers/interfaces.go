@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/internal/vo"
 )
 
@@ -14,6 +15,7 @@ type BugServicer interface {
 	GetBugs(query *dto.BugQueryDTO) (*vo.PaginatedVO, error)
 	GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]int, error)
 	GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.PaginatedVO, map[string]int, error)
+	GetBugByID(ctx context.Context, id int) (*zentaosdk.Bug, error)
 }
 
 type BuildServicer interface {
@@ -24,11 +26,13 @@ type BuildServicer interface {
 type TaskServicer interface {
 	GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, error)
 	GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error)
+	GetTaskByID(ctx context.Context, id int) (*zentaosdk.Task, error)
 }
 
 type StoryServicer interface {
 	GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error)
 	GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error)
+	GetStoryByID(ctx context.Context, id int) (*zentaosdk.Story, error)
 }
 
 type ProductServicer interface {

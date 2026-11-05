@@ -188,3 +188,8 @@ type ValidationError struct {
 func (e *ValidationError) Error() string {
 	return e.Message
 }
+
+// GetStoryByID 按 ID 拉取需求详情（列表页 ?id= 落地直达详情弹窗，issue #5）。
+func (s *StoryService) GetStoryByID(ctx context.Context, id int) (*zentaosdk.Story, error) {
+	return s.client.GetStoryByID(ctx, id)
+}

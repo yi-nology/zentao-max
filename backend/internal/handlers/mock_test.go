@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/yi-nology/zentao-max/backend/internal/dto"
+	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 	"github.com/yi-nology/zentao-max/backend/internal/vo"
 )
 
@@ -27,6 +28,10 @@ func (m *MockBugService) GetBugStatusCounts(query *dto.BugQueryDTO) (map[string]
 	return map[string]int{"active": 0, "resolved": 0, "closed": 0}, nil
 }
 
+func (m *MockBugService) GetBugByID(ctx context.Context, id int) (*zentaosdk.Bug, error) {
+	return nil, nil
+}
+
 func (m *MockBugService) GetBugsWithStatusCounts(query *dto.BugQueryDTO) (*vo.PaginatedVO, map[string]int, error) {
 	m.Called = true
 	m.Query = query
@@ -46,6 +51,10 @@ func (m *MockTaskService) GetTasks(query *dto.TaskQueryDTO) (*vo.PaginatedVO, er
 	return m.Result, m.Err
 }
 
+func (m *MockTaskService) GetTaskByID(ctx context.Context, id int) (*zentaosdk.Task, error) {
+	return nil, nil
+}
+
 func (m *MockTaskService) GetTaskStatusCounts(query *dto.TaskQueryDTO) (map[string]int, error) {
 	return map[string]int{"wait": 0, "doing": 0, "done": 0, "closed": 0}, nil
 }
@@ -59,6 +68,10 @@ type MockStoryService struct {
 func (m *MockStoryService) GetStories(query *dto.StoryQueryDTO) (*vo.PaginatedVO, error) {
 	m.Called = true
 	return m.Result, m.Err
+}
+
+func (m *MockStoryService) GetStoryByID(ctx context.Context, id int) (*zentaosdk.Story, error) {
+	return nil, nil
 }
 
 func (m *MockStoryService) GetStoryStatusCounts(query *dto.StoryQueryDTO) (map[string]int, error) {

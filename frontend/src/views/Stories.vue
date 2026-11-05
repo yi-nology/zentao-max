@@ -141,7 +141,7 @@ import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getStories, getUsers, getProducts, getStoryStatusOptions } from '@/api/zentao'
+import { getStories, getStory, getUsers, getProducts, getStoryStatusOptions } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Story, User } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
@@ -309,6 +309,16 @@ const handleSelectAll = (selection: Story[]): void => { selectedStories.value = 
 const handleViewDetails = (): void => { if (selectedStories.value.length > 0) { currentStory.value = selectedStories.value[0]; detailDialogVisible.value = true } }
 const handleViewDetail = (row: Story): void => { currentStory.value = row; detailDialogVisible.value = true }
 
+// ?id= 跳转落地：按 ID 拉详情自动打开详情弹窗（Dashboard/全局搜索跳转，issue #5）
+const openDetailById = async (id: number): Promise<void> => {
+  try {
+    const res = await getStory(id)
+    if (res.data) handleViewDetail(res.data)
+  } catch (error) {
+    console.error('按 ID 打开需求详情失败:', error)
+  }
+}
+
 const handleExport = async (format: 'excel' | 'csv' | 'pdf'): Promise<void> => {
   if (exporting.value) return
   if (selectedStories.value.length === 0 && pagination.total === 0) return
@@ -371,6 +381,8 @@ onMounted(() => {
   if (q.specificDate) filterForm.specificDate = String(q.specificDate)
   if (q.page) pagination.page = Number(q.page) || 1
   if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
+  if (q.id) openDetailById(Number(q.id))
 
   fetchProducts()
   fetchUsers()

@@ -239,3 +239,9 @@ func (s *BugService) convertToVO(bugs []zentaosdk.Bug) []vo.BugVO {
 	}
 	return result
 }
+
+// GetBugByID 按 ID 拉取 Bug 详情（列表页 ?id= 落地直达详情弹窗，issue #5）。
+// 薄封装直连 infra，与 MCP get_bug_detail 同一数据源。
+func (s *BugService) GetBugByID(ctx context.Context, id int) (*zentaosdk.Bug, error) {
+	return s.client.GetBugByID(ctx, id)
+}

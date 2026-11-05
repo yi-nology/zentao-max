@@ -109,6 +109,19 @@ export const getBugs = (params: BugParams = {}): Promise<ApiResponse<PaginatedRe
   return api.get('/bugs', { params: apiParams })
 }
 
+// 按 ID 拉详情（Dashboard/全局搜索 ?id= 跳转落地自动开详情弹窗，issue #5）
+export const getBug = (id: number): Promise<ApiResponse<Bug>> => {
+  return api.get(`/bugs/${id}`)
+}
+
+export const getStory = (id: number): Promise<ApiResponse<Story>> => {
+  return api.get(`/stories/${id}`)
+}
+
+export const getTask = (id: number): Promise<ApiResponse<Task>> => {
+  return api.get(`/tasks/${id}`)
+}
+
 export const getBuildsByProject = (projectId: number): Promise<ApiResponse<Build[]>> => {
   return api.get('/builds/project', { params: { projectId } })
 }

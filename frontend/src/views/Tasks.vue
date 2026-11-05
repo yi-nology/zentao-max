@@ -179,7 +179,7 @@ import { ref, reactive, onMounted, inject, watch, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { getExecutions, getTasks, getTaskStatusOptions, getUsers, startTask, finishTask, pauseTask, activateTask, recordEffort } from '@/api/zentao'
+import { getExecutions, getTasks, getTask, getTaskStatusOptions, getUsers, startTask, finishTask, pauseTask, activateTask, recordEffort } from '@/api/zentao'
 import { useZentaoConfig } from '@/composables/useZentaoConfig'
 import type { Task, User, Execution, SelectOption } from '@/types/api'
 import { useRoute, useRouter } from 'vue-router'
@@ -370,6 +370,16 @@ const handleRowClick = (row: Task, _column: unknown, event?: Event): void => {
   openTaskDetail(row)
 }
 const openTaskDetail = (task: Task): void => { currentTask.value = task; detailDialogVisible.value = true }
+
+// ?id= 跳转落地：按 ID 拉详情自动打开详情弹窗（Dashboard/全局搜索跳转，issue #5）
+const openDetailById = async (id: number): Promise<void> => {
+  try {
+    const res = await getTask(id)
+    if (res.data) openTaskDetail(res.data)
+  } catch (error) {
+    console.error('按 ID 打开任务详情失败:', error)
+  }
+}
 const openZentaoTask = async (taskId: number): Promise<void> => {
   const url = buildZentaoUrl(`task-view-${taskId}.html`)
   if (!url) { ElMessage.warning('禅道地址未配置，请检查系统设置'); return }
@@ -440,6 +450,8 @@ onMounted(() => {
   if (q.startDate || q.endDate) filterForm.dateRange = [String(q.startDate || ''), String(q.endDate || '')] as [string, string]
   if (q.page) pagination.page = Number(q.page) || 1
   if (q.pageSize) pagination.pageSize = Number(q.pageSize) || 20
+
+  if (q.id) openDetailById(Number(q.id))
 
   fetchExecutions()
   fetchUsers()

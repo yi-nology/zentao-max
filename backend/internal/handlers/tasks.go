@@ -50,3 +50,18 @@ func (h *TaskHandler) GetTasks(ctx context.Context, c *app.RequestContext) {
 		"statusCounts": statusCounts,
 	})
 }
+
+// GetTask 按 ID 拉取任务详情（列表页 ?id= 落地直达详情弹窗，issue #5）。
+func (h *TaskHandler) GetTask(ctx context.Context, c *app.RequestContext) {
+	id, err := pathID(c, "id")
+	if err != nil {
+		errors.BadRequest(c, "无效的任务 ID")
+		return
+	}
+	task, err := h.taskService.GetTaskByID(ctx, id)
+	if err != nil {
+		errors.Error(c, errors.ExternalError("禅道", err))
+		return
+	}
+	errors.Success(c, task)
+}

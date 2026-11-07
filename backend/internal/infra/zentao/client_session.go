@@ -19,6 +19,7 @@ import (
 
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 
+	"github.com/oekit/pkg/secretx"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -48,7 +49,7 @@ var errSessionAccessDenied = errors.New("access denied by zentao (user-deny)")
 type SessionTransport struct {
 	server   string
 	account  string
-	password *SecureString
+	password *secretx.SecureString
 	realm    string // "kydc" 或 "local"
 
 	httpClient *http.Client
@@ -92,7 +93,7 @@ func NewSessionTransport(server, account, password, realm string) *SessionTransp
 	return &SessionTransport{
 		server:     server,
 		account:    account,
-		password:   NewSecureString(password),
+		password:   secretx.NewSecureString(password),
 		realm:      realm,
 		httpClient: hc,
 		cookieJar:  jar,

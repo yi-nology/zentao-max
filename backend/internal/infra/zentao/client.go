@@ -14,6 +14,9 @@ import (
 	"github.com/oekit/concurrency/async"
 
 	"github.com/yi-nology/zentao-max/backend/pkg/logger"
+
+	"github.com/oekit/pkg/httpjson"
+	"github.com/oekit/pkg/secretx"
 )
 
 // Client 封装禅道会话模式客户端（PHP *.json 端点 + zentaosid cookie）。
@@ -26,7 +29,7 @@ import (
 // 两者都 nil-safe：构造时若 server/account 为空则 nil，所有 doSessionJSON/Post 仍可工作。
 type Client struct {
 	account   string
-	password  *SecureString
+	password  *secretx.SecureString
 	server    string
 	mu        sync.RWMutex
 	connected atomic.Bool
@@ -44,15 +47,11 @@ type Client struct {
 // cacheDBPrefix 为 "" 时 SessionCache 只用 L1（不创建 SQLite 文件，适合单测）；
 // poolConfig nil 时 pool 不启用（doSessionJSON/Post 直接调 session.DoJSON）。
 func NewSessionClient(server, account, password, realm string, cacheDBPrefix string, poolConfig *SessionWorkerPoolConfig) *Client {
-	if server != "" {
-		if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-			server = "http://" + server
-		}
-		server = strings.TrimSuffix(server, "/")
-	}
+	// 单源 pkg/httpjson.NormalizeBaseURL（空串原样返回，与外层判断等价）
+	server = httpjson.NormalizeBaseURL(server)
 	c := &Client{
 		account:  account,
-		password: NewSecureString(password),
+		password: secretx.NewSecureString(password),
 		server:   server,
 		realm:    realm,
 		session:  NewSessionTransport(server, account, password, realm),
@@ -97,12 +96,8 @@ func (c *Client) startSessionKeepalive() {
 //
 // 切账号时同时清空旧 cache（UpdateNamespace）+ 关掉旧 pool（重建）。
 func (c *Client) UpdateSessionConfig(server, account, password, realm string) error {
-	if server != "" {
-		if !strings.HasPrefix(server, "http://") && !strings.HasPrefix(server, "https://") {
-			server = "http://" + server
-		}
-		server = strings.TrimSuffix(server, "/")
-	}
+	// 与 NewSessionClient 同源：单源 pkg/httpjson.NormalizeBaseURL
+	server = httpjson.NormalizeBaseURL(server)
 
 	c.mu.Lock()
 	c.server = server

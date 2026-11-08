@@ -310,9 +310,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, inject, watch, computed } from 'vue'
+import { onMounted, ref, reactive, inject, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getDashboard, getBugs, getStories } from '@/api/zentao'
+import { getDashboard, getBugs, getStories, getProducts } from '@/api/zentao'
 import api from '@/api/api'
 import { useDashboardCharts } from '@/composables/useDashboardCharts'
 import type { ApiResponse } from '@/types/api'
@@ -533,6 +533,18 @@ watch(() => globalSelection.product, (val) => {
   if (val) fetchData()
   else data.value = null
 }, { immediate: true })
+
+// 未选产品时自动选第一个（2026-11-08：新浏览器/清过缓存后打开仪表盘永远
+// 停在"请先选择产品"引导页，用户误以为没数据）。选择仍持久化 localStorage，
+// 仅无选择时兜底；产品列表有客户端缓存，开销可忽略
+onMounted(async () => {
+  if (globalSelection.product) return
+  try {
+    const res = await getProducts()
+    const first = (res.data || [])[0]
+    if (first?.id) globalSelection.product = first.id
+  } catch { /* 拉不到产品则保持引导文案 */ }
+})
 
 const getBugStatusLabel = (status: string): string => {
   const map: Record<string, string> = { active: '激活', resolved: '已解决', closed: '已关闭' }

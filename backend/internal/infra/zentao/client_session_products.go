@@ -73,6 +73,14 @@ func (c *Client) getProductsSession(ctx context.Context) ([]zentaosdk.Product, e
 	if err := c.doSessionJSON(ctx, "GetProducts", "/product-all.json", &first); err != nil {
 		return nil, err
 	}
+	// 空列表防毒化（2026-11-08 单会话互踢实测）：会话被顶时本端点可能返回
+	// 无 locate 标记的空 productStats，空 slice 一旦写入缓存，即使重登自愈后
+	// 所有请求仍缓存直出空列表（须清 cache.db 才能愈）。改为明确报错——
+	// 错误不写缓存，下一次请求自动重登重拉。真实无产品的实例会一直报错，
+	// 但可运行的禅道必有产品，属可接受取舍。
+	if first.RecTotal == 0 && len(first.ProductStats) == 0 {
+		return nil, fmt.Errorf("产品列表为空：会话可能已失效（登出信封无 locate 标记），请稍后重试")
+	}
 	seen := make(map[int]struct{})
 	out := make([]zentaosdk.Product, 0, len(first.ProductStats)*2)
 	for _, p := range first.ProductStats {

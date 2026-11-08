@@ -285,6 +285,13 @@ func (s *InitService) UpdateAuthConfig(mutate func(*AuthConfig)) error {
 	return s.StoreAuthConfigFromStruct(cfg)
 }
 
+// HasSavedAuthConfig 报告 auth.db 是否存在已保存的连接配置记录
+//（connManaged 语义同 LoadAuthConfigWithRealm：有记录即视为用户完成过设置）。
+func (s *InitService) HasSavedAuthConfig() bool {
+	cfg, _, err := s.LoadAuthConfig()
+	return err == nil && cfg != nil
+}
+
 // LoadAuthConfig 从数据库加载认证配置
 func (s *InitService) LoadAuthConfig() (*AuthConfig, []byte, error) {
 	// 读取数据库文件（存储的是加密的JSON文件原文）

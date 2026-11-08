@@ -21,6 +21,15 @@ type InitHandler struct {
 	initService  *initialization.InitService
 	zentaoClient *zentao.Client
 	cacheService *service.CacheService
+
+	// onConfigSaved 连接配置保存成功回调（routes.go 接线：翻转首启 bootstrap
+	// 窗口标志——首次保存成功即关闭匿名配置窗口）
+	onConfigSaved func()
+}
+
+// SetOnConfigSaved 注入保存成功回调。
+func (h *InitHandler) SetOnConfigSaved(fn func()) {
+	h.onConfigSaved = fn
 }
 
 // zentaoConfigRequest 禅道连接配置表单请求体（设置页「连接配置」）。
@@ -111,6 +120,10 @@ func (h *InitHandler) UpdateZentaoConfig(ctx context.Context, c *app.RequestCont
 		if err := h.cacheService.ClearAll(ctx); err != nil {
 			logger.Warn("清空业务缓存失败（不影响配置保存）", "error", err)
 		}
+	}
+	// 保存成功即完成初始设置：关闭首启 bootstrap 匿名配置窗口
+	if h.onConfigSaved != nil {
+		h.onConfigSaved()
 	}
 
 	errors.SuccessWithMessage(c, "连接成功，配置已保存", map[string]interface{}{

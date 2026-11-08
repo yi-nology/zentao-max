@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"sync/atomic"
 	"context"
 	"encoding/json"
 	"io"
@@ -44,6 +45,18 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	//（本地账号密码登录已移除，LoginHandler 与 config auth.admin 段一并删除）
 	cfg := config.Get()
 	authManager := auth.NewManager(auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey))
+
+	// 首启引导窗口：仅当「auth.db 无已保存连接配置 && 客户端未被 yaml/env 配置过
+	// server」时开窗（放行 zentao-config/sso-config 匿名写，配合 /setup 向导）。
+	// 任何配置来源存在即不开窗——防公网未初始化实例的配置被陌生人接管。
+	var bootstrapClosed atomic.Bool
+	bootstrapClosed.Store(false)
+	if initService.HasSavedAuthConfig() || zentaoClient.GetServer() != "" {
+		bootstrapClosed.Store(true)
+	}
+	authManager.SetBootstrapOpen(func() bool {
+		return !bootstrapClosed.Load()
+	})
 	// SSO 登录（统一认证平台，用户名+密码+短信验证码）；客户端同时供 MCP sso_* 工具使用。
 	// 生效配置解析：auth.db 有页面保存记录（ssoManaged，设置页「SSO 登录配置」）
 	// → 以数据库为准（含显式停用）；否则回退 config.yaml（首次部署 bootstrap）。
@@ -116,6 +129,8 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	// SSO 热切换同步：设置页保存 SSO 配置后，MCP 的 sso_* 工具与 Web 端同用新客户端
 	ssoCfgHandler.SetOnSSOChange(func(c *auth.SSOClient) {
 		mcpServer.SetSSOClient(c)
+		// SSO 保存同样视为完成初始设置：关闭首启 bootstrap 匿名配置窗口
+		bootstrapClosed.Store(true)
 	})
 	hertzServer.GET("/api/v1/sso-config", ssoCfgHandler.GetConfig)
 	hertzServer.POST("/api/v1/sso-config", ssoCfgHandler.UpdateConfig)
@@ -133,6 +148,10 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	}
 
 	bizhandler.Init(registry, mcpTransport)
+	// 连接配置保存成功 → 关闭首启 bootstrap 匿名配置窗口
+	if ih := registry.GetInitHandler(); ih != nil {
+		ih.SetOnConfigSaved(func() { bootstrapClosed.Store(true) })
+	}
 
 	bizrouter.GeneratedRegister(hertzServer)
 

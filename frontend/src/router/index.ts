@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw, Router } from 'vue-router'
 import type { AppRoute } from '@/types/router'
 import Layout from '../views/Layout.vue'
+import api from '@/api/api'
 
 const routes: AppRoute[] = [
   {
@@ -101,3 +102,30 @@ const router: Router = createRouter({
 })
 
 export default router
+
+// ---- 首启向导守卫 ----
+// 未完成初始设置（init/account 的 domain 为空 = 无任何禅道连接配置）时，
+// 任何页面都重定向到 /setup；已配置后访问 /setup 则回到仪表盘。
+// account 探测失败（后端启动中/网络抖动）时放行，避免启动瞬间误弹。
+let setupChecked: Promise<boolean> | null = null
+function isSystemConfigured(): Promise<boolean> {
+  if (!setupChecked) {
+    setupChecked = api
+      .get('/init/account')
+      .then((res: any) => !!res?.data?.domain)
+      .catch(() => true) // 探测失败视为已配置（放行，不拦）
+  }
+  return setupChecked
+}
+
+router.beforeEach(async (to) => {
+  if (to.path === '/setup') {
+    const configured = await isSystemConfigured()
+    if (configured) return { path: '/dashboard' }
+    return true
+  }
+  if (to.path === '/login') return true
+  const configured = await isSystemConfigured()
+  if (!configured) return { path: '/setup' }
+  return true
+})

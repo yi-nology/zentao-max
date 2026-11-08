@@ -8,7 +8,11 @@
       </div>
 
       <!-- SSO 登录（唯一登录通道，本地账号密码登录已移除）：统一认证账号 + 短信验证码 -->
-      <div v-if="ssoReady === false" class="message error sso-unavailable">
+      <div v-if="ssoReady === false && needsSetup" class="message error sso-unavailable">
+        系统尚未完成初始设置（未配置禅道连接）。完成首启向导后即可使用：
+        <router-link class="setup-link" to="/setup">开始初始设置 →</router-link>
+      </div>
+      <div v-else-if="ssoReady === false" class="message error sso-unavailable">
         SSO 登录未启用：平台已移除本地账号密码登录，请联系管理员在 设置 → SSO 登录配置 中启用，或在 config.yaml 配置 auth.sso 后重启。
       </div>
       <form class="login-form" @submit.prevent="handleSsoLogin">
@@ -81,6 +85,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { extractApiError } from '@/api/api'
 import { getSSOStatus } from '@/api/auth'
+import { getAccountInfo } from '@/api/zentao'
 
 const route = useRoute()
 const router = useRouter()
@@ -100,12 +105,21 @@ const error = ref('')
 
 // SSO 启用检测：未启用时置灰表单并给出明确指引（登录页没有其他登录通道可兜底）
 const ssoReady = ref<boolean | null>(null)
+// 未完成初始设置（无禅道连接配置）时引导去 /setup 向导而非死提示
+const needsSetup = ref(false)
+
 onMounted(async () => {
   try {
     const res = await getSSOStatus()
     ssoReady.value = !!res.data?.enabled
   } catch {
     ssoReady.value = false
+  }
+  if (!ssoReady.value) {
+    try {
+      const acc = await getAccountInfo()
+      needsSetup.value = !acc.data?.domain
+    } catch { needsSetup.value = false }
   }
 })
 

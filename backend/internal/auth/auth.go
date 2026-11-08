@@ -42,11 +42,22 @@ type Manager struct {
 
 	// sso 麒麟统一认证登录（用户名+密码+短信验证码）；nil = 未启用
 	sso *SSOClient
+
+	// bootstrapOpen 首启引导窗口判定：系统无任何已保存的禅道连接配置时为 true，
+	// 放行 /api/v1/zentao-config 与 /api/v1/sso-config 的匿名写——否则首启会
+	// 死锁（配置端点要求登录，而登录依赖 SSO，SSO 依赖先配置）。任何配置来源
+	//（auth.db / config.yaml / env）存在即不开窗，防公网未初始化实例被接管。
+	bootstrapOpen func() bool
 }
 
 // SetSSO 启用 SSO 登录通道（/api/auth/sso/*）。
 func (m *Manager) SetSSO(client *SSOClient) {
 	m.sso = client
+}
+
+// SetBootstrapOpen 注入首启引导窗口判定（nil = 永不开窗）。
+func (m *Manager) SetBootstrapOpen(fn func() bool) {
+	m.bootstrapOpen = fn
 }
 
 // NewManager 创建认证管理器。secret 用于会话令牌签名，
@@ -170,6 +181,14 @@ func (m *Manager) Middleware() app.HandlerFunc {
 		}
 
 		if m.isAnonymousWriteAllowed(path) {
+			c.Next(ctx)
+			return
+		}
+
+		// 首启引导窗口：系统完全未配置时，放行两个配置端点的匿名写，
+		// 让首启向导能完成初始设置（否则配置需要登录、登录需要配置，死锁）
+		if m.bootstrapOpen != nil && m.bootstrapOpen() &&
+			(path == "/api/v1/zentao-config" || path == "/api/v1/sso-config") {
 			c.Next(ctx)
 			return
 		}

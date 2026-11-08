@@ -52,6 +52,10 @@ func NewHealthHandler(
 		taskService:      taskService,
 		userService:      userService,
 		schedulerService: schedulerService,
+		// 重算并发收敛器必须就地初始化：此前只声明未赋值（v0.7.0 引入
+		// singleflight 时构造遗漏），缓存未命中时 nil.Do() 必 panic——
+		// /api/healthz 冷启动 90s 内必然 500（缓存命中窗口内访问才正常）
+		recomputeFl: singleflight.New[*HealthCheckResponse](),
 	}
 }
 
@@ -303,19 +307,34 @@ func (h *HealthHandler) checkProjects() CheckItem {
 func (h *HealthHandler) checkBugs() CheckItem {
 	start := time.Now()
 	result, err := h.bugService.GetBugs(&dto.BugQueryDTO{PageSize: 1})
-	return runCheck(start, result.Total, err)
+	// 实参先于调用求值：上游失败时 result 为 nil，须先判 err 再取字段
+	//（2bfdec6 重构引入过 nil deref panic——上游凭据失效即触发）
+	if err != nil {
+		return runCheck(start, 0, err)
+	}
+	return runCheck(start, result.Total, nil)
 }
 
 func (h *HealthHandler) checkStories() CheckItem {
 	start := time.Now()
 	result, err := h.storyService.GetStories(&dto.StoryQueryDTO{PageSize: 1})
-	return runCheck(start, result.Total, err)
+	// 实参先于调用求值：上游失败时 result 为 nil，须先判 err 再取字段
+	//（2bfdec6 重构引入过 nil deref panic——上游凭据失效即触发）
+	if err != nil {
+		return runCheck(start, 0, err)
+	}
+	return runCheck(start, result.Total, nil)
 }
 
 func (h *HealthHandler) checkTasks() CheckItem {
 	start := time.Now()
 	result, err := h.taskService.GetTasks(&dto.TaskQueryDTO{PageSize: 1})
-	return runCheck(start, result.Total, err)
+	// 实参先于调用求值：上游失败时 result 为 nil，须先判 err 再取字段
+	//（2bfdec6 重构引入过 nil deref panic——上游凭据失效即触发）
+	if err != nil {
+		return runCheck(start, 0, err)
+	}
+	return runCheck(start, result.Total, nil)
 }
 
 func (h *HealthHandler) checkUsers() CheckItem {

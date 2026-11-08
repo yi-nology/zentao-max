@@ -130,9 +130,9 @@ Hertz
 
 ## 7. 平台认证与 MCP
 
-- **平台认证**（`internal/auth`）：匿名只读（GET/HEAD/OPTIONS），管理员读写。
-  SSO（麒麟统一认证：RSA 密码 + 短信验证码 + doLogin）为默认登录入口，
-  本地 admin 为备用；HMAC 无状态 token（`exp:username.签名`），Cookie + Bearer 双通道。
+- **平台认证**（`internal/auth`）：匿名只读（GET/HEAD/OPTIONS），登录用户读写。
+  登录唯一通道为公司 SSO（麒麟统一认证：RSA 密码 + 短信验证码 + doLogin；
+  本地账号密码登录已移除）；HMAC 无状态 token（`exp:username.签名`），Cookie + Bearer 双通道。
   细节与端点见 [AGENTS.md](../AGENTS.md)。
 - **MCP**（`internal/mcp`）：24 工具（16 查询：列表 9 + 详情/个人 5 + 配置诊断 2；8 受控写：
   record_effort / add_bug_comment / transition_bug / create_bug / transition_task +

@@ -40,13 +40,10 @@ func SetupRouter(initService *initialization.InitService, zentaoClient *zentao.C
 func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClient *zentao.Client, registry *handlers.HandlerRegistry, hostPort string, staticFS http.FileSystem) *server.Hertz {
 	hertzServer := server.New(server.WithHostPorts(hostPort))
 
-	// 平台访问控制：匿名只读（GET），登录管理员读写
+	// 平台访问控制：匿名只读（GET），登录用户读写。登录仅支持公司 SSO
+	//（本地账号密码登录已移除，LoginHandler 与 config auth.admin 段一并删除）
 	cfg := config.Get()
-	authManager := auth.NewManager(
-		cfg.Auth.Admin.Username,
-		cfg.Auth.Admin.Password,
-		auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey),
-	)
+	authManager := auth.NewManager(auth.SecretFromEncryptionKey(cfg.Security.EncryptionKey))
 	// SSO 登录（统一认证平台，用户名+密码+短信验证码）；客户端同时供 MCP sso_* 工具使用。
 	// 生效配置解析：auth.db 有页面保存记录（ssoManaged，设置页「SSO 登录配置」）
 	// → 以数据库为准（含显式停用）；否则回退 config.yaml（首次部署 bootstrap）。

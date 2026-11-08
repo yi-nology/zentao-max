@@ -7,7 +7,10 @@
         <p class="login-subtitle">登录后可执行写操作</p>
       </div>
 
-      <!-- SSO 登录（唯一入口）：用户名 + 密码 + 短信验证码（麒麟统一认证） -->
+      <!-- SSO 登录（唯一登录通道，本地账号密码登录已移除）：统一认证账号 + 短信验证码 -->
+      <div v-if="ssoReady === false" class="message error sso-unavailable">
+        SSO 登录未启用：平台已移除本地账号密码登录，请联系管理员在 设置 → SSO 登录配置 中启用，或在 config.yaml 配置 auth.sso 后重启。
+      </div>
       <form class="login-form" @submit.prevent="handleSsoLogin">
         <div class="form-field">
           <label class="field-label" for="sso-username">用户名</label>
@@ -49,7 +52,7 @@
             <button
               class="code-btn"
               type="button"
-              :disabled="sendingCode || countdown > 0 || !ssoUsername || !ssoPassword"
+              :disabled="sendingCode || countdown > 0 || ssoReady === false || !ssoUsername || !ssoPassword"
               @click="handleSendCode"
             >
               {{ sendingCode ? '发送中...' : countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
@@ -60,7 +63,7 @@
 
         <div v-if="error" class="message error">{{ error }}</div>
 
-        <button class="login-btn" type="submit" :disabled="loading || !ssoUsername || !ssoPassword || !ssoCode">
+        <button class="login-btn" type="submit" :disabled="loading || ssoReady === false || !ssoUsername || !ssoPassword || !ssoCode">
           {{ loading ? '登录中...' : '登录' }}
         </button>
       </form>
@@ -73,10 +76,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { extractApiError } from '@/api/api'
+import { getSSOStatus } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -93,6 +97,17 @@ const countdown = ref(0)
 
 const loading = ref(false)
 const error = ref('')
+
+// SSO 启用检测：未启用时置灰表单并给出明确指引（登录页没有其他登录通道可兜底）
+const ssoReady = ref<boolean | null>(null)
+onMounted(async () => {
+  try {
+    const res = await getSSOStatus()
+    ssoReady.value = !!res.data?.enabled
+  } catch {
+    ssoReady.value = false
+  }
+})
 
 const startCountdown = (): void => {
   countdown.value = 60

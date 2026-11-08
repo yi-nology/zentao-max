@@ -32,7 +32,7 @@ func newSSOTestEnv(t *testing.T, yamlEnabled bool, yamlBaseURL string) *ssoTestE
 	t.Helper()
 	dir := t.TempDir()
 	svc := initialization.NewInitService(filepath.Join(dir, "auth.db"), "sso-test-key")
-	mgr := auth.NewManager("admin", "secret123", "test-secret")
+	mgr := auth.NewManager("test-secret")
 	env := &ssoTestEnv{svc: svc, mgr: mgr}
 
 	// 模拟 yaml bootstrap 生效：enabled 时注入客户端

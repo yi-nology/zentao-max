@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { getAuthStatus, login as loginApi, logout as logoutApi, ssoLogin as ssoLoginApi, sendSsoCode as sendSsoCodeApi } from '@/api/auth'
+import { getAuthStatus, logout as logoutApi, ssoLogin as ssoLoginApi, sendSsoCode as sendSsoCodeApi } from '@/api/auth'
 import type { AuthStatusData } from '@/api/auth'
 
 // 全局认证状态：anonymous=只读，admin=读写。
@@ -18,13 +18,6 @@ async function refreshAuthStatus(): Promise<void> {
     authStatus.value = { authenticated: false, role: 'readonly', username: '' }
   } finally {
     loaded.value = true
-  }
-}
-
-async function login(username: string, password: string): Promise<void> {
-  const res = await loginApi(username, password)
-  if (res.code === 200 && res.data) {
-    authStatus.value = { authenticated: true, role: 'admin', username: res.data.username }
   }
 }
 
@@ -54,5 +47,5 @@ async function logout(): Promise<void> {
 }
 
 export function useAuth() {
-  return { authStatus, loaded, refreshAuthStatus, login, ssoLogin, sendSsoCode, logout }
+  return { authStatus, loaded, refreshAuthStatus, ssoLogin, sendSsoCode, logout }
 }

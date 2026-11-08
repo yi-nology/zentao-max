@@ -18,8 +18,9 @@ export const getAuthStatus = (): Promise<ApiResponse<AuthStatusData>> => {
   return api.get('/auth/status')
 }
 
-export const login = (username: string, password: string): Promise<ApiResponse<LoginResult>> => {
-  return api.post('/auth/login', { username, password })
+/** SSO 启用状态（登录页检测，匿名可访问） */
+export const getSSOStatus = (): Promise<ApiResponse<{ enabled: boolean }>> => {
+  return api.get('/auth/sso/status')
 }
 
 // ---- SSO 登录（麒麟统一认证：用户名+密码+短信验证码） ----

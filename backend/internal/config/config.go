@@ -104,15 +104,8 @@ type AuthConfig struct {
 	// 认证数据库路径
 	DBPath string `yaml:"db_path"`
 	// 平台访问控制：匿名=只读，登录管理员=读写
-	Admin AuthAdminConfig `yaml:"admin"`
 	// SSO 麒麟统一认证登录（用户名+密码+短信验证码）
 	SSO SSOAuthConfig `yaml:"sso"`
-}
-
-// AuthAdminConfig 平台管理员账号（用于登录后获得读写权限）
-type AuthAdminConfig struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
 }
 
 // SSOAuthConfig SSO 登录配置.
@@ -181,11 +174,6 @@ func DefaultConfig() *Config {
 			// DBPath 空 = 交由 initialization.ResolveAuthDBPath 统一解析
 			// （ZENTAO_AUTH_DB_PATH env → 已存在候选 → ./data/auth.db）
 			DBPath: "",
-			Admin: AuthAdminConfig{
-				// 平台管理员账号默认 admin/admin（匿名只读，登录后读写）
-				Username: "admin",
-				Password: "admin",
-			},
 			// SSO 登录默认关闭：平台地址由部署侧 config.yaml 提供（不内置默认值），
 			// 需要时设置 auth.sso.enabled=true + base_url（见 config.yaml.example）
 			SSO: SSOAuthConfig{

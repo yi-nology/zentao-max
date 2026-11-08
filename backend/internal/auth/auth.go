@@ -1,5 +1,6 @@
 // Package auth 实现平台访问控制：
-// 匿名用户只读（GET），登录管理员获得读写权限。
+// 匿名用户只读（GET），登录用户获得读写权限。登录仅支持公司 SSO
+//（统一认证平台，用户名+密码+短信验证码）；本地账号密码登录已移除。
 // 会话令牌为 HMAC 签名的无状态 token（exp.signature），放在 HttpOnly Cookie，
 // 同时接受 Authorization: Bearer 头（供 API/MCP 客户端使用）。
 package auth
@@ -8,7 +9,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
 	"strconv"
@@ -32,10 +32,8 @@ const (
 )
 
 type Manager struct {
-	username string
-	password string
-	secret   []byte
-	ttl      time.Duration
+	secret []byte
+	ttl    time.Duration
 
 	// loginLockout 登录防爆破锁（oekit ratelimit.Lockout，fail2ban 形态）：
 	// 窗口内失败达阈值 → 该 IP 进入锁定拒绝态。替代手搓 failures map
@@ -53,11 +51,9 @@ func (m *Manager) SetSSO(client *SSOClient) {
 
 // NewManager 创建认证管理器。secret 用于会话令牌签名，
 // 建议传入部署时稳定的随机串（如加密密钥派生值），重启后会话不失效。
-func NewManager(username, password, secret string) *Manager {
+func NewManager(secret string) *Manager {
 	return &Manager{
-		username: username,
-		password: password,
-		secret:   []byte(secret),
+		secret: []byte(secret),
 		ttl:      defaultSessionTTL,
 		loginLockout: ratelimit.NewLockoutOf[string](ratelimit.LockoutConfig{
 			Window:       time.Minute,
@@ -69,23 +65,7 @@ func NewManager(username, password, secret string) *Manager {
 	}
 }
 
-// Login 校验账号密码，成功返回签名会话令牌。
-// 用户名比较非常量时间无碍（用户名本身不是机密），密码用常量时间比较。
-func (m *Manager) Login(username, password string) (string, bool) {
-	userOK := subtle.ConstantTimeCompare([]byte(username), []byte(m.username)) == 1
-	passOK := subtle.ConstantTimeCompare([]byte(password), []byte(m.password)) == 1
-	if !userOK || !passOK {
-		return "", false
-	}
-	return m.signToken(time.Now().Add(m.ttl)), true
-}
-
-func (m *Manager) signToken(expiry time.Time) string {
-	return m.signTokenWithUser("", expiry)
-}
-
-// signTokenWithUser 签发带登录者身份的令牌：exp[.username] 分段。
-// username 为空时保持旧格式（exp.signature），兼容测试与旧会话。
+// signTokenWithUser 签发带登录者身份的令牌：exp:username 分段（SSO 登录者）。
 func (m *Manager) signTokenWithUser(username string, expiry time.Time) string {
 	// 分隔符用 ":"（cookie-value 合法字符，浏览器不会百分号编码；
 	// 曾用 "|"，Chrome 会把值里的 | 编码为 %7C 回传，导致 Verify 解析失败）
@@ -170,7 +150,7 @@ func (m *Manager) resetLoginFailures(ip string) {
 // Middleware 返回 Hertz 中间件：
 //   - MCP 端点完全豁免（有自己独立的 mcp.token/只读/白名单访问控制）；
 //   - 读方法（GET/HEAD/OPTIONS）匿名放行；
-//   - 匿名放行的写路径：登录/登出接口、SSO 两步、报告预览；
+//   - 匿名放行的写路径：登出接口、SSO 两步、报告预览；
 //   - 其余写方法需要有效会话（Cookie 或 Bearer 头），否则 401。
 func (m *Manager) Middleware() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
@@ -210,7 +190,7 @@ func (m *Manager) Middleware() app.HandlerFunc {
 
 func (m *Manager) isAnonymousWriteAllowed(path string) bool {
 	switch path {
-	case "/api/auth/login", "/api/auth/logout":
+	case "/api/auth/logout":
 		return true
 	// SSO 登录两步（发验证码/验证码登录）匿名放行——登录前本就无会话
 	case "/api/auth/sso/send-code", "/api/auth/sso/login":
@@ -220,40 +200,6 @@ func (m *Manager) isAnonymousWriteAllowed(path string) bool {
 		return true
 	}
 	return false
-}
-
-// LoginHandler POST /api/auth/login  {"username","password"}
-func (m *Manager) LoginHandler(ctx context.Context, c *app.RequestContext) {
-	ip := c.ClientIP()
-	if !m.loginAllowed(ip) {
-		errors.Unauthorized(c, "登录失败次数过多，请 1 分钟后再试")
-		return
-	}
-
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-	if err := c.BindJSON(&req); err != nil {
-		errors.BadRequest(c, "请求格式错误")
-		return
-	}
-
-	token, ok := m.Login(req.Username, req.Password)
-	if !ok {
-		m.recordLoginFailure(ip)
-		errors.Unauthorized(c, "用户名或密码错误")
-		return
-	}
-	m.resetLoginFailures(ip)
-	token = m.signTokenWithUser(m.username, time.Now().Add(m.ttl))
-
-	c.SetCookie(sessionCookieName, token, int(m.ttl.Seconds()), "/", "", protocol.CookieSameSiteLaxMode, false, true)
-	errors.Success(c, map[string]interface{}{
-		"token":    token,
-		"username": m.username,
-		"role":     "admin",
-	})
 }
 
 // LogoutHandler POST /api/auth/logout 清除 Cookie（无状态令牌自然过期）
@@ -355,11 +301,8 @@ func (m *Manager) StatusHandler(ctx context.Context, c *app.RequestContext) {
 	if authenticated {
 		role = "admin"
 	}
-	// 用户名取令牌内记录的登录者（SSO 账号 / 本地管理员）；旧格式无身份令牌回退本地管理员名
+	// 用户名取令牌内记录的登录者（SSO 账号）；旧格式无身份令牌显示为空
 	username := user
-	if authenticated && username == "" {
-		username = m.username
-	}
 	errors.Success(c, map[string]interface{}{
 		"authenticated": authenticated,
 		"role":          role,
@@ -369,7 +312,6 @@ func (m *Manager) StatusHandler(ctx context.Context, c *app.RequestContext) {
 
 // RegisterRoutes 注册 /api/auth/* 路由
 func (m *Manager) RegisterRoutes(r *route.RouterGroup) {
-	r.POST("/auth/login", m.LoginHandler)
 	r.POST("/auth/logout", m.LogoutHandler)
 	r.GET("/auth/status", m.StatusHandler)
 	// sso/status 恒注册（匿名 GET，仅暴露启用布尔值）：登录页据此选择默认登录方式
@@ -381,7 +323,7 @@ func (m *Manager) RegisterRoutes(r *route.RouterGroup) {
 }
 
 // SSOStatusHandler GET /api/auth/sso/status → {"enabled": bool}
-// 供登录页决定默认展示 SSO 表单还是本地管理员表单。
+// 供登录页判断 SSO 是否已启用（唯一登录通道）。
 func (m *Manager) SSOStatusHandler(ctx context.Context, c *app.RequestContext) {
 	errors.Success(c, map[string]interface{}{
 		"enabled": m.sso != nil,

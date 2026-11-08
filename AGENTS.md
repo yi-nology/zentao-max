@@ -142,8 +142,9 @@ cd frontend && node tests/ui/run-all.js   # Playwright UI 套件（需 npm i --n
   登录失败防爆破（10 次/分钟/IP，SSO 两步共用计数）。
 - **豁免**: `/mcp*`（MCP 有独立 token/只读控制）；`/api/auth/*`（登录/登出/SSO 两步）；
   `/api/scheduler/preview`（纯读）。
-- **前端**: `/login` 页 SSO 表单常显（账号/密码/验证码 +60s 倒计时重发；本地管理员登录
-  无 UI 入口，仅 API）；
+- **前端**: `/login` 页仅 SSO 表单（统一认证账号/密码/短信验证码 +60s 倒计时重发；
+  本地账号密码登录已移除——后端 /api/auth/login 端点与 config auth.admin 段一并删除，
+  SSO 未启用时登录页显示明确指引并置灰表单）；
   头部不展示模式徽章——登录后侧边栏底部显示用户名+退出，未登录只显示登录链接（模式守卫由
   后端 401 层承担）；`api.ts` 对 401 分流——`/auth/*` 自身 401 表单自展示，含"管理员登录"
   字样跳 `/login?redirect=...`，其余（禅道配置失效）仅弹错误提示不跳转。

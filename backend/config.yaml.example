@@ -41,10 +41,7 @@ auth:
   #   显式配置 → ZENTAO_AUTH_DB_PATH → 已存在候选（./data/auth.db → ./auth.db →
   #   ~/.zentao-max/auth.db）→ 默认 ./data/auth.db
   # db_path: "./data/auth.db"
-  # 平台本地管理员（备用登录入口）
-  admin:
-    username: "admin"
-    password: "admin"       # 生产务必修改！环境变量 ZENTAO_MAX_AUTH_ADMIN_PASSWORD
+  # 本地账号密码登录已移除：登录仅支持公司 SSO（auth.sso）
   # SSO 统一认证平台登录（用户名+密码+短信验证码协议）。默认关闭；
   # 对接自有统一认证平台时启用并配置地址（代码不内置任何平台地址）。
   # 也可在登录后于设置页「SSO 登录配置」在线修改（保存即生效并存入 auth.db，

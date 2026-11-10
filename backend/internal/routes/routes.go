@@ -1,13 +1,13 @@
 package routes
 
 import (
-	"sync/atomic"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"path"
 	"strings"
+	"sync/atomic"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"

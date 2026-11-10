@@ -5,6 +5,7 @@ import (
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
 
+	"github.com/yi-nology/zentao-max/backend/internal/dto"
 	"github.com/yi-nology/zentao-max/backend/internal/vo"
 	"github.com/yi-nology/zentao-max/backend/pkg/utils"
 )
@@ -180,6 +181,99 @@ func TestBugService_Pagination(t *testing.T) {
 			}
 			if len(paged) != tt.expectedLen {
 				t.Errorf("expected len=%d, got %d", tt.expectedLen, len(paged))
+			}
+		})
+	}
+}
+
+// TestApplyBugFilters_ProjectID 验证 projectId 过滤生效（issue #10：
+// DTO 声明了 projectId 但 service 层零引用，跨项目 bug 静默可见）
+func TestApplyBugFilters_ProjectID(t *testing.T) {
+	bugs := createMockBugs() // 项目分布：Project 10 × 2、Project 11 × 1
+
+	tests := []struct {
+		name          string
+		projectID     int
+		status        string
+		expectedIDs   []int
+		expectedCount int
+	}{
+		{
+			name:          "只看项目10",
+			projectID:     10,
+			expectedIDs:   []int{1, 2},
+			expectedCount: 2,
+		},
+		{
+			name:          "只看项目11",
+			projectID:     11,
+			expectedIDs:   []int{3},
+			expectedCount: 1,
+		},
+		{
+			name:          "项目过滤与状态过滤叠加",
+			projectID:     10,
+			status:        "resolved",
+			expectedIDs:   []int{2},
+			expectedCount: 1,
+		},
+		{
+			name:          "不传项目ID不过滤",
+			projectID:     0,
+			expectedIDs:   []int{1, 2, 3},
+			expectedCount: 3,
+		},
+		{
+			name:          "不存在的项目返回空",
+			projectID:     999,
+			expectedIDs:   []int{},
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query := &dto.BugQueryDTO{ProjectID: tt.projectID, Status: tt.status}
+			result := applyBugFilters(bugs, query).Result()
+
+			if len(result) != tt.expectedCount {
+				t.Fatalf("expected %d bugs, got %d: %+v", tt.expectedCount, len(result), result)
+			}
+			for i, bug := range result {
+				if bug.ID != tt.expectedIDs[i] {
+					t.Errorf("result[%d]: expected ID=%d, got %d", i, tt.expectedIDs[i], bug.ID)
+				}
+				if bug.Project != tt.projectID && tt.projectID != 0 {
+					t.Errorf("bug %d has Project=%d, leak across projects (filter=%d)", bug.ID, bug.Project, tt.projectID)
+				}
+			}
+
+			// total 与列表同口径（GetBugs/GetBugsWithStatusCounts 共用该过滤器）
+			if got := applyBugFilters(bugs, query).Count(); got != tt.expectedCount {
+				t.Errorf("Count()=%d, want %d", got, tt.expectedCount)
+			}
+		})
+	}
+}
+
+// TestBugQueryDTO_Validate_ProjectID 验证负 projectId 被拒绝（issue #10 补充建议）
+func TestBugQueryDTO_Validate_ProjectID(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID int
+		wantErr   bool
+	}{
+		{name: "零值合法（不过滤）", projectID: 0, wantErr: false},
+		{name: "正数合法", projectID: 100, wantErr: false},
+		{name: "负数拒绝", projectID: -1, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dto := &dto.BugQueryDTO{ProjectID: tt.projectID}
+			err := dto.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

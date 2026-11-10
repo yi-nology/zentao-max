@@ -91,6 +91,14 @@ func applyBugFilters(bugs []zentaosdk.Bug, query *dto.BugQueryDTO) *utils.ChainF
 		})
 	}
 
+	// 按项目筛选（issue #10：DTO 声明了 projectId 但 service 层从未引用，
+	// 跨项目 bug 静默可见。与 story 端点的项目口径对齐，列表与统计卡共用此处）
+	if query.ProjectID != 0 {
+		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {
+			return item.Project == query.ProjectID
+		})
+	}
+
 	// 按指派人筛选（AssignedTo 是 UserRef，按账号精确匹配）
 	if query.AssignedTo != "" {
 		chainFilter = chainFilter.Filter(func(item zentaosdk.Bug) bool {

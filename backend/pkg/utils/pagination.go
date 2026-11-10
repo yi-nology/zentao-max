@@ -57,14 +57,13 @@ func Paginate(total, page, pageSize int) (start, end int) {
 	}
 
 	start = (page - 1) * pageSize
-	if start >= total {
+	// page 极大时 (page-1)*pageSize 整数溢出为负（issue #11），
+	// 该页必然越界：与 start >= total 同路返回空区间，杜绝负下标切片 panic
+	if start < 0 || start >= total {
 		return 0, 0
 	}
 
-	end = start + pageSize
-	if end > total {
-		end = total
-	}
+	end = min(start+pageSize, total)
 
 	return start, end
 }

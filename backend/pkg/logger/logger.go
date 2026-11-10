@@ -61,8 +61,9 @@ func Init(cfg *config.LogConfig) error {
 	logx.SetTraceExtractor(traceid.FromContext)
 
 	// async.GoSafe 的 panic 统一进 logx（业务 goroutine panic 不再走 std log）
-	async.SetPanicHandler(func(msg string, stack []byte) {
-		GetLogger().Error("goroutine panic recovered", "panic", msg, "stack", string(stack))
+	// concurrency v0.24+ 签名改为 (ctx, recover 值, stack)，顺手记录 recover 原值
+	async.SetPanicHandler(func(ctx context.Context, r any, stack []byte) {
+		GetLogger().Error("goroutine panic recovered", "panic", fmt.Sprint(r), "stack", string(stack))
 	})
 
 	// hertz 内部日志（路由注册 [Debug] HERTZ、hlog.SystemLogger）桥接到 slog，

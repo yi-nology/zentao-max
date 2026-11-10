@@ -1,6 +1,6 @@
 // Package auth 实现平台访问控制：
 // 匿名用户只读（GET），登录用户获得读写权限。登录仅支持公司 SSO
-//（统一认证平台，用户名+密码+短信验证码）；本地账号密码登录已移除。
+// （统一认证平台，用户名+密码+短信验证码）；本地账号密码登录已移除。
 // 会话令牌为 HMAC 签名的无状态 token（exp.signature），放在 HttpOnly Cookie，
 // 同时接受 Authorization: Bearer 头（供 API/MCP 客户端使用）。
 package auth
@@ -65,7 +65,7 @@ func (m *Manager) SetBootstrapOpen(fn func() bool) {
 func NewManager(secret string) *Manager {
 	return &Manager{
 		secret: []byte(secret),
-		ttl:      defaultSessionTTL,
+		ttl:    defaultSessionTTL,
 		loginLockout: ratelimit.NewLockoutOf[string](ratelimit.LockoutConfig{
 			Window:       time.Minute,
 			Threshold:    loginFailuresPerMinute,

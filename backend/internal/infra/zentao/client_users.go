@@ -19,8 +19,9 @@ func (c *Client) GetUsers(page, pageSize int) (*zentaosdk.UserListResponse, erro
 
 	total := len(allUsers)
 	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start >= total {
+	// page 极大时 (page-1)*pageSize 整数溢出为负（issue #11），
+	// 该页必然越界：与 start >= total 同路返回空列表，杜绝负下标切片 panic
+	if start < 0 || start >= total {
 		return &zentaosdk.UserListResponse{
 			Users: []zentaosdk.User{},
 			Page:  page,
@@ -28,9 +29,7 @@ func (c *Client) GetUsers(page, pageSize int) (*zentaosdk.UserListResponse, erro
 			Limit: pageSize,
 		}, nil
 	}
-	if end > total {
-		end = total
-	}
+	end := min(start+pageSize, total)
 
 	return &zentaosdk.UserListResponse{
 		Users: allUsers[start:end],

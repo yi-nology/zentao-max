@@ -1,5 +1,9 @@
 package dto
 
+import (
+	"github.com/yi-nology/zentao-max/backend/pkg/errors"
+)
+
 type BugQueryDTO struct {
 	ProductID    int    `form:"productId" json:"productId"`
 	ProjectID    int    `form:"projectId" json:"projectId"`
@@ -15,6 +19,9 @@ type BugQueryDTO struct {
 }
 
 func (dto *BugQueryDTO) Validate() error {
+	if dto.ProjectID < 0 {
+		return errors.NewInvalidParam("projectId")
+	}
 	if dto.Page <= 0 {
 		dto.Page = 1
 	}

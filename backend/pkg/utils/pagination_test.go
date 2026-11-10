@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"testing"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -153,6 +154,32 @@ func TestPaginate(t *testing.T) {
 			expectedStart: 80,
 			expectedEnd:   95,
 		},
+		{
+			// issue #11：page=2^62 时 (page-1)*20 溢出为 -20，应按越界返回空区间
+			name:          "page溢出为负下标",
+			total:         100,
+			page:          4611686018427387904,
+			pageSize:      20,
+			expectedStart: 0,
+			expectedEnd:   0,
+		},
+		{
+			name:          "page为MaxInt64",
+			total:         100,
+			page:          math.MaxInt64,
+			pageSize:      20,
+			expectedStart: 0,
+			expectedEnd:   0,
+		},
+		{
+			// 2^60 量级：溢出回绕后 start 为正大数，走 start >= total 越界分支
+			name:          "page溢出回绕为正大数",
+			total:         100,
+			page:          1152921504606846976,
+			pageSize:      100,
+			expectedStart: 0,
+			expectedEnd:   0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -206,6 +233,21 @@ func TestPaginateSlice(t *testing.T) {
 			slice:    []int{},
 			page:     1,
 			pageSize: 3,
+			expected: []int{},
+		},
+		{
+			// issue #11：page 极大导致 start 溢出为负时不得 panic，返回空切片
+			name:     "page溢出为负下标不panic",
+			slice:    []int{1, 2, 3, 4, 5, 6, 7, 8},
+			page:     4611686018427387904,
+			pageSize: 20,
+			expected: []int{},
+		},
+		{
+			name:     "page为MaxInt64不panic",
+			slice:    []int{1, 2, 3, 4, 5, 6, 7, 8},
+			page:     math.MaxInt64,
+			pageSize: 20,
 			expected: []int{},
 		},
 	}

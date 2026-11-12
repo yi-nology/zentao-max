@@ -30,12 +30,16 @@ func (c *Client) GetTasksContext(ctx context.Context, executionID int, page, pag
 
 // GetTaskByID 按 ID 拉取任务详情（/task-view-{id}.json 双层包裹，内层通常为
 // {"task": {...}}；部分实例直接返回任务对象，两种形状都兼容）。
+// 绕过 SessionCache（doSessionJSONUncached，仍走 pool 限流 + 鉴权重试）：
+// 详情是写后回查的权威读（MCP transition_* 成功提示即引导用 get_*_detail 核对），
+// 必须即时反映其它通道（网页/zt CLI 直连禅道）的写结果——此前走 2min L1/L2
+// 缓存 + 失败时最长 1h 的 stale 兜底，取消任务后 MCP 仍报旧状态。
 func (c *Client) GetTaskByID(ctx context.Context, taskID int) (*zentaosdk.Task, error) {
 	if c.session == nil {
 		return nil, fmt.Errorf("会话客户端未初始化")
 	}
 	var inner map[string]json.RawMessage
-	if err := c.doSessionJSON(ctx, "GetTaskByID", fmt.Sprintf("/task-view-%d.json", taskID), &inner); err != nil {
+	if err := c.doSessionJSONUncached(ctx, "GetTaskByID", fmt.Sprintf("/task-view-%d.json", taskID), &inner); err != nil {
 		return nil, err
 	}
 	raw, ok := inner["task"]

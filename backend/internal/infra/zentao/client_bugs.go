@@ -97,11 +97,13 @@ func (c *Client) GetAllBugsByProjectContext(ctx context.Context, projectID int) 
 
 // GetBugByID 按 Bug ID 拉取详情（/bug-view-{id}.json，外层 {status,data} 双层包裹，
 // data 是转义 JSON 字符串需二次解析，inner.bug 为 Bug 实体）。用于写操作后回读快照。
+// 绕过 SessionCache（理由同 GetTaskByID）：详情是写后回查的权威读，必须即时
+// 反映其它通道的写结果，2min 缓存 + 1h stale 兜底会让回查读到旧状态。
 func (c *Client) GetBugByID(ctx context.Context, bugID int) (*zentaosdk.Bug, error) {
 	var resp struct {
 		Bug zentaosdk.Bug `json:"bug"`
 	}
-	if err := c.doSessionJSON(ctx, "GetBugByID", fmt.Sprintf("/bug-view-%d.json", bugID), &resp); err != nil {
+	if err := c.doSessionJSONUncached(ctx, "GetBugByID", fmt.Sprintf("/bug-view-%d.json", bugID), &resp); err != nil {
 		return nil, err
 	}
 	if resp.Bug.ID == 0 {

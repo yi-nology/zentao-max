@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -194,7 +195,9 @@ type fakeBugBrowseResp struct {
 // POST 任何 *.json 路径 → 返 {result:"success"}。
 type fakeZentaoServer struct {
 	*httptest.Server
-	hits atomic.Int32
+	hits  atomic.Int32
+	mu    sync.Mutex
+	inner map[string]string // 按 path 覆盖 GET inner JSON（setInner 注入；nil 走默认）
 }
 
 func newFakeZentaoServer(t *testing.T) *fakeZentaoServer {
@@ -231,13 +234,19 @@ func newFakeZentaoServer(t *testing.T) *fakeZentaoServer {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
-			inner, _ := json.Marshal(fakeBugBrowseResp{
-				Title:     "fake-bugs",
-				ProductID: 1,
-				Bugs:      []interface{}{},
-			})
+			inner := ""
+			if ov, ok := s.innerFor(r.URL.Path); ok {
+				inner = ov
+			} else {
+				b, _ := json.Marshal(fakeBugBrowseResp{
+					Title:     "fake-bugs",
+					ProductID: 1,
+					Bugs:      []interface{}{},
+				})
+				inner = string(b)
+			}
 			w.Write([]byte(`{"status":"success","data":"` +
-				escapeJSONString(string(inner)) + `","md5":"x"}`))
+				escapeJSONString(inner) + `","md5":"x"}`))
 		case http.MethodPost:
 			w.Write([]byte(`{"result":"success"}`))
 		default:

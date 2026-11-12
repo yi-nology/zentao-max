@@ -43,6 +43,11 @@ func (t *HTTPTransport) HandleActionByName(ctx context.Context, action string, c
 }
 
 func (t *HTTPTransport) HandleActionByNameWithParams(ctx context.Context, action string, params map[string]interface{}, c *app.RequestContext) {
+	// 与 HandleActionByName 同一访问控制：此前本函数漏检，POST /mcp/<工具> 带
+	// JSON body params 的请求全程绕过 Token/白名单/只读检查（无 token 也能拉全量数据）
+	if checkAccess(c, action) {
+		return
+	}
 	result, err := t.server.HandleAction(action, params)
 	respond(c, result, err)
 }

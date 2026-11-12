@@ -51,12 +51,13 @@ func (c *Client) GetAllStoriesContext(ctx context.Context, productID int) ([]zen
 
 // GetStoryByID 按 ID 拉取需求详情（/story-view-{id}.json 双层包裹，内层通常为
 // {"story": {...}}；部分实例直接返回需求对象，两种形状都兼容）。
+// 绕过 SessionCache（理由同 GetTaskByID）：详情是写后回查的权威读。
 func (c *Client) GetStoryByID(ctx context.Context, storyID int) (*zentaosdk.Story, error) {
 	if c.session == nil {
 		return nil, fmt.Errorf("会话客户端未初始化")
 	}
 	var inner map[string]json.RawMessage
-	if err := c.doSessionJSON(ctx, "GetStoryByID", fmt.Sprintf("/story-view-%d.json", storyID), &inner); err != nil {
+	if err := c.doSessionJSONUncached(ctx, "GetStoryByID", fmt.Sprintf("/story-view-%d.json", storyID), &inner); err != nil {
 		// 受限实例对无权限需求返回内层 {"result":"fail","message":"抱歉..."}，
 		// 外层解包在该形态下报解析错误——转成可读的权限提示
 		return nil, fmt.Errorf("需求 %d 详情获取失败（可能无权限访问该需求，或需求已删除）: %w", storyID, err)

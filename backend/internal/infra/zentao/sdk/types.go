@@ -2,7 +2,6 @@ package zentao
 
 import (
 	"encoding/json"
-	"strings"
 )
 
 // FlexibleString 兼容 string 和 []string 的类型
@@ -30,14 +29,6 @@ func (fs *FlexibleString) UnmarshalJSON(data []byte) error {
 	// null 或其他情况
 	*fs = nil
 	return nil
-}
-
-// String 返回逗号分隔的字符串（兼容旧代码）
-func (fs FlexibleString) String() string {
-	if fs == nil {
-		return ""
-	}
-	return strings.Join(fs, ",")
 }
 
 // Slice 返回字符串切片

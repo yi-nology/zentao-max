@@ -42,16 +42,10 @@ func NewStdioTransportWithIO(server *MCPServer, stdin io.Reader, stdout io.Write
 	}
 }
 
-// Start 在后台 goroutine 中启动 stdio 监听（向后兼容旧用法）.
-func (t *StdioTransport) Start() {
-	go t.listen(context.Background())
-}
-
-// Run 阻塞当前 goroutine 监听 stdin，直到 ctx 取消或 stdin 关闭（EOF）
-// 推荐在独立 stdio 入口（cmd/mcp）的主 goroutine 调用.
+// Run 阻塞当前 goroutine 监听 stdin，直到 ctx 取消或 stdin 关闭（EOF）。
+// 独立 stdio 入口（cmd/mcp）在主 goroutine 调用；both 模式的 HTTP 入口
+// 在后台 goroutine 调用。传输模式由各启动入口自行 SetTransport 标记。
 func (t *StdioTransport) Run(ctx context.Context) {
-	// 标记当前进程为 stdio 传输模式
-	GetMCPModeManager().SetTransport(TransportStdio)
 	t.listen(ctx)
 }
 

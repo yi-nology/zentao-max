@@ -66,8 +66,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
-
 	// 初始化性能监控
 	if err := metrics.Init(); err != nil {
 		logger.Fatal("Failed to initialize metrics", "error", err)
@@ -132,6 +130,8 @@ func main() {
 		cancel()
 	}()
 
+	// 标记当前进程为 stdio 传输模式（both 模式的 HTTP 入口标记 http，不经过这里）
+	mcp.GetMCPModeManager().SetTransport(mcp.TransportStdio)
 	logger.Info("MCP stdio server listening on stdin/stdout")
 	transport.Run(ctx)
 

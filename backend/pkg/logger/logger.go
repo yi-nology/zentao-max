@@ -8,7 +8,6 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
-	"sync"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	hertzcontribslog "github.com/hertz-contrib/logger/slog"
@@ -158,15 +157,6 @@ func GetLogger() logx.Logger {
 		panic("logger not initialized, please call Init() first")
 	}
 	return globalLogger
-}
-
-var syncOnce sync.Once
-
-// Sync 兼容旧调用点（defer logger.Sync()）。slog handler 直写无缓冲，
-// 文件句柄交给进程退出统一回收；保留幂等空实现以免调用点变更。
-func Sync() error {
-	syncOnce.Do(func() {})
-	return nil
 }
 
 func Debug(msg string, kv ...any) { GetLogger().Debug(msg, kv...) }

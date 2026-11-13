@@ -186,7 +186,7 @@ curl -s -X POST {{ mcpBase }}/mcp \
           <h3 class="code-title">简化协议：action / params</h3>
           <ul class="proto-points">
             <li>请求 <code>{"action":"工具名","params":{…}}</code>，响应 <code>{"status":"ok|error","message":…,"data":…}</code>，一行一请求。</li>
-            <li>HTTP 侧另有 GET 形式：<code>/mcp?action=get_bugs&amp;productId=1</code>，以及 <code>/mcp/bugs?productId=1</code> 等便捷端点。</li>
+            <li>HTTP 侧另有 GET 形式：<code>/mcp?action=get_bugs&amp;productId=1</code>，以及按工具全名单独端点 <code>/mcp/get_bugs</code>。</li>
             <li>适合 curl、脚本、自研 Agent 等不走标准 MCP 客户端的场景，stdio 与 HTTP 行为一致。</li>
           </ul>
           <pre class="code-block"><code># POST 统一入口
@@ -197,10 +197,10 @@ curl -s -X POST {{ mcpBase }}/mcp \
 # GET 统一入口
 curl -s "{{ mcpBase }}/mcp?action=get_bugs&productId=1"
 
-# 便捷端点
+# 便捷端点（工具全名）
 curl -s {{ mcpBase }}/mcp/ping
-curl -s {{ mcpBase }}/mcp/products
-curl -s "{{ mcpBase }}/mcp/bugs?productId=1"</code></pre>
+curl -s "{{ mcpBase }}/mcp/get_products"
+curl -s -X POST "{{ mcpBase }}/mcp/get_bugs" -H "Content-Type: application/json" -d '{"params":{"productId":1}}"' + '</code></pre>
         </div>
       </div>
 

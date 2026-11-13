@@ -206,14 +206,7 @@ export const mcpEndpoints = [
   { method: 'GET', path: '/mcp/tools', desc: '列出全部工具（含 inputSchema）' },
   { method: 'GET', path: '/mcp/tools/:name', desc: '单个工具定义' },
   { method: 'GET', path: '/mcp/ping', desc: 'Ping（免工具调用探测）' },
-  { method: 'GET', path: '/mcp/products', desc: '产品列表' },
-  { method: 'GET', path: '/mcp/projects?productId=1', desc: '项目列表' },
-  { method: 'GET', path: '/mcp/executions?projectId=1', desc: '执行/迭代列表' },
-  { method: 'GET', path: '/mcp/bugs?productId=1&status=active', desc: 'Bug 列表' },
-  { method: 'GET', path: '/mcp/stories?productId=1', desc: '需求列表' },
-  { method: 'GET', path: '/mcp/tasks?executionId=1', desc: '任务列表' },
-  { method: 'GET', path: '/mcp/users', desc: '用户列表' },
-  { method: 'GET', path: '/mcp/timelog?dateFrom=…&dateTo=…', desc: '工时统计' }
+  { method: 'POST', path: '/mcp/<工具全名>', desc: '简化协议按工具名单独端点（如 /mcp/get_bugs）' }
 ]
 
 export const restEndpoints = [

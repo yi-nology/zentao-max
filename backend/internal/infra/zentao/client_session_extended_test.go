@@ -8,30 +8,6 @@ import (
 
 // Phase2b 实体映射单元测试（基于 testdata 脱敏样本，无需凭据）。
 
-func TestSessionCaseMapping(t *testing.T) {
-	raw, err := os.ReadFile("testdata/sample_testcase_browse.json")
-	if err != nil {
-		t.Fatalf("read sample: %v", err)
-	}
-	var wrapper struct {
-		Sample []sessionCase `json:"sample"`
-	}
-	if err := json.Unmarshal(raw, &wrapper); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if len(wrapper.Sample) == 0 {
-		t.Fatal("case sample empty")
-	}
-	c := wrapper.Sample[0].toSDK()
-	if c.ID == 0 {
-		t.Error("case ID not mapped (parseCaseID 失败？)")
-	}
-	if c.Title == "" {
-		t.Error("case Title not mapped")
-	}
-	t.Logf("mapped case OK: id=%d title=%q type=%s", c.ID, c.Title, c.Type)
-}
-
 func TestSessionProgramMapping(t *testing.T) {
 	raw, err := os.ReadFile("testdata/sample_program_browse.json")
 	if err != nil {

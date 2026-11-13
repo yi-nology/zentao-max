@@ -22,10 +22,9 @@ type Metrics struct {
 	CacheMisses  *prometheus.CounterVec
 	CacheLatency *prometheus.HistogramVec
 
-	ZentaoAPIRequests    *prometheus.CounterVec
-	ZentaoAPIDuration    *prometheus.HistogramVec
-	ZentaoAPIErrors      *prometheus.CounterVec
-	ZentaoTokenRefreshes prometheus.Counter
+	ZentaoAPIRequests *prometheus.CounterVec
+	ZentaoAPIDuration *prometheus.HistogramVec
+	ZentaoAPIErrors   *prometheus.CounterVec
 
 	BugsTotal    *prometheus.GaugeVec
 	StoriesTotal *prometheus.GaugeVec
@@ -119,13 +118,6 @@ func Init() error {
 				Help: "Total number of Zentao API errors",
 			},
 			[]string{"endpoint", "method", "error_type"},
-		),
-		// ZentaoTokenRefreshes: 会话模式无 token 刷新，保留字段以兼容旧引用但实际无递增。
-		ZentaoTokenRefreshes: prometheus.NewCounter(
-			prometheus.CounterOpts{
-				Name: "zentao_token_refreshes_total",
-				Help: "Total number of Zentao token refreshes (no-op in session mode)",
-			},
 		),
 
 		BugsTotal: prometheus.NewGaugeVec(

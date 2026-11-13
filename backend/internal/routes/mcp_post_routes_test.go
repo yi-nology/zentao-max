@@ -58,9 +58,9 @@ func TestMCPPostRoutes_TokenRequired(t *testing.T) {
 	w = postMCP(h, "/mcp/get_bugs", "", "")
 	hertzassert.DeepEqual(t, http.StatusUnauthorized, w.Result().StatusCode())
 
-	// 3) 无 token + 短别名
+	// 3) 短别名路由已随兼容清仓删除：现在应 404（无路由），而非进入鉴权
 	w = postMCP(h, "/mcp/bugs", `{"params":{"productId":1}}`, "")
-	hertzassert.DeepEqual(t, http.StatusUnauthorized, w.Result().StatusCode())
+	hertzassert.DeepEqual(t, http.StatusNotFound, w.Result().StatusCode())
 
 	// 4) 正确 token + body params → 放行（ping 不触业务依赖，应 200）
 	w = postMCP(h, "/mcp/ping", `{"params":{}}`, "mcp-test-token")

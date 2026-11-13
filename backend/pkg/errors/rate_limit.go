@@ -17,14 +17,6 @@ type RateLimitConfig struct {
 	// RequestsPerMinute 每 IP 每分钟允许的请求数（令牌桶语义：填充速率
 	// rpm/60 每秒，桶容量 rpm——允许瞬时突发，持续超速被拒）
 	RequestsPerMinute int
-	// Deprecated: 令牌桶语义下无"封禁期"（超限请求等令牌，桶不满即拒），
-	// 字段仅为 config.yaml 向后兼容保留。
-	BlockDurationMinutes int
-}
-
-// DefaultRateLimitConfig 默认限流配置.
-func DefaultRateLimitConfig() RateLimitConfig {
-	return RateLimitConfig{RequestsPerMinute: 600, BlockDurationMinutes: 1}
 }
 
 // exemptPaths 不计入限流的基础设施端点：限流它们会导致监控/心跳把服务本身"打死"。
@@ -50,14 +42,8 @@ func NewRateLimiter(config RateLimitConfig) *ratelimit.KeyedLimiter {
 	)
 }
 
-// RateLimitMiddleware 使用默认配置的限流中间件.
-func RateLimitMiddleware() app.HandlerFunc {
-	return RateLimitMiddlewareWithConfig(600, 0)
-}
-
-// RateLimitMiddlewareWithConfig 按配置创建限流中间件.
-// blockDurationMinutes 已废弃（令牌桶语义），参数保留兼容既有调用点。
-func RateLimitMiddlewareWithConfig(requestsPerMinute, blockDurationMinutes int) app.HandlerFunc {
+// RateLimitMiddlewareWithConfig 按每分钟请求数创建限流中间件.
+func RateLimitMiddlewareWithConfig(requestsPerMinute int) app.HandlerFunc {
 	return rateLimitMiddleware(NewRateLimiter(RateLimitConfig{RequestsPerMinute: requestsPerMinute}))
 }
 

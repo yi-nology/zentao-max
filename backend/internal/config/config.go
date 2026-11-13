@@ -148,8 +148,6 @@ type LogConfig struct {
 type RateLimitConfig struct {
 	// 每分钟允许的请求数
 	RequestsPerMinute int `yaml:"requests_per_minute"`
-	// 超限后的封禁时长（分钟）
-	BlockDurationMinutes int `yaml:"block_duration_minutes"`
 }
 
 // 全局配置实例.
@@ -188,9 +186,8 @@ func DefaultConfig() *Config {
 		},
 		RateLimit: RateLimitConfig{
 			// 默认 600 次/分钟——前端单页加载会并发请求多个接口，
-			// 60 次/分钟在正常使用下极易触发，触发后封禁 5 分钟会让应用完全不可用
-			RequestsPerMinute:    600,
-			BlockDurationMinutes: 1,
+			// 60 次/分钟在正常使用下极易触发，超限会频繁 429 让应用不可用
+			RequestsPerMinute: 600,
 		},
 		MCP: MCPConfig{
 			Enabled:   true,
@@ -289,10 +286,6 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("rate limit requests per minute must be positive")
 	}
 
-	if cfg.RateLimit.BlockDurationMinutes <= 0 {
-		return fmt.Errorf("rate limit block duration must be positive")
-	}
-
 	// 验证超时配置
 	if cfg.Server.ReadTimeout <= 0 {
 		return fmt.Errorf("server read timeout must be positive")
@@ -347,11 +340,6 @@ func (c *ZentaoConfig) GetRequestTimeout() time.Duration {
 // 保留方法以兼容调用方（http_app 等），返回 0 表示不刷新。
 func (c *ZentaoConfig) GetTokenRefreshInterval() time.Duration {
 	return 0
-}
-
-// GetBlockDuration 获取限流封禁时长.
-func (c *RateLimitConfig) GetBlockDuration() time.Duration {
-	return time.Duration(c.BlockDurationMinutes) * time.Minute
 }
 
 // IsProduction 是否为生产环境.

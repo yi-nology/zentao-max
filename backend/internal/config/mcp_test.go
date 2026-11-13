@@ -32,7 +32,6 @@ func TestValidate_MCPTransport(t *testing.T) {
 		cfg.Log.Level = "info"
 		cfg.Log.Format = "console"
 		cfg.RateLimit.RequestsPerMinute = 60
-		cfg.RateLimit.BlockDurationMinutes = 5
 		cfg.Server.ReadTimeout = 120
 		cfg.Server.WriteTimeout = 120
 		cfg.Server.ShutdownTimeout = 30
@@ -49,7 +48,6 @@ func TestValidate_MCPTransport(t *testing.T) {
 	cfg.Log.Level = "info"
 	cfg.Log.Format = "console"
 	cfg.RateLimit.RequestsPerMinute = 60
-	cfg.RateLimit.BlockDurationMinutes = 5
 	cfg.Server.ReadTimeout = 120
 	cfg.Server.WriteTimeout = 120
 	cfg.Server.ShutdownTimeout = 30

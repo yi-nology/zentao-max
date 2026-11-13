@@ -104,7 +104,7 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 		gzip.WithExcludedPaths([]string{"/metrics"})))
 	// 限流参数来自配置文件的 rate_limit 段（未配置时回退内置默认 600/分钟）
 	rlCfg := config.Get().RateLimit
-	hertzServer.Use(errors.RateLimitMiddlewareWithConfig(rlCfg.RequestsPerMinute, rlCfg.BlockDurationMinutes))
+	hertzServer.Use(errors.RateLimitMiddlewareWithConfig(rlCfg.RequestsPerMinute))
 	hertzServer.Use(errors.CORSMiddleware())
 	// 认证中间件放在 CORS 之后，保证 401 响应也带 CORS 头
 	hertzServer.Use(authManager.Middleware())
@@ -142,8 +142,9 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	mcp.GetMCPModeManager().SetTransport(mcp.TransportHTTP)
 
 	// both 模式：HTTP 入口额外启动后台 stdio 监听，与 HTTP 共享同一 MCPServer
+	// （传输模式仍标记 http；stdio 入口由 cmd/mcp 自行标记）
 	if mcpCfg.Transport == mcp.TransportBoth {
-		mcp.NewStdioTransport(mcpServer).Start()
+		go mcp.NewStdioTransport(mcpServer).Run(context.Background())
 		logger.Info("MCP stdio transport started in 'both' mode")
 	}
 
@@ -422,29 +423,11 @@ func registerSchedulerRoutes(g *route.RouterGroup, h *handlers.SchedulerHandler)
 
 // registerMCPPostRoutes 注册 MCP 简化协议的 POST 路由。
 // 全量工具从 mcp.Tools 动态注册（POST /mcp/<工具全名>）——新增工具无需改这里；
-// 另保留早期集成的短别名（/mcp/bugs 等）向后兼容。
 func registerMCPPostRoutes(r *server.Hertz, transport *mcp.HTTPTransport) {
 	for _, tool := range mcp.Tools {
 		name := tool.Name
 		r.POST("/mcp/"+name, func(ctx context.Context, c *app.RequestContext) {
 			callMCPAction(c, transport, name)
-		})
-	}
-
-	aliases := map[string]string{
-		"products":   "get_products",
-		"projects":   "get_projects",
-		"executions": "get_executions",
-		"bugs":       "get_bugs",
-		"stories":    "get_stories",
-		"tasks":      "get_tasks",
-		"users":      "get_users",
-		"timelog":    "get_timelog",
-	}
-	for path, action := range aliases {
-		act := action
-		r.POST("/mcp/"+path, func(ctx context.Context, c *app.RequestContext) {
-			callMCPAction(c, transport, act)
 		})
 	}
 }

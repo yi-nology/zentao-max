@@ -215,3 +215,88 @@ func TestGetBugByID_NonexistentReadableError(t *testing.T) {
 		t.Errorf("error should carry upstream message, got: %s", msg)
 	}
 }
+
+// taskListFakeServer 模拟任务列表：v1 REST（全状态）与会话端点（未完成视图）。
+type taskListFakeServer struct {
+	*httptest.Server
+	v1Tasks      string // v1 响应（原样返回）
+	v1Status     int    // v1 状态码（404 模拟老实例无 v1）
+	sessionTasks string // 会话端点 inner JSON
+}
+
+func newTaskListFakeServer(t *testing.T) *taskListFakeServer {
+	t.Helper()
+	s := &taskListFakeServer{v1Status: 200}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user-login.html", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			http.SetCookie(w, &http.Cookie{Name: "zentaosid", Value: "fakesid", Path: "/"})
+			w.WriteHeader(200)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"result":"success"}`))
+	})
+	mux.HandleFunc("/user-refreshRandom.html", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("fakernd12345"))
+	})
+	mux.HandleFunc("/api.php/v1/executions/9151/tasks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(s.v1Status)
+		if s.v1Status == 200 {
+			w.Write([]byte(s.v1Tasks))
+		}
+	})
+	mux.HandleFunc("/execution-task-9151.json", func(w http.ResponseWriter, r *http.Request) {
+		env, _ := json.Marshal(map[string]string{"status": "success", "data": s.sessionTasks, "md5": "x"})
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(env)
+	})
+	s.Server = httptest.NewServer(mux)
+	t.Cleanup(s.Close)
+	return s
+}
+
+// TestGetTasks_FullStatusViaV1 回归：会话端点 /execution-task-{id}.json 只回
+// wait/doing（247 实测 cancel 的 574165 不可见），v1 REST 全状态必须作为首选。
+func TestGetTasks_FullStatusViaV1(t *testing.T) {
+	srv := newTaskListFakeServer(t)
+	srv.v1Tasks = `{"limit":1000,"page":1,"total":2,"tasks":[` +
+		`{"id":713307,"project":9689,"execution":9151,"name":"doing task","status":"doing"},` +
+		`{"id":574165,"project":9689,"execution":9151,"name":"cancelled task","status":"cancel"}]}`
+	c := NewSessionClient(srv.URL, "u", "p", "local", "", nil)
+
+	tasks, err := c.getTasksSession(context.Background(), 9151, 1, 100000)
+	if err != nil {
+		t.Fatalf("getTasksSession: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("tasks = %d, want 2 (v1 full-status)", len(tasks))
+	}
+	hasCancel := false
+	for _, task := range tasks {
+		if task.ID == 574165 && task.Status == "cancel" {
+			hasCancel = true
+		}
+	}
+	if !hasCancel {
+		t.Error("cancel task 574165 missing — v1 full-status path not used")
+	}
+}
+
+// TestGetTasks_FallsBackToSessionEndpoint v1 不可用（404）时回退会话端点，
+// 至少未完成任务可用，不因 v1 缺失导致任务列表整体失败。
+func TestGetTasks_FallsBackToSessionEndpoint(t *testing.T) {
+	srv := newTaskListFakeServer(t)
+	srv.v1Status = 404
+	srv.sessionTasks = `{"executionID":9151,"hasTasks":true,"tasks":{"1":{"id":713307,"project":9689,"execution":9151,"name":"doing task","status":"doing"}}}`
+	c := NewSessionClient(srv.URL, "u", "p", "local", "", nil)
+
+	tasks, err := c.getTasksSession(context.Background(), 9151, 1, 100000)
+	if err != nil {
+		t.Fatalf("getTasksSession: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != 713307 {
+		t.Fatalf("fallback tasks = %+v, want 1 task id 713307", tasks)
+	}
+}

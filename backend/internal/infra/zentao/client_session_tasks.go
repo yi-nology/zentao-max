@@ -7,6 +7,7 @@ import (
 	"time"
 
 	zentaosdk "github.com/yi-nology/zentao-max/backend/internal/infra/zentao/sdk"
+	"github.com/yi-nology/zentao-max/backend/pkg/logger"
 )
 
 // ---- Tasks (session mode) ----
@@ -75,7 +76,78 @@ func (t sessionTask) toSDK() zentaosdk.Task {
 	}
 }
 
+// v1 任务分页参数：v1 tasks 端点不保证接受超大 limit，按 1000/页翻页、
+// 按 total 收敛（用户 v1 分页同款），安全上限 20 页。
+const (
+	v1TasksPageSize = 1000
+	v1TasksMaxPages = 20
+)
+
+// getTasksV1Session 走 v1 REST /api.php/v1/executions/{id}/tasks 拉全状态任务。
+//
+// 背景（2026-11-15 247 实测）：会话端点 /execution-task-{id}.json 默认是
+// 「未完成」视图——执行 9151 的 54 条任务全部是 wait/doing，cancel 的
+// 574165（详情/回查可见）在列表里完全不存在。done/closed/cancel 任务在
+// 列表层系统性缺失。v1 端点返回全状态，作为首选数据源；不可用时回退
+// 会话端点（至少未完成任务可用）。
+func (c *Client) getTasksV1Session(ctx context.Context, executionID int) ([]zentaosdk.Task, bool, error) {
+	var out []zentaosdk.Task
+	seen := make(map[int]struct{})
+	for page := 1; page <= v1TasksMaxPages; page++ {
+		var resp struct {
+			Total int              `json:"total"`
+			Tasks []zentaosdk.Task `json:"tasks"`
+		}
+		path := fmt.Sprintf("/api.php/v1/executions/%d/tasks?limit=%d&page=%d", executionID, v1TasksPageSize, page)
+		if err := c.doV1JSON(ctx, "GetTasks", path, &resp); err != nil {
+			if page == 1 {
+				return nil, false, err
+			}
+			logger.Warn("v1 tasks 后续页拉取失败，使用部分数据", "executionID", executionID, "page", page, "error", err)
+			break
+		}
+		if len(resp.Tasks) == 0 {
+			if page == 1 {
+				return nil, false, fmt.Errorf("v1 tasks 首页为空")
+			}
+			break
+		}
+		before := len(out)
+		for _, t := range resp.Tasks {
+			if t.ID == 0 {
+				continue
+			}
+			if _, dup := seen[t.ID]; dup {
+				continue
+			}
+			seen[t.ID] = struct{}{}
+			out = append(out, t)
+		}
+		if resp.Total > 0 && len(out) >= resp.Total {
+			break
+		}
+		if len(out) == before {
+			break // 翻页无进展（服务端忽略 page），防死循环
+		}
+		if resp.Total == 0 && len(resp.Tasks) < v1TasksPageSize {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil, false, fmt.Errorf("v1 tasks 无数据")
+	}
+	return out, true, nil
+}
+
 func (c *Client) getTasksSession(ctx context.Context, executionID, page, pageSize int) ([]zentaosdk.Task, error) {
+	// 首选 v1 全状态任务；不可用/失败回退会话端点（未完成视图）
+	if v1Tasks, ok, verr := c.getTasksV1Session(ctx, executionID); ok {
+		return paginateTasks(v1Tasks, page, pageSize), nil
+	} else if verr != nil {
+		logger.Warn("v1 tasks 不可用，回退会话端点（仅未完成任务）",
+			"executionID", executionID, "error", verr)
+	}
+
 	path := fmt.Sprintf("/execution-task-%d.json", executionID)
 	var resp sessionExecutionTaskResp
 	if err := c.doSessionJSON(ctx, "GetTasks", path, &resp); err != nil {
@@ -97,6 +169,22 @@ func (c *Client) getTasksSession(ctx context.Context, executionID, page, pageSiz
 		return nil, nil
 	}
 	return all[start:end], nil
+}
+
+// paginateTasks 对已取全的列表做内存分页（v1 路径与 DTO 分页语义对齐）。
+func paginateTasks(all []zentaosdk.Task, page, pageSize int) []zentaosdk.Task {
+	start := (page - 1) * pageSize
+	if start < 0 {
+		start = 0
+	}
+	if start >= len(all) {
+		return nil
+	}
+	end := start + pageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[start:end]
 }
 
 func (c *Client) getAllTasksByProjectSession(ctx context.Context, projectID int) ([]zentaosdk.Task, error) {

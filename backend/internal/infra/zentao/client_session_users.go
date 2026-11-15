@@ -86,10 +86,17 @@ func (u sessionUser) toSDK() zentaosdk.User {
 // getCurrentUserSession 通过 /user-profile.json 获取当前登录用户。
 // 该端点是受限实例上最稳的轻端点（账号定位/工时/连接检测都依赖它），
 // 偶发空响应（网关连发软风控）时退避重试一次。
+//
+// 绕过 SessionCache（doSessionJSONUncached）：登录竞态时该端点可能回
+// 「成功但空 user」（如登录页半成品响应，解码不报错）——若入 L1（users
+// 实体 fresh 30min），后续所有身份探针 30 分钟内全命中毒化条目：healthz
+// 持续 0ms 报「未连接」，而产品/项目等数据流全正常。身份探针必须每次
+// 真实回源，且空结果以错误形式透出（调用方按失败处理）。
 func (c *Client) getCurrentUserSession(ctx context.Context) (*zentaosdk.User, error) {
 	var resp sessionUserProfileResp
 	fetch := func() error {
-		return c.doSessionJSON(ctx, "GetCurrentUser", "/user-profile.json", &resp)
+		resp = sessionUserProfileResp{} // 重试时清空，防拼出半新半旧对象
+		return c.doSessionJSONUncached(ctx, "GetCurrentUser", "/user-profile.json", &resp)
 	}
 	err := fetch()
 	if err != nil {
@@ -99,6 +106,10 @@ func (c *Client) getCurrentUserSession(ctx context.Context) (*zentaosdk.User, er
 		}
 	}
 	u := resp.User.toSDK()
+	if u.ID == 0 {
+		// 空 user 视同失败：不回缓存（本函数不经过缓存）+ 上层不会误判已连接
+		return nil, fmt.Errorf("当前用户为空（id=0）：可能处于登录竞态或会话失效")
+	}
 	return &u, nil
 }
 

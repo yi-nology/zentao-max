@@ -23,8 +23,10 @@ type usersV1TestServer struct {
 	v1Pages     [][]v1User
 	v1Total     int
 	profileJSON string
-	v1Hits      int
-	browseHits  int
+	// profileInner 覆盖 /user-profile.json 的 inner JSON；空串走默认的合法 user（5855）
+	profileInner string
+	v1Hits       int
+	browseHits   int
 }
 
 func newUsersV1TestServer(t *testing.T) *usersV1TestServer {
@@ -58,13 +60,17 @@ func newUsersV1TestServer(t *testing.T) *usersV1TestServer {
 		w.Write([]byte(s.browseBody))
 	})
 	mux.HandleFunc("/user-profile.json", func(w http.ResponseWriter, r *http.Request) {
-		inner, _ := json.Marshal(map[string]interface{}{
-			"title": "USER #5855 me/档案",
-			"user": map[string]interface{}{
-				"id": 5855, "account": "user01", "realname": "测试员", "dept": 8341,
-			},
-		})
-		w.Write([]byte(`{"status":"success","data":"` + escapeJSONString(string(inner)) + `","md5":"x"}`))
+		inner := s.profileInner
+		if inner == "" {
+			b, _ := json.Marshal(map[string]interface{}{
+				"title": "USER #5855 me/档案",
+				"user": map[string]interface{}{
+					"id": 5855, "account": "user01", "realname": "测试员", "dept": 8341,
+				},
+			})
+			inner = string(b)
+		}
+		w.Write([]byte(`{"status":"success","data":"` + escapeJSONString(inner) + `","md5":"x"}`))
 	})
 	mux.HandleFunc("/api.php/v1/users", func(w http.ResponseWriter, r *http.Request) {
 		s.v1Hits++
@@ -195,6 +201,43 @@ func TestGetUsersAllSession_V1Paginates(t *testing.T) {
 }
 
 // 场景 4：v1 也拿不到（老实例无该端点）时，保留原有的"仅当前用户"兜底。
+// TestGetCurrentUser_EmptyUser_notCached 回归：登录竞态期 /user-profile.json
+// 回「成功但空 user」时，不得把空 user 当成功返回、也不得进 SessionCache——
+// 否则 healthz 身份探针会在 users 实体 fresh 30min 内全部命中 0ms 毒化条目，
+// 持续误报「未连接到禅道服务器」（247 实测：数据流全正常但 healthz 长期 fail）。
+func TestGetCurrentUser_EmptyUser_notCached(t *testing.T) {
+	srv := newUsersV1TestServer(t)
+	srv.browseBody = ""
+	c := newUsersV1Client(t, srv)
+
+	// 1) 登录竞态期：成功信封 + 空 user → 必须返回错误而非零值 user
+	srv.profileInner = `{"title":"USER","user":{}}`
+	if u, err := c.GetCurrentUser(); err == nil {
+		t.Fatalf("空 user 应返回错误, got user=%+v", u)
+	}
+
+	// 2) 空结果不落缓存：切换到合法 user 后应立即看到新数据（而不是命中旧空值）
+	srv.profileInner = ""
+	u, err := c.GetCurrentUser()
+	if err != nil {
+		t.Fatalf("GetCurrentUser: %v", err)
+	}
+	if u == nil || u.ID != 5855 || u.Account != "user01" {
+		t.Fatalf("应返回真实用户 5855/user01, got %+v", u)
+	}
+
+	// 3) 身份探针全程不写 SessionCache（L2 不应出现 users 实体条目）
+	var count int
+	if err := c.cache.db.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM session_cache WHERE entity = 'users'`,
+	).Scan(&count); err != nil {
+		t.Fatalf("query session_cache: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("GetCurrentUser 不应写缓存, got %d rows", count)
+	}
+}
+
 func TestGetUsersAllSession_LastResortCurrentUser(t *testing.T) {
 	srv := newUsersV1TestServer(t)
 	srv.browseBody = ""

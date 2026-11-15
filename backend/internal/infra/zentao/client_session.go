@@ -1,6 +1,7 @@
 package zentao
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -424,7 +425,11 @@ func (s *SessionTransport) DoJSONRaw(ctx context.Context, path string) ([]byte, 
 	}
 
 	var env zentaoEnvelope
-	if err := json.Unmarshal(body, &env); err != nil {
+	// 用 Decoder 只读第一个 JSON 值：禅道对不存在/无权限实体常返回
+	// 「{外层信封}{内层 result=fail 对象}」两个拼接 JSON，json.Unmarshal
+	// 会以 "invalid character '{' after top-level value" 整体失败——此前
+	// 所有「不存在的 bug/task」详情都报成内部解析错误而非可读提示。
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&env); err != nil {
 		// 网关/网络层的纯文本响应（如 "Connection timed out"、"502 Bad Gateway"、
 		// HTML 错误页）会被当成 JSON 解析失败误导排障方向——识别并转成网络错误
 		if netErr := classifyNonJSONBody(body); netErr != nil {
@@ -441,6 +446,20 @@ func (s *SessionTransport) DoJSONRaw(ctx context.Context, path string) ([]byte, 
 			return nil, fmt.Errorf("解析 data 字符串失败 (path=%s): %w", path, err)
 		}
 		innerData = json.RawMessage(s2)
+	}
+
+	// 业务失败信封（实体不存在/无权限时内层为 {"result":"fail","message":"..."}）：
+	// 转成可读错误返回，而不是把后续解析错误透给用户。
+	var bizFail struct {
+		Result  string `json:"result"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(innerData, &bizFail); err == nil && bizFail.Result == "fail" {
+		msg := strings.TrimSpace(bizFail.Message)
+		if msg == "" {
+			msg = "禅道返回失败（无消息）"
+		}
+		return nil, fmt.Errorf("%s (path=%s)", msg, path)
 	}
 
 	// 先看是不是 locate 重定向（未认证/无权限）。这种情况不应继续。

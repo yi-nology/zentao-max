@@ -242,7 +242,12 @@ collect:
 		Healthy: failCount == 0,
 	}
 
-	h.storeCache(&resp)
+	// 失败结果不入 90s 短缓存：启动竞态（登录未完成时首个探针）或上游瞬断
+	// 产生的 fail 若被缓存，会在下次请求前持续误报（真实案例：进程重启后
+	// healthz 90s 内恒 fail 而数据流全通）。只有整体健康才值得缓存。
+	if zentaoCheck.Status == "ok" {
+		h.storeCache(&resp)
+	}
 	return &resp, nil
 }
 

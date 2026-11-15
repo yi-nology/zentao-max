@@ -1,6 +1,7 @@
 package zentao
 
 import (
+	"bytes"
 	"encoding/json"
 )
 
@@ -287,6 +288,37 @@ type UserRef struct {
 	Account  string `json:"account"`
 	Avatar   string `json:"avatar"`
 	Realname string `json:"realname"`
+}
+
+// UnmarshalJSON 兼容两种用户引用形态：{"account":"u","realname":"..."} 对象，
+// 或纯字符串 "u"（仅账号）。
+//
+// 禅道不同端点/实例返回不一致：列表接口通常给对象，bug-view / task-view 等
+// 详情端点的 openedBy/assignedTo 实测直接给字符串账号。此前结构体严格解析
+// 会把字符串当对象解 → "cannot unmarshal string into Go struct field
+// .bug.openedBy"，详情类接口对整类数据全灭。
+func (u *UserRef) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		*u = UserRef{}
+		return nil
+	}
+	if trimmed[0] == '"' {
+		var s string
+		if err := json.Unmarshal(trimmed, &s); err != nil {
+			return err
+		}
+		*u = UserRef{Account: s}
+		return nil
+	}
+	// 防止递归：别名类型无自定义方法
+	type userRefAlias UserRef
+	var a userRefAlias
+	if err := json.Unmarshal(trimmed, &a); err != nil {
+		return err
+	}
+	*u = UserRef(a)
+	return nil
 }
 
 // Task 任务结构

@@ -82,6 +82,12 @@ func (h *DashboardHandler) Search(ctx context.Context, c *app.RequestContext) {
 		errors.Error(c, err)
 		return
 	}
+	// 全局搜索的实现以产品为数据源（bug/story/task 列表都按产品拉取）：
+	// productId 缺省时此前静默返回空结果，用户无法区分「无匹配」与「未选产品」。
+	if query.ProductID <= 0 {
+		errors.BadRequest(c, "请先选择产品后再搜索（当前无产品上下文）")
+		return
+	}
 	result, err := h.dashboardService.SearchContext(ctx, query.Keyword, query.ProductID, query.Page, query.PageSize)
 	if err != nil {
 		errors.Error(c, errors.ExternalError("禅道", err))

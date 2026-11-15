@@ -161,6 +161,22 @@ func SetupRouterWithHandlers(initService *initialization.InitService, zentaoClie
 	if staticFS != nil {
 		hertzServer.NoRoute(func(ctx context.Context, c *app.RequestContext) {
 			filePath := string(c.Path())
+			// API / MCP 语义的未知路径必须返回 JSON 404：此前落 SPA fallback 会给
+			// 200 + index.html——MCP/API 客户端把 HTML 当成功响应解析失败，路由
+			// 拼写错误也被掩盖（v0.10 移除 MCP 短别名后旧客户端即踩此坑）。
+			if filePath == "/api" || strings.HasPrefix(filePath, "/api/") ||
+				filePath == "/mcp" || strings.HasPrefix(filePath, "/mcp/") {
+				hint := ""
+				if strings.HasPrefix(filePath, "/mcp/") {
+					hint = "（MCP 短别名已在 v0.10 移除：请使用工具全名如 POST /mcp/get_bugs，或 JSON-RPC POST /mcp）"
+				}
+				c.JSON(404, map[string]interface{}{
+					"code":    40400,
+					"message": "接口不存在: " + filePath + hint,
+					"data":    nil,
+				})
+				return
+			}
 			if filePath == "/" {
 				filePath = "/index.html"
 			}

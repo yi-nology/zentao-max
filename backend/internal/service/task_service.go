@@ -16,6 +16,10 @@ import (
 
 const (
 	tasksCacheDuration = 60 * time.Minute
+
+	// productTasksBudget 产品维度任务爬取预算：只爬本产品的执行子集，
+	// 小产品秒级完成；大产品（数百执行）超出预算时部分结果不写缓存。
+	productTasksBudget = 45 * time.Second
 )
 
 // TaskService 任务业务逻辑服务
@@ -90,55 +94,59 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 		}
 	} else if query.ProductID > 0 {
 		// 产品维度：任务挂在执行下，按「产品→项目集合」过滤——与 executions
-		// 的产品诚实语义一致。此前不过滤返回全实例任务（产品 1029 执行为 0
-		// 但任务页显示全实例任务，自相矛盾）。
-		// 全量爬取走共享 SWR 条目 tasks:all（30min，一次 60s 预算的全执行
-		// 遍历 + 8 并发爬取），之后各产品即时内存过滤，不再每产品缓存一份
-		// 相同的全量数据。
-		if s.cache != nil {
-			// SWR（tasks:all 30min，实例级空列表防毒化）：首拉 60s 预算收口，
-			// 之后秒回过期数据 + 后台刷新
-			var swrErr error
-			// 部分数据（执行列表截断/逐执行失败/预算收口）不写缓存：
-			// 否则缺失会随 30min TTL 固化成"稳定错误"。
-			var partial bool
-			allTasks, _, swrErr = swrLoadJSONGuarded[[]zentaosdk.Task](s.cache, "tasks:all", 0, 30*time.Minute,
-				func(ctx context.Context) ([]zentaosdk.Task, error) {
-					tasks, inc, terr := s.fetchTasksAcrossExecutions(60 * time.Second)
-					partial = inc
-					return tasks, terr
-				},
-				func(t []zentaosdk.Task) bool { return len(t) == 0 },
-				"任务全量遍历为空（疑似会话失效），不缓存空结果",
-				func([]zentaosdk.Task) bool { return partial },
-			)
-			if swrErr != nil {
-				return nil, swrErr
-			}
-		} else {
-			allTasks, _, err = s.fetchTasksAcrossExecutions(60 * time.Second)
-			if err != nil {
-				return nil, err
-			}
-		}
-		// 按产品项目集合过滤
+		// 的产品诚实语义一致。
+		//
+		// 关键性能/正确性口径（2026-11-15 修正）：只在**本产品的执行子集**上
+		// 爬任务，不再对全实例执行爬 tasks:all 再内存过滤——247 实例有 2745
+		// 个执行，60s 预算全量爬只能覆盖 ~15%（实测 failed=2314/2745），
+		// 产品维度任务必然缺失（get_tasks(783) 恒 0/部分）。产品 783 的执行
+		// 只有 9 个，子集爬取秒级完成且可完整缓存（tasks:product 30min）。
 		projSet, perr := s.productProjectSet(query.ProductID)
 		if perr != nil {
 			return nil, perr
 		}
-		filtered := make([]zentaosdk.Task, 0, len(allTasks)/4)
-		for _, t := range allTasks {
-			if _, ok := projSet[t.Project]; ok {
-				filtered = append(filtered, t)
+		var productTasksIncomplete bool
+		loadProductTasks := func(ctx context.Context) ([]zentaosdk.Task, error) {
+			execs, execIncomplete, xerr := allExecutionsViaSWR(s.cache, s.client)
+			if xerr != nil {
+				return nil, xerr
+			}
+			execIDs := make([]int, 0, 32)
+			for _, e := range execs {
+				if _, ok := projSet[e.Project]; ok {
+					execIDs = append(execIDs, e.ID)
+				}
+			}
+			budgetCtx, cancel := context.WithTimeout(context.Background(), productTasksBudget)
+			defer cancel()
+			tasks, failed := crawlByIDs(budgetCtx, execIDs, crawlWorkers, nil,
+				func(crawlCtx context.Context, execID int) ([]zentaosdk.Task, error) {
+					return s.client.GetTasksContext(crawlCtx, execID, 1, 10000)
+				})
+			productTasksIncomplete = execIncomplete || failed > 0 || budgetCtx.Err() != nil
+			return tasks, nil
+		}
+
+		if s.cache != nil {
+			allTasks, _, err = swrLoadJSONGuarded[[]zentaosdk.Task](s.cache, "tasks:product", query.ProductID, 30*time.Minute,
+				loadProductTasks,
+				nil, "",
+				func([]zentaosdk.Task) bool { return productTasksIncomplete },
+			)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			allTasks, err = loadProductTasks(context.Background())
+			if err != nil {
+				return nil, err
 			}
 		}
-		logger.Info("产品维度任务过滤",
+		logger.Info("产品维度任务（执行子集爬取）",
 			"productID", query.ProductID,
 			"projects", len(projSet),
-			"allTasks", len(allTasks),
-			"filtered", len(filtered),
+			"tasks", len(allTasks),
 		)
-		allTasks = filtered
 	} else if query.AssignedTo != "" && query.AssignedTo == s.client.GetAccount() {
 		// 查"我的任务"：/my-work-task.json 直达当前用户，不遍历全执行。
 		// （大实例上千执行的全遍历 20s+ 仍取不全，池降级后返回空表。）

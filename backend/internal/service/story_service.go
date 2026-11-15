@@ -99,11 +99,13 @@ func (s *StoryService) fetchStories(query *dto.StoryQueryDTO) ([]zentaosdk.Story
 		if len(cached) > 0 {
 			return cached, nil
 		}
-		return s.fetchStoriesAcrossExecutions(60 * time.Second)
+		stories, _, ferr := s.fetchStoriesAcrossExecutions(60 * time.Second)
+		return stories, ferr
 	}
 	// 全部缺省：直接全 execution 收集（dashboard 同款），保证 health check
 	// 跟产品选择解耦，页面也能看到 <user-account> 实际关联的 story
-	return s.fetchStoriesAcrossExecutions(60 * time.Second)
+	stories, _, ferr := s.fetchStoriesAcrossExecutions(60 * time.Second)
+	return stories, ferr
 }
 
 // applyStoryFilters 对需求列表应用查询条件（不含分页），列表与统计卡共用同一筛选口径

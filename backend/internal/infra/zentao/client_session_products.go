@@ -358,22 +358,64 @@ func (c *Client) getExecutionsSession(ctx context.Context, projectID int) ([]zen
 	return out, nil
 }
 
-// execAllPageBudget 全执行翻页的时间预算。大实例 2700+ 执行 ≈ 137 页，
-// 实测全翻完 ~96s——超过任何调用方的超时容忍（healthz 20s / tasks 60s 门控 /
-// axios 150s），必须在列表层就截断返回已收集部分（stale 缓存与部分数据兜底）。
+// execAllPageBudget 全执行翻页的时间预算。大实例 2700+ 执行按 20 条/页
+// 需要 ~137 页，实测 45s 只能翻 40~75 页（collected 780~1480）——产品维度
+// 执行/任务列表系统性缺失且调用方无从感知（2026-11-15 巡检发现）。
 const execAllPageBudget = 45 * time.Second
 
+// execAllRecPerPage 全执行翻页每页条数。禅道 pager 的 recPerPage 由 path
+// 传入并在响应 pager 回显（bug 列表 100/页已验证被尊重）；100/页时
+// 2700+ 执行只需 ~27 页，45s 预算内可完整翻完。
+const execAllRecPerPage = 100
+
+// ExecutionCrawl 全执行爬取结果（含完整性元数据）。
+// Incomplete=true 表示预算耗尽/中途失败/收集数少于 pager 声明值，
+// 调用方据此禁止把部分数据写入长期缓存。
+type ExecutionCrawl struct {
+	Items      []zentaosdk.Execution
+	RecTotal   int // 禅道 pager 声明的总数；0 = 未知
+	Incomplete bool
+}
+
+// getAllExecutionsSession 全执行列表（兼容旧调用方：丢弃完整性元数据）。
 func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execution, error) {
+	crawl, err := c.crawlAllExecutionsSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return crawl.Items, nil
+}
+
+// GetAllExecutionsCrawlContext 全执行爬取（带完整性元数据，供服务层判断
+// 是否允许写缓存）。
+func (c *Client) GetAllExecutionsCrawlContext(ctx context.Context) (ExecutionCrawl, error) {
+	return c.crawlAllExecutionsSession(ctx)
+}
+
+func (c *Client) crawlAllExecutionsSession(ctx context.Context) (ExecutionCrawl, error) {
+	res := ExecutionCrawl{}
 	var out []zentaosdk.Execution
 	page := 1
 	recTotal := 0
-	const recPerPage = 20
+	recPerPage := execAllRecPerPage
 	deadline := time.Now().Add(execAllPageBudget)
+
+	finish := func(incomplete bool) (ExecutionCrawl, error) {
+		res.Items = out
+		res.RecTotal = recTotal
+		res.Incomplete = incomplete
+		if incomplete {
+			logger.Warn("全执行列表不完整（预算/失败/分页异常）",
+				"collected", len(out), "recTotal", recTotal, "pages", page)
+		}
+		return res, nil
+	}
+
 	for {
 		if page > 1 && time.Now().After(deadline) {
 			logger.Warn("execution-all 翻页时间预算耗尽，返回已收集部分",
-				"page", page, "collected", len(out))
-			return out, nil
+				"page", page, "collected", len(out), "recTotal", recTotal)
+			return finish(recTotal == 0 || len(out) < recTotal)
 		}
 		// execution-all 翻页段格式（取自执行列表页真实 pager 链接）：
 		//   /execution-all-{browseType}-{orderBy}-0--{recTotal}-{recPerPage}-{pageID}.json
@@ -391,21 +433,27 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 		}
 		if respErr != nil {
 			// 已收集到部分数据时，中途单页失败（网关超时/偶发截断）返回部分结果
-			// 而非整体报错——大实例遍历 50+ 页，末尾偶发超时推翻前 50 页的成果
-			// 得不偿失（调用方另有 60s 门控与 stale 缓存兜底）。首页失败仍报错。
+			// 而非整体报错——大实例遍历数十页，末尾偶发超时推翻前面的成果
+			// 得不偿失（调用方另有 stale 缓存兜底），但必须标记 Incomplete。
 			if page > 1 && len(out) > 0 {
 				logger.Warn("execution-all 翻页中途失败，返回已收集部分",
 					"page", page, "collected", len(out), "error", respErr)
-				return out, nil
+				return finish(true)
 			}
-			return out, respErr
+			return res, respErr
 		}
 		src := resp.ExecutionStats
 		if len(src) == 0 {
 			src = resp.Executions
 		}
-		if recTotal == 0 && resp.Pager != nil {
-			recTotal = pagerInt(resp.Pager.RecTotal)
+		if resp.Pager != nil {
+			if recTotal == 0 {
+				recTotal = pagerInt(resp.Pager.RecTotal)
+			}
+			// 服务端若不接受请求的页大小，以 pager 回显为准，避免按错误步长漏页
+			if rp := pagerInt(resp.Pager.RecPerPage); rp > 0 && rp != recPerPage {
+				recPerPage = rp
+			}
 		}
 		dupBefore := len(out)
 		for _, e := range src {
@@ -413,17 +461,23 @@ func (c *Client) getAllExecutionsSession(ctx context.Context) ([]zentaosdk.Execu
 		}
 		// 翻页未推进（同一页内容重复返回）即收口，防死循环
 		if len(out) == dupBefore && page > 1 {
-			return out, nil
+			return finish(recTotal > 0 && len(out) < recTotal)
 		}
-		if len(src) < recPerPage {
-			return out, nil
+		// 正常出口：pager 页数走完 / 收集数达到 recTotal / 空页
+		if resp.Pager != nil {
+			if pt := pagerInt(resp.Pager.PageTotal); pt > 0 && page >= pt {
+				return finish(recTotal > 0 && len(out) < recTotal)
+			}
 		}
-		if resp.Pager != nil && page >= pagerInt(resp.Pager.PageTotal) {
-			return out, nil
+		if recTotal > 0 && len(out) >= recTotal {
+			return finish(false)
+		}
+		if len(src) == 0 {
+			return finish(recTotal > 0 && len(out) < recTotal)
 		}
 		page++
 		if page > 2000 { // 安全闸
-			return out, fmt.Errorf("execution 翻页超过 2000 页")
+			return res, fmt.Errorf("execution 翻页超过 2000 页")
 		}
 	}
 }
@@ -458,15 +512,34 @@ func pagerInt(n json.Number) int {
 // tasks.total=3957 的错误数据）。产品维度过滤不允许"由上层完成"——上层（dashboard）
 // 拿到执行列表后就是直接遍历，没有过滤环节。
 func (c *Client) executionsByProductSession(ctx context.Context, productID int) ([]ExecutionContext, error) {
-	allExecs, err := c.getAllExecutionsSession(ctx)
+	crawl, err := c.GetExecutionsByProductCrawlContext(ctx, productID)
 	if err != nil {
 		return nil, err
+	}
+	return crawl.Items, nil
+}
+
+// ProductExecutionsCrawl 产品维度执行爬取结果（带完整性元数据）。
+type ProductExecutionsCrawl struct {
+	Items      []ExecutionContext
+	Incomplete bool
+}
+
+// GetExecutionsByProductCrawlContext 产品维度执行列表（带完整性元数据）。
+// Incomplete=true 时上层不得把结果写入长期缓存（部分数据不固化）。
+func (c *Client) GetExecutionsByProductCrawlContext(ctx context.Context, productID int) (ProductExecutionsCrawl, error) {
+	all, err := c.crawlAllExecutionsSession(ctx)
+	if err != nil {
+		return ProductExecutionsCrawl{}, err
 	}
 	projects, err := c.getProjectsByProductSession(ctx, productID)
 	if err != nil {
-		return nil, err
+		return ProductExecutionsCrawl{}, err
 	}
-	return filterExecutionContexts(allExecs, projects), nil
+	return ProductExecutionsCrawl{
+		Items:      filterExecutionContexts(all.Items, projects),
+		Incomplete: all.Incomplete,
+	}, nil
 }
 
 // filterExecutionContexts 按项目集合筛选执行并组装 ExecutionContext（纯函数，便于单测）。

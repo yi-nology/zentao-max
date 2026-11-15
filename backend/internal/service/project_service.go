@@ -91,14 +91,28 @@ func (s *ExecutionService) SetCache(c *CacheService) { s.cache = c }
 // 2. 如果有产品ID，取产品项目集合 + 一次全执行列表后按项目归属过滤（SWR 缓存）
 // 3. 否则返回实例全量执行
 func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.ExecutionVO, error) {
+	list, _, err := s.GetExecutionsMeta(query)
+	return list, err
+}
+
+// GetExecutionsMeta 与 GetExecutions 相同，额外返回 incomplete：
+// 执行列表可能因预算截断/分页失败而缺失部分执行（MCP/API 可透出给调用方）。
+func (s *ExecutionService) GetExecutionsMeta(query *dto.ExecutionQueryDTO) ([]vo.ExecutionVO, bool, error) {
 	var executions []zentaosdk.Execution
 
 	if query.ProjectID != 0 {
-		// 按项目筛选
-		var err error
-		executions, err = s.client.GetExecutions(query.ProjectID, query.Page, query.PageSize)
+		// 按项目筛选：直接爬全量执行再过滤，保留完整性元数据
+		crawl, err := s.client.GetAllExecutionsCrawlContext(context.Background())
 		if err != nil {
-			return nil, err
+			return nil, false, err
+		}
+		for _, e := range crawl.Items {
+			if e.Project == query.ProjectID {
+				executions = append(executions, e)
+			}
+		}
+		if crawl.Incomplete {
+			return s.convertToVO(executions), true, nil
 		}
 	} else if query.ProductID != 0 {
 		// 按产品筛选：此前「取产品项目列表 → 逐项目 GetExecutions」，而 session
@@ -106,27 +120,31 @@ func (s *ExecutionService) GetExecutions(query *dto.ExecutionQueryDTO) ([]vo.Exe
 		// 全量遍历，实测产品维度每次请求 ~56s 且零缓存。改为「一次产品项目
 		// 集合 + 一次全执行列表 + 内存过滤」+ SWR（30min，过期秒回旧数据 +
 		// 后台刷新）。
-		filtered, _, err := swrLoadJSON[[]zentaosdk.Execution](s.cache, "executions:product", query.ProductID, 30*time.Minute,
+		var partial bool
+		filtered, _, err := swrLoadJSONGuarded[[]zentaosdk.Execution](s.cache, "executions:product", query.ProductID, 30*time.Minute,
 			func(ctx context.Context) ([]zentaosdk.Execution, error) {
-				return s.fetchProductExecutions(query.ProductID)
+				items, inc, ferr := s.fetchProductExecutionsCrawl(query.ProductID)
+				partial = inc
+				return items, ferr
 			},
-			nil, "")
+			nil, "",
+			func([]zentaosdk.Execution) bool { return partial })
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		return s.convertToVO(filtered), nil
+		return s.convertToVO(filtered), partial, nil
 	} else {
 		// 无项目/产品过滤：返回实例全量执行。此前直接返回空列表，
 		// REST /api/executions 与 MCP get_executions 不带参数时永远空数组。
-		var err error
-		executions, err = s.client.GetAllExecutions()
+		crawl, err := s.client.GetAllExecutionsCrawlContext(context.Background())
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		return s.convertToVO(crawl.Items), crawl.Incomplete, nil
 	}
 
 	// 转换为VO
-	return s.convertToVO(executions), nil
+	return s.convertToVO(executions), false, nil
 }
 
 // convertToVO 将zentao.Execution转换为vo.ExecutionVO
@@ -154,22 +172,24 @@ func (s *ExecutionService) convertToVO(executions []zentaosdk.Execution) []vo.Ex
 // fetchProductExecutions 产品维度的执行集合：一次产品项目列表 + 一次全执行
 // 遍历 + 按项目归属内存过滤（原逐项目 GetExecutions = N × 全执行遍历，
 // 实测产品维度单请求 ~56s 且零缓存）。
-func (s *ExecutionService) fetchProductExecutions(productID int) ([]zentaosdk.Execution, error) {
+// fetchProductExecutionsCrawl 产品维度执行列表（带完整性元数据）。
+// incomplete=true 时调用方不得把结果写入长期缓存。
+func (s *ExecutionService) fetchProductExecutionsCrawl(productID int) ([]zentaosdk.Execution, bool, error) {
 	projects, _, err := swrLoadJSON[[]zentaosdk.Project](s.cache, "projects:product", productID, 30*time.Minute,
 		func(ctx context.Context) ([]zentaosdk.Project, error) {
 			return s.client.GetProjectsByProduct(productID, 1, 10000)
 		},
 		nil, "")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	projSet := make(map[int]struct{}, len(projects))
 	for _, p := range projects {
 		projSet[p.ID] = struct{}{}
 	}
-	allExecs, err := allExecutionsViaSWR(s.cache, s.client)
+	allExecs, execIncomplete, err := allExecutionsViaSWR(s.cache, s.client)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	filtered := make([]zentaosdk.Execution, 0, len(allExecs)/8)
 	for _, e := range allExecs {
@@ -182,20 +202,31 @@ func (s *ExecutionService) fetchProductExecutions(productID int) ([]zentaosdk.Ex
 		"projects", len(projects),
 		"allExecutions", len(allExecs),
 		"filtered", len(filtered),
+		"incomplete", execIncomplete,
 	)
-	return filtered, nil
+	return filtered, execIncomplete, nil
 }
 
 // allExecutionsViaSWR 全实例执行列表（SWR 30min，缓存键 executions:all /
 // productID=0）。executions 与 tasks 两条产品路径共用同一缓存条目：
 // executions 先调时 tasks 的冷启动直接复用，不必再支付一次 58s 全遍历。
-func allExecutionsViaSWR(cache *CacheService, client *myzentao.Client) ([]zentaosdk.Execution, error) {
-	execs, _, err := swrLoadJSON[[]zentaosdk.Execution](cache, "executions:all", 0, 30*time.Minute,
+// allExecutionsViaSWR 全实例执行列表（SWR 30min，缓存键 executions:all；
+// 空列表与不完整结果均不缓存）。返回的 incomplete 表示本次结果可能缺失
+// 部分执行（预算截断/分页失败），调用方应禁止把派生结果固化到缓存。
+func allExecutionsViaSWR(cache *CacheService, client *myzentao.Client) ([]zentaosdk.Execution, bool, error) {
+	var incomplete bool
+	execs, _, err := swrLoadJSONGuarded[[]zentaosdk.Execution](cache, "executions:all", 0, 30*time.Minute,
 		func(ctx context.Context) ([]zentaosdk.Execution, error) {
-			return client.GetAllExecutionsContext(ctx)
+			crawl, cerr := client.GetAllExecutionsCrawlContext(ctx)
+			if cerr != nil {
+				return nil, cerr
+			}
+			incomplete = crawl.Incomplete
+			return crawl.Items, nil
 		},
 		func(e []zentaosdk.Execution) bool { return len(e) == 0 },
 		"全执行列表为空（疑似会话失效），不缓存空结果",
+		func([]zentaosdk.Execution) bool { return incomplete },
 	)
-	return execs, err
+	return execs, incomplete, err
 }

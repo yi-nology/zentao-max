@@ -29,6 +29,23 @@ func swrLoadJSON[T any](
 	isEmpty func(T) bool,
 	emptyMsg string,
 ) (T, bool, error) {
+	return swrLoadJSONGuarded(cache, entityType, id, ttl, load, isEmpty, emptyMsg, nil)
+}
+
+// swrLoadJSONGuarded 与 swrLoadJSON 相同，额外支持 noCache 判定：
+// 结果判定为不完整/不可缓存时只返回数据、不写缓存（含 SWR 后台刷新路径）。
+// 用于「闲时能完整、忙时被预算截断」的爬取类数据（tasks:all / executions:*）：
+// 截断结果若固化 30 分钟，会让数据缺失变成"稳定错误"。
+func swrLoadJSONGuarded[T any](
+	cache *CacheService,
+	entityType string,
+	id int,
+	ttl time.Duration,
+	load func(ctx context.Context) (T, error),
+	isEmpty func(T) bool,
+	emptyMsg string,
+	noCache func(T) bool,
+) (T, bool, error) {
 	var zero T
 	if cache == nil {
 		v, err := load(context.Background())
@@ -41,17 +58,26 @@ func swrLoadJSON[T any](
 		return v, false, nil
 	}
 
+	var lastLoad T
 	loader := func(ctx context.Context) ([]byte, error) {
 		v, err := load(ctx)
 		if err != nil {
 			return nil, err
 		}
+		lastLoad = v
 		if isEmpty != nil && isEmpty(v) {
 			return nil, fmt.Errorf("%s", emptyMsg)
 		}
 		return json.Marshal(v)
 	}
-	res, err := cache.GetOrLoadSWR(context.Background(), entityType, id, ttl, loader)
+	cacheable := func([]byte) bool {
+		return noCache == nil || !noCache(lastLoad)
+	}
+	if noCache == nil {
+		// 无判定需求时走原路径，避免闭包开销差异带来的行为漂移
+		cacheable = nil
+	}
+	res, err := cache.GetOrLoadSWRGuarded(context.Background(), entityType, id, ttl, loader, cacheable)
 	if err != nil {
 		return zero, false, err
 	}

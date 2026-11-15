@@ -69,15 +69,22 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 	query.Page = 1
 	query.PageSize = 2000
 
-	result, err := s.executionService.GetExecutions(query)
+	result, incomplete, err := s.executionService.GetExecutionsMeta(query)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{
+	resp := map[string]interface{}{
 		"status":  "ok",
 		"message": "Executions retrieved successfully",
 		"data":    result,
-	}, nil
+	}
+	if incomplete {
+		// 执行列表因预算截断/分页失败缺失部分数据：显式告知调用方，
+		// 避免把不完整列表当完整数据使用（此前仅有服务端日志）。
+		resp["incomplete"] = true
+		resp["message"] = "Executions retrieved successfully（列表不完整：上游遍历被预算截断，数据可能缺失）"
+	}
+	return resp, nil
 }
 
 // handleGetBugs 获取 Bug 列表.

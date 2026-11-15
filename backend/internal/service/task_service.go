@@ -99,18 +99,24 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 			// SWR（tasks:all 30min，实例级空列表防毒化）：首拉 60s 预算收口，
 			// 之后秒回过期数据 + 后台刷新
 			var swrErr error
-			allTasks, _, swrErr = swrLoadJSON[[]zentaosdk.Task](s.cache, "tasks:all", 0, 30*time.Minute,
+			// 部分数据（执行列表截断/逐执行失败/预算收口）不写缓存：
+			// 否则缺失会随 30min TTL 固化成"稳定错误"。
+			var partial bool
+			allTasks, _, swrErr = swrLoadJSONGuarded[[]zentaosdk.Task](s.cache, "tasks:all", 0, 30*time.Minute,
 				func(ctx context.Context) ([]zentaosdk.Task, error) {
-					return s.fetchTasksAcrossExecutions(60 * time.Second)
+					tasks, inc, terr := s.fetchTasksAcrossExecutions(60 * time.Second)
+					partial = inc
+					return tasks, terr
 				},
 				func(t []zentaosdk.Task) bool { return len(t) == 0 },
 				"任务全量遍历为空（疑似会话失效），不缓存空结果",
+				func([]zentaosdk.Task) bool { return partial },
 			)
 			if swrErr != nil {
 				return nil, swrErr
 			}
 		} else {
-			allTasks, err = s.fetchTasksAcrossExecutions(60 * time.Second)
+			allTasks, _, err = s.fetchTasksAcrossExecutions(60 * time.Second)
 			if err != nil {
 				return nil, err
 			}
@@ -142,7 +148,7 @@ func (s *TaskService) filterTasks(query *dto.TaskQueryDTO) (*utils.ChainFilter[z
 		}
 	} else {
 		// productId 缺省或 0：直接全 execution 收集（dashboard 同款），独立 60s 预算
-		allTasks, err = s.fetchTasksAcrossExecutions(60 * time.Second)
+		allTasks, _, err = s.fetchTasksAcrossExecutions(60 * time.Second)
 		if err != nil {
 			return nil, err
 		}

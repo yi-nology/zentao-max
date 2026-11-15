@@ -27,15 +27,17 @@ func crawlByIDsGrouped[T any](
 	ids []int,
 	workers int,
 	fetchOne func(ctx context.Context, id int) ([]T, error),
-) [][]T {
+) ([][]T, int) {
 	t0 := time.Now()
 	results, err := fanout.Map(ctx, ids, workers, fetchOne)
 
+	failed := 0
 	if err != nil {
 		var fe *fanout.Error
 		if errors.As(err, &fe) {
+			failed = len(fe.Failed)
 			logger.Warn("按 ID 爬取部分失败（预算收口/单项错误，返回已收集部分）",
-				"failed", len(fe.Failed),
+				"failed", failed,
 				"total", len(ids),
 				"elapsed", time.Since(t0).Round(time.Millisecond),
 			)
@@ -48,9 +50,10 @@ func crawlByIDsGrouped[T any](
 	logger.Info("按 ID 爬取完成",
 		"collected", collected,
 		"total", len(ids),
+		"failed", failed,
 		"elapsed", time.Since(t0).Round(time.Millisecond),
 	)
-	return results
+	return results, failed
 }
 
 // crawlByIDs 扁平化 + 按 ID 去重版（dedupID 非 nil 时），供「只要全集、
@@ -61,8 +64,8 @@ func crawlByIDs[T any](
 	workers int,
 	dedupID func(T) int,
 	fetchOne func(ctx context.Context, id int) ([]T, error),
-) []T {
-	grouped := crawlByIDsGrouped(ctx, ids, workers, fetchOne)
+) ([]T, int) {
+	grouped, failed := crawlByIDsGrouped(ctx, ids, workers, fetchOne)
 
 	var out []T
 	seen := map[int]struct{}{}
@@ -78,7 +81,7 @@ func crawlByIDs[T any](
 			out = append(out, item)
 		}
 	}
-	return out
+	return out, failed
 }
 
 // crawlAcrossExecutions 跨执行并行爬取的统一入口（2026-11-04 破坏性重构：
@@ -94,15 +97,16 @@ func crawlAcrossExecutions[T any](
 	budget time.Duration,
 	dedupID func(T) int,
 	fetchOne func(ctx context.Context, execID int) ([]T, error),
-) ([]T, error) {
+) ([]T, bool, error) {
 	t0 := time.Now()
-	allExecs, err := allExecutionsViaSWR(cache, client)
+	allExecs, execIncomplete, err := allExecutionsViaSWR(cache, client)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	logger.Info("跨执行爬取：执行列表就绪",
 		"elapsed", time.Since(t0).Round(time.Millisecond),
 		"executions", len(allExecs),
+		"execIncomplete", execIncomplete,
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
@@ -111,12 +115,14 @@ func crawlAcrossExecutions[T any](
 	for i, e := range allExecs {
 		execIDs[i] = e.ID
 	}
-	return crawlByIDs(ctx, execIDs, crawlWorkers, dedupID, fetchOne), nil
+	items, failed := crawlByIDs(ctx, execIDs, crawlWorkers, dedupID, fetchOne)
+	incomplete := execIncomplete || failed > 0 || ctx.Err() != nil
+	return items, incomplete, nil
 }
 
 // fetchTasksAcrossExecutions tasks 版爬取（fetch 走 GetTasksContext，
 // ctx 能掐断在途 HTTP）。
-func (s *TaskService) fetchTasksAcrossExecutions(budget time.Duration) ([]zentaosdk.Task, error) {
+func (s *TaskService) fetchTasksAcrossExecutions(budget time.Duration) ([]zentaosdk.Task, bool, error) {
 	return crawlAcrossExecutions(s.cache, s.client, budget, nil,
 		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
 			return s.client.GetTasksContext(ctx, execID, 1, 10000)
@@ -125,7 +131,7 @@ func (s *TaskService) fetchTasksAcrossExecutions(budget time.Duration) ([]zentao
 
 // fetchStoriesAcrossExecutions stories 版爬取（跨执行去重：同一需求挂多
 // 执行只算一次；fetch 走 GetStoriesByExecutionContext）。
-func (s *StoryService) fetchStoriesAcrossExecutions(budget time.Duration) ([]zentaosdk.Story, error) {
+func (s *StoryService) fetchStoriesAcrossExecutions(budget time.Duration) ([]zentaosdk.Story, bool, error) {
 	return crawlAcrossExecutions(s.cache, s.client, budget, func(st zentaosdk.Story) int { return st.ID },
 		func(ctx context.Context, execID int) ([]zentaosdk.Story, error) {
 			return s.client.GetStoriesByExecutionContext(ctx, execID, 1, 10000)

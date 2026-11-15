@@ -177,13 +177,18 @@ const DashboardCacheTTL = 30 * time.Minute
 // cache，前端切日期看到的"过滤后数据"实际是第一次请求时的日期过滤过的旧数据
 // （V040+ 教训）。
 func (s *DashboardService) GetDashboardContext(ctx context.Context, productID int, startDate, endDate string, forceRefresh bool) (*vo.DashboardVO, error) {
+	// partial 标记本次回源结果是否不完整（源失败/执行截断/预算耗尽）；
+	// 不完整结果只返回给调用方、不写缓存（下次请求重新回源）。
+	var partial bool
 	loader := func(ctx context.Context) ([]byte, error) {
-		d, err := s.fetchDashboard(ctx, productID, startDate, endDate)
+		d, inc, err := s.fetchDashboard(ctx, productID, startDate, endDate)
 		if err != nil {
 			return nil, err
 		}
+		partial = inc
 		return json.Marshal(d)
 	}
+	cacheable := func([]byte) bool { return !partial }
 	if s.cache != nil && productID > 0 {
 		// 缓存键含日期范围（不同时间范围不共享缓存）
 		cacheKey := fmt.Sprintf("%s:%s:%s", storage.EntityDashboard, startDate, endDate)
@@ -192,9 +197,9 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 			err    error
 		)
 		if forceRefresh {
-			result, err = s.cache.GetOrLoadBypass(ctx, cacheKey, productID, DashboardCacheTTL, loader)
+			result, err = s.cache.GetOrLoadBypassGuarded(ctx, cacheKey, productID, DashboardCacheTTL, loader, cacheable)
 		} else {
-			result, err = s.cache.GetOrLoadSWR(ctx, cacheKey, productID, DashboardCacheTTL, loader)
+			result, err = s.cache.GetOrLoadSWRGuarded(ctx, cacheKey, productID, DashboardCacheTTL, loader, cacheable)
 		}
 		if err != nil {
 			return nil, err
@@ -208,7 +213,8 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 		dashboard.Stale = result.Stale
 		return &dashboard, nil
 	}
-	return s.fetchDashboard(ctx, productID, startDate, endDate)
+	d, _, err := s.fetchDashboard(ctx, productID, startDate, endDate)
+	return d, err
 }
 
 // fetchDashboard 真正从禅道拉数据并聚合（原 GetDashboardContext 主体）
@@ -221,16 +227,20 @@ func (s *DashboardService) GetDashboardContext(ctx context.Context, productID in
 // Session 模式专属：cache 命中（L1/L2 fresh）直接返；cache miss 走 pool
 // 调 session.DoJSONRaw 拿原始字节；写后 doSessionPost 触发 cache.InvalidateEntity
 // 强制下次读回源。详见 backend/internal/infra/zentao/session_cache.go / session_pool.go。
-func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, error) {
+func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, startDate, endDate string) (*vo.DashboardVO, bool, error) {
 	dashboard := &vo.DashboardVO{}
 
 	var (
-		bugs     []zentaosdk.Bug
-		stories  []zentaosdk.Story
-		execCtxs []myzentao.ExecutionContext
-		wg       sync.WaitGroup
-		bgCtx    context.Context
-		cancel   context.CancelFunc
+		bugs                []zentaosdk.Bug
+		stories             []zentaosdk.Story
+		execCtxs            []myzentao.ExecutionContext
+		bugsErr             error
+		storiesErr          error
+		execErr             error
+		execCrawlIncomplete bool
+		wg                  sync.WaitGroup
+		bgCtx               context.Context
+		cancel              context.CancelFunc
 	)
 
 	// 总超时保护：任务统计靠遍历执行收集（受限于禅道接口无产品级任务端点），
@@ -247,10 +257,9 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 			return
 		default:
 		}
-		var err error
-		bugs, err = s.client.GetAllBugsContext(bgCtx, productID)
-		if err != nil {
-			logger.Error("Failed to fetch bugs for dashboard", "error", err)
+		bugs, bugsErr = s.client.GetAllBugsContext(bgCtx, productID)
+		if bugsErr != nil {
+			logger.Error("Failed to fetch bugs for dashboard", "error", bugsErr)
 		}
 	})
 	async.GoSafe(func() {
@@ -260,10 +269,9 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 			return
 		default:
 		}
-		var err error
-		stories, err = s.client.GetAllStoriesContext(bgCtx, productID)
-		if err != nil {
-			logger.Error("Failed to fetch stories for dashboard", "error", err)
+		stories, storiesErr = s.client.GetAllStoriesContext(bgCtx, productID)
+		if storiesErr != nil {
+			logger.Error("Failed to fetch stories for dashboard", "error", storiesErr)
 		}
 	})
 	async.GoSafe(func() {
@@ -273,10 +281,12 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 			return
 		default:
 		}
-		var err error
-		execCtxs, err = s.client.GetExecutionsByProductContext(bgCtx, productID)
-		if err != nil {
-			logger.Error("Failed to fetch executions for dashboard", "error", err)
+		var crawl myzentao.ProductExecutionsCrawl
+		crawl, execErr = s.client.GetExecutionsByProductCrawlContext(bgCtx, productID)
+		execCtxs = crawl.Items
+		execCrawlIncomplete = crawl.Incomplete
+		if execErr != nil {
+			logger.Error("Failed to fetch executions for dashboard", "error", execErr)
 		}
 	})
 	wg.Wait()
@@ -284,8 +294,14 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 	// 检查 context 是否已取消
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, false, ctx.Err()
 	default:
+	}
+
+	// 任一数据源失败或执行爬取被截断：结果不完整，标记并拒绝写缓存
+	// （否则残缺数字会随 30min TTL 固化，真实案例：bugs=0 持续半小时）。
+	if bugsErr != nil || storiesErr != nil || execErr != nil || execCrawlIncomplete {
+		dashboard.Incomplete = true
 	}
 
 	// 按日期范围过滤（基于 OpenedDate）
@@ -329,7 +345,7 @@ func (s *DashboardService) fetchDashboard(ctx context.Context, productID int, st
 		dashboard.Incomplete = true
 	}
 
-	return dashboard, nil
+	return dashboard, dashboard.Incomplete, nil
 }
 
 // filterBugsByDateRange 按 OpenedDate 过滤 Bug 列表
@@ -403,6 +419,11 @@ func isDateInRange(rawDate, startDate, endDate string) bool {
 	return true
 }
 
+// projectOverviewBudget 项目概览硬预算：大实例上概览要遍历执行并逐执行
+// 拉任务（实测 project 9689 150s 无返回、请求永不完成），必须收口。
+// 超时返回已收集部分并标记 Incomplete（前端可提示"统计不完整"）。
+const projectOverviewBudget = 60 * time.Second
+
 // GetProjectOverviewContext 获取项目概览（支持 context 取消）
 func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projectID int) (*vo.ProjectOverviewVO, error) {
 	overview := &vo.ProjectOverviewVO{}
@@ -413,7 +434,10 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 	default:
 	}
 
-	project, err := s.client.GetProjectContext(ctx, projectID)
+	bgCtx, cancel := context.WithTimeout(ctx, projectOverviewBudget)
+	defer cancel()
+
+	project, err := s.client.GetProjectContext(bgCtx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("获取项目信息失败: %w", err)
 	}
@@ -432,21 +456,30 @@ func (s *DashboardService) GetProjectOverviewContext(ctx context.Context, projec
 		wg    sync.WaitGroup
 	)
 
+	var (
+		bugsErr     error
+		tasksFailed int
+	)
+
 	wg.Add(2)
 	async.GoSafe(func() {
 		defer wg.Done()
-		bugs, _ = s.client.GetAllBugsByProjectContext(ctx, projectID)
+		bugs, bugsErr = s.client.GetAllBugsByProjectContext(bgCtx, projectID)
 	})
 	async.GoSafe(func() {
 		defer wg.Done()
-		tasks = collectTasksByProjectContext(ctx, s.client, projectID)
+		tasks, tasksFailed = collectTasksByProjectContext(bgCtx, s.client, projectID)
 	})
 	wg.Wait()
 
+	// 调用方取消 → 原样返回 ctx 错误；否则把部分结果标记 Incomplete 返回
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
+	}
+	if bgCtx.Err() != nil || bugsErr != nil || tasksFailed > 0 {
+		overview.Incomplete = true
 	}
 
 	if bugs != nil {
@@ -495,12 +528,15 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 		execIDs[i] = ec.Exec.ID
 	}
 	taskBudget, cancelTasks := context.WithTimeout(ctx, timelogLayerBudget)
-	perExec := crawlByIDsGrouped(taskBudget, execIDs, crawlWorkers,
+	perExec, failedExecs := crawlByIDsGrouped(taskBudget, execIDs, crawlWorkers,
 		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
 			return s.client.GetTasksContext(ctx, execID, 1, 200)
 		})
 	cancelTasks()
 	if err := taskBudget.Err(); err != nil && ctx.Err() == nil {
+		result.Incomplete = true
+	}
+	if failedExecs > 0 {
 		result.Incomplete = true
 	}
 
@@ -524,12 +560,15 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 		taskIDs[i] = tc.task.ID
 	}
 	effortBudget, cancelEfforts := context.WithTimeout(ctx, timelogLayerBudget)
-	perTask := crawlByIDsGrouped(effortBudget, taskIDs, 4,
+	perTask, failedEfforts := crawlByIDsGrouped(effortBudget, taskIDs, 4,
 		func(ctx context.Context, taskID int) ([]zentaosdk.EffortEntry, error) {
 			return s.client.GetTaskEffortsContext(ctx, taskID)
 		})
 	cancelEfforts()
 	if err := effortBudget.Err(); err != nil && ctx.Err() == nil {
+		result.Incomplete = true
+	}
+	if failedEfforts > 0 {
 		result.Incomplete = true
 	}
 
@@ -673,10 +712,13 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		for i, ec := range execCtxs {
 			execIDs[i] = ec.Exec.ID
 		}
-		tasksByExec := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
+		tasksByExec, failedTaskCrawls := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
 			func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
 				return s.client.GetTasksContext(ctx, execID, 1, 200)
 			})
+		if failedTaskCrawls > 0 {
+			result.Incomplete = true
+		}
 		for i, tasks := range tasksByExec {
 			for _, t := range tasks {
 				if strings.Contains(strings.ToLower(t.Name), kw) {
@@ -726,18 +768,24 @@ func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs 
 }
 
 // collectTasksByProjectContext 按项目收集任务（支持 context 取消）
-func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, projectID int) []zentaosdk.Task {
+// collectTasksByProjectContext 收集项目下全部执行的任务。
+// 返回 (任务列表, 失败执行数)：失败数>0 表示任务统计可能残缺（调用方据此
+// 标记 Incomplete），不再静默吞掉逐执行错误。
+func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, projectID int) ([]zentaosdk.Task, int) {
 	executions, err := client.GetExecutionsContext(ctx, projectID, 1, 200)
 	if err != nil {
-		return nil
+		return nil, 1
 	}
-	// fanout 并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）。
-	// 上限对齐 crawlWorkers，理由同 collectTasksContext。
-	perExec, _ := fanout.Map(ctx, executions, crawlWorkers,
-		func(ctx context.Context, e zentaosdk.Execution) ([]zentaosdk.Task, error) {
-			tasks, err := client.GetTasksContext(ctx, e.ID, 1, 200)
-			if err != nil {
-				return nil, nil
+	execIDs := make([]int, len(executions))
+	for i, e := range executions {
+		execIDs[i] = e.ID
+	}
+	// 有界并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）
+	perExec, failed := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
+		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
+			tasks, terr := client.GetTasksContext(ctx, execID, 1, 200)
+			if terr != nil {
+				return nil, terr
 			}
 			return tasks, nil
 		})
@@ -745,5 +793,5 @@ func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, 
 	for _, tasks := range perExec {
 		all = append(all, tasks...)
 	}
-	return all
+	return all, failed
 }

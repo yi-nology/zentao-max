@@ -67,6 +67,8 @@ type ProjectOverviewVO struct {
 	Bugs       BugStatsVO    `json:"bugs"`
 	Stories    StoryStatsVO  `json:"stories"`
 	Tasks      TaskStatsVO   `json:"tasks"`
+	// Incomplete 为 true 表示数据源部分失败/预算收口，统计可能残缺
+	Incomplete bool `json:"incomplete,omitempty"`
 }
 
 // ProjectInfoVO 项目基本信息

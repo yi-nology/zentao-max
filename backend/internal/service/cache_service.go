@@ -69,7 +69,7 @@ func (s *CacheService) GetOrLoad(
 			CachedAt:  cachedAt,
 		}, nil
 	}
-	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader, nil)
 }
 
 // GetOrLoadSWR 带 stale-while-revalidate 语义的查询（大成本回源场景专用，
@@ -78,12 +78,41 @@ func (s *CacheService) GetOrLoad(
 //   - 缓存已过期但有过期数据 → 立即返回过期数据（Stale=true）+ 后台异步回源刷新
 //     （singleflight 防重复打禅道）——用户零等待，刷新完成后下一次请求拿到新数据；
 //   - 完全无数据 → 阻塞回源（首次冷加载仍需等待，无法避免）。
+//
+// 「过期数据」仅限本进程写入的条目（storage.GetStale 按 boot 代际过滤）：
+// 重启前旧进程的缓存可能来自当时的上游故障/部分爬取，不能当 SWR 旧值秒回，
+// 只在该 key 的 loader 失败时作离线兜底（GetAnyStale）。
 func (s *CacheService) GetOrLoadSWR(
 	ctx context.Context,
 	entityType string,
 	productID int,
 	ttl time.Duration,
 	loader func(ctx context.Context) ([]byte, error),
+) (*CacheResult, error) {
+	return s.getOrLoadSWR(ctx, entityType, productID, ttl, loader, nil)
+}
+
+// GetOrLoadSWRGuarded 与 GetOrLoadSWR 相同，但 cacheable 返回 false 时只返回
+// 结果、不写缓存（含后台刷新路径）——用于「部分/不完整数据不固化」：
+// 下一次请求重新回源，避免截断结果被 30min TTL 钉死成"权威数据"。
+func (s *CacheService) GetOrLoadSWRGuarded(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+	cacheable func(data []byte) bool,
+) (*CacheResult, error) {
+	return s.getOrLoadSWR(ctx, entityType, productID, ttl, loader, cacheable)
+}
+
+func (s *CacheService) getOrLoadSWR(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+	cacheable func(data []byte) bool,
 ) (*CacheResult, error) {
 	if ttl <= 0 {
 		ttl = DefaultCacheTTL
@@ -95,18 +124,18 @@ func (s *CacheService) GetOrLoadSWR(
 		return &CacheResult{Data: cachedData, FromCache: true, CachedAt: cachedAt}, nil
 	}
 
-	// 2. 过期数据 → SWR：立即返回 + 后台刷新
+	// 2. 过期数据 → SWR：立即返回 + 后台刷新（仅本进程代际）
 	if staleData, staleAt, serr := s.store.GetStale(ctx, entityType, productID); serr == nil && staleData != nil {
 		logger.Info("SWR: serving stale while refreshing in background",
 			"entityType", entityType,
 			"productID", productID,
 			"cachedAt", staleAt)
-		s.triggerBackgroundRefresh(entityType, productID, ttl, loader)
+		s.triggerBackgroundRefresh(entityType, productID, ttl, loader, cacheable)
 		return &CacheResult{Data: staleData, FromCache: true, CachedAt: staleAt, Stale: true}, nil
 	}
 
 	// 3. 冷加载（阻塞，与 GetOrLoad 同路径）
-	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader, cacheable)
 }
 
 // blockingLoad 冷加载：singleflight 回源 → 写缓存 → 失败时 stale 兜底。
@@ -116,6 +145,7 @@ func (s *CacheService) blockingLoad(
 	productID int,
 	ttl time.Duration,
 	loader func(ctx context.Context) ([]byte, error),
+	cacheable func(data []byte) bool,
 ) (*CacheResult, error) {
 	// 回源（singleflight 击穿保护：并发同 entityType+productID 的请求
 	// 只有一个真正调 loader 打禅道，其余共享结果）
@@ -125,6 +155,13 @@ func (s *CacheService) blockingLoad(
 	})
 	if loadErr == nil {
 		// 回源成功，写缓存（异步避免阻塞）。
+		// cacheable 为 false（部分/不完整数据）→ 跳过写入，下次请求重新回源。
+		if cacheable != nil && !cacheable(freshData) {
+			logger.Warn("跳过写缓存：结果判定为不完整/不可缓存（下次请求将重新回源）",
+				"entityType", entityType,
+				"productID", productID)
+			return &CacheResult{Data: freshData, FromCache: false}, nil
+		}
 		// 关键：ctx 用调用方传入的 + 5s 超时（不是 Background），store 已 Close 时
 		// 错误能及时返回 + 5s 内必退出，避免 goroutine 永久 hang。
 		// GoSafe：panic 收编 + 统一 panic 日志，替代原手写 recover 块
@@ -144,8 +181,8 @@ func (s *CacheService) blockingLoad(
 		}, nil
 	}
 
-	// 回源失败，尝试用过期缓存兜底
-	staleData, staleAt, staleErr := s.store.GetStale(ctx, entityType, productID)
+	// 回源失败，尝试用过期缓存兜底（任意代际：离线兜底优先可用数据）
+	staleData, staleAt, staleErr := s.store.GetAnyStale(ctx, entityType, productID)
 	if staleErr == nil && staleData != nil {
 		logger.Warn("loader failed, serving stale cache as fallback",
 			"entityType", entityType,
@@ -170,7 +207,7 @@ const swrRefreshBudget = 150 * time.Second
 
 // triggerBackgroundRefresh 后台单飞刷新。ctx 独立于 HTTP 请求（Background+超时），
 // 请求结束后刷新继续进行；in-flight 时重复触发共享同一次回源，不会加倍打禅道。
-func (s *CacheService) triggerBackgroundRefresh(entityType string, productID int, ttl time.Duration, loader func(context.Context) ([]byte, error)) {
+func (s *CacheService) triggerBackgroundRefresh(entityType string, productID int, ttl time.Duration, loader func(context.Context) ([]byte, error), cacheable func(data []byte) bool) {
 	key := fmt.Sprintf("%s:%d", entityType, productID)
 	async.GoSafe(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), swrRefreshBudget)
@@ -187,6 +224,12 @@ func (s *CacheService) triggerBackgroundRefresh(entityType string, productID int
 				"entityType", entityType,
 				"productID", productID,
 				"error", err)
+			return
+		}
+		if cacheable != nil && !cacheable(data) {
+			logger.Warn("SWR background refresh 结果不可缓存，跳过写入（下次请求重新回源）",
+				"entityType", entityType,
+				"productID", productID)
 			return
 		}
 		writeCtx, wcancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -213,10 +256,22 @@ func (s *CacheService) GetOrLoadBypass(
 	ttl time.Duration,
 	loader func(ctx context.Context) ([]byte, error),
 ) (*CacheResult, error) {
+	return s.GetOrLoadBypassGuarded(ctx, entityType, productID, ttl, loader, nil)
+}
+
+// GetOrLoadBypassGuarded 显式刷新 + 可缓存判定（不完整结果不写缓存）。
+func (s *CacheService) GetOrLoadBypassGuarded(
+	ctx context.Context,
+	entityType string,
+	productID int,
+	ttl time.Duration,
+	loader func(ctx context.Context) ([]byte, error),
+	cacheable func(data []byte) bool,
+) (*CacheResult, error) {
 	if ttl <= 0 {
 		ttl = DefaultCacheTTL
 	}
-	return s.blockingLoad(ctx, entityType, productID, ttl, loader)
+	return s.blockingLoad(ctx, entityType, productID, ttl, loader, cacheable)
 }
 
 // Invalidate 使指定缓存失效

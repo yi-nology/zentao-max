@@ -754,7 +754,7 @@ func collectTasksContext(ctx context.Context, client *myzentao.Client, execCtxs 
 	// ErrPoolBusy 且失败被吞（见下方 return nil, nil），统计凭空缺数据。
 	perExec, _ := fanout.Map(ctx, execCtxs, crawlWorkers,
 		func(ctx context.Context, ec myzentao.ExecutionContext) ([]zentaosdk.Task, error) {
-			tasks, err := client.GetTasksContext(ctx, ec.Exec.ID, 1, 200)
+			tasks, err := client.GetTasksContext(ctx, ec.Exec.ID, 1, 10000)
 			if err != nil {
 				return nil, nil // 单个执行失败不阻断整体收集
 			}

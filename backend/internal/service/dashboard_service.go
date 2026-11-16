@@ -530,7 +530,7 @@ func (s *DashboardService) GetPersonalTimelogContext(ctx context.Context, accoun
 	taskBudget, cancelTasks := context.WithTimeout(ctx, timelogLayerBudget)
 	perExec, failedExecs := crawlByIDsGrouped(taskBudget, execIDs, crawlWorkers,
 		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
-			return s.client.GetTasksContext(ctx, execID, 1, 200)
+			return s.client.GetTasksContext(ctx, execID, 1, 10000)
 		})
 	cancelTasks()
 	if err := taskBudget.Err(); err != nil && ctx.Err() == nil {
@@ -714,7 +714,7 @@ func (s *DashboardService) SearchContext(ctx context.Context, keyword string, pr
 		}
 		tasksByExec, failedTaskCrawls := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
 			func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
-				return s.client.GetTasksContext(ctx, execID, 1, 200)
+				return s.client.GetTasksContext(ctx, execID, 1, 10000)
 			})
 		if failedTaskCrawls > 0 {
 			result.Incomplete = true
@@ -783,7 +783,7 @@ func collectTasksByProjectContext(ctx context.Context, client *myzentao.Client, 
 	// 有界并发取各执行的任务（原串行逐个拉取，executions 多时明显变慢）
 	perExec, failed := crawlByIDsGrouped(ctx, execIDs, crawlWorkers,
 		func(ctx context.Context, execID int) ([]zentaosdk.Task, error) {
-			tasks, terr := client.GetTasksContext(ctx, execID, 1, 200)
+			tasks, terr := client.GetTasksContext(ctx, execID, 1, 10000)
 			if terr != nil {
 				return nil, terr
 			}

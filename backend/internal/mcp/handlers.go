@@ -8,6 +8,29 @@ import (
 )
 
 // handlePing 处理 ping 请求.
+// pageParams 解析 MCP 列表工具的分页参数：page 默认 1，pageSize 默认 def，
+// 上限 2000（防单次拉爆）。此前多个 handler 硬编码 pageSize 且忽略调用方
+// 参数——执行 9151 有 296 条任务时，MCP 客户端永远只能拿到前 100 条且无
+// 翻页手段（平台 API 翻页正常，仅 MCP 入口丢参）。
+func pageParams(params map[string]interface{}, def int) (page, pageSize int) {
+	page = 1
+	pageSize = def
+	if v, ok := params["page"]; ok {
+		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil && n > 0 {
+			page = n
+		}
+	}
+	if v, ok := params["pageSize"]; ok {
+		if n, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil && n > 0 {
+			pageSize = n
+		}
+	}
+	if pageSize > 2000 {
+		pageSize = 2000
+	}
+	return page, pageSize
+}
+
 func (s *MCPServer) handlePing(_ map[string]interface{}) (interface{}, error) {
 	return map[string]interface{}{
 		"status":  "ok",
@@ -38,8 +61,7 @@ func (s *MCPServer) handleGetProjects(params map[string]interface{}) (interface{
 		}
 	}
 	// 缺省分页兜底：不传时 Page=0 会在 client 侧切成 all[0:0] 空数组
-	query.Page = 1
-	query.PageSize = 2000
+	query.Page, query.PageSize = pageParams(params, 2000)
 
 	result, err := s.projectService.GetProjects(query)
 	if err != nil {
@@ -66,8 +88,7 @@ func (s *MCPServer) handleGetExecutions(params map[string]interface{}) (interfac
 		}
 	}
 	// 缺省分页兜底（同 get_projects）
-	query.Page = 1
-	query.PageSize = 2000
+	query.Page, query.PageSize = pageParams(params, 2000)
 
 	result, incomplete, err := s.executionService.GetExecutionsMeta(query)
 	if err != nil {
@@ -98,8 +119,7 @@ func (s *MCPServer) handleGetBugs(params map[string]interface{}) (interface{}, e
 	if v, ok := params["status"]; ok {
 		query.Status = fmt.Sprintf("%v", v)
 	}
-	query.Page = 1
-	query.PageSize = 100
+	query.Page, query.PageSize = pageParams(params, 100)
 
 	result, err := s.bugService.GetBugs(query)
 	if err != nil {
@@ -120,8 +140,7 @@ func (s *MCPServer) handleGetStories(params map[string]interface{}) (interface{}
 			query.ProductID = id
 		}
 	}
-	query.Page = 1
-	query.PageSize = 100
+	query.Page, query.PageSize = pageParams(params, 100)
 
 	result, err := s.storyService.GetStories(query)
 	if err != nil {
@@ -147,8 +166,7 @@ func (s *MCPServer) handleGetTasks(params map[string]interface{}) (interface{}, 
 			query.ExecutionID = id
 		}
 	}
-	query.Page = 1
-	query.PageSize = 100
+	query.Page, query.PageSize = pageParams(params, 100)
 
 	result, err := s.taskService.GetTasks(query)
 	if err != nil {
